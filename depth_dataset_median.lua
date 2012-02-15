@@ -117,7 +117,10 @@ function preSortData(wPatch, hPatch, use_median)
    -- Compute histogram
    --print("Calculating patches median depth...")
    print("Computing the histogram of depths...")
-   local ySorted,sorti = torch.sort(patches:select(2,3), 1)
+   local ySorted,sorti
+   if use_median then
+      ySorted,sorti = torch.sort(patches:select(2,3), 1)
+   end
    
    for iBin = 1,numberOfBins do
       patchesMedianDepth[iBin] = {}
@@ -125,12 +128,17 @@ function preSortData(wPatch, hPatch, use_median)
    
    local firstIndex = true
    local lastPatchIndex = 1
+   local i
    xlua.progress(0, numberOfPatches)
    for origi = 1,numberOfPatches do
       if (math.mod(origi, 1000) == 0) then
 	 xlua.progress(origi, numberOfPatches)
-      end 
-      local i = sorti[origi]
+      end
+      if use_median then
+	 i = sorti[origi]
+      else
+	 i = origi
+      end
       local imo = patches[i][1]
       local yo = patches[i][2]
       local xo = patches[i][3]

@@ -112,8 +112,11 @@ if not opt.network then
 
    for epoch = 1,opt.nEpochs do
       print("Epoch " .. epoch)
+      xlua.progress(0, trainData:size())
       for t = 1,trainData:size() do
-	 xlua.progress(t, trainData:size())
+	 if (math.mod(t, 100) == 0) then
+	    xlua.progress(t, trainData:size())
+	 end
 	 local sample = trainData[t]
 	 local input = sample[1]
 	 local target = sample[2]
