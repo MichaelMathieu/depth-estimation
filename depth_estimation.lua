@@ -21,6 +21,12 @@ op:option{'-e', '--num-epochs', action='store', dest='nEpochs', default=10,
 	  help='Number of epochs'}
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
+op:option{'-i', '--input-image', action='store', dest='input_image', default=nil,
+	  help='Run network on image. Must be the number of the image (no .jpg)'}
+op:option{'-o', '--output_mode', action='store', dest='output_model', default='model',
+	  help='Name of the file to save the trained model'}
+op:option{'-d', '--delta', action='store', dest='delta', default=10,
+	  help='Delta between two consecutive frames'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
@@ -78,17 +84,10 @@ if not opt.network then
 
    model:add(nn.SpatialConvolution(128, 200, 5, 5))
    model:add(nn.Tanh())
-
    spatial = nn.SpatialClassifier()
-   --spatial:add(nn.Reshape(128*5*5))
    spatial:add(nn.Linear(200,#classes))
-   --spatial:add(nn.Reshape(#classes, 1))
-   --spatial:add(nn.Linear(128*5*5,200))
-   --spatial:add(nn.Tanh())
-   --spatial:add(nn.Linear(200,#classes))
    model:add(spatial)
-   --model:add(nn.Reshape(128*5*5))
-   --model:add(nn.Linear(128*5*5,#classes))
+
    --[[
    model:add(nn.Reshape(128*5*5))
    model:add(nn.Linear(128*5*5,200))
@@ -105,7 +104,7 @@ criterion = nn.DistNLLCriterion()
 criterion.targetIsProbability = true
 
 if not opt.network then
-   loadData(opt.num_input_images, 10)
+   loadData(opt.num_input_images, opt.delta)
    trainData = generateData(opt.n_train_set, 32, 32, true, opt.two_frames)
    testData = generateData(opt.n_test_set, 32, 32, false, opt.two_frames)
 
@@ -117,7 +116,6 @@ if not opt.network then
 	 xlua.progress(t, trainData:size())
 	 local sample = trainData[t]
 	 local input = sample[1]
-	 --image.display{win=painter, image=input}
 	 local target = sample[2]
 	 
 	 local feval = function(x)
@@ -151,27 +149,22 @@ if not opt.network then
 	 xlua.progress(t, testData:size())
 	 local sample = testData[t]
 	 local input = sample[1]
-	 --image.display{win=painter, image=input}
 	 local target = sample[2]
 	 
 	 local output = model:forward(input)
 	 confusion:add(output, target)
 	 
       end
-      
-
-
-      --trainer = nn.StochasticGradient(model, criterion)
-      --trainer.learningRate = 1e-2
-      --trainer:train(trainData)
-      
+            
       print(confusion)
    end
 
-   torch.save('model', model)
-else
-   local im = image.loadJPG('000001715.jpg')
-   local im2 = image.loadJPG('000001725.jpg')
+   torch.save(opt.output_model, model)
+end
+
+if opt.input_image then
+   local im = image.loadJPG('data/images/' .. opt.input_image .. '.jpg')
+   local im2 = image.loadJPG(string.format('data/images/%09d.jpg', tonumber(opt.input_image)+opt.delta))
    local h = 360
    local w = 640
    local input = torch.Tensor(2, h, w)
