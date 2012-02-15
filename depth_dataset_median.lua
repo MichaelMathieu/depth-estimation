@@ -36,11 +36,11 @@ function loadImage(filebasename)
 end
 
 function getClass(depth)
-   
    local step = maxDepth/nClasses
    local class = math.ceil(depth/step)
-   
-   if class>nClasses then return nClases end
+   if class > nClasses then
+      return nClases
+   end
    return class
 end
 
@@ -109,7 +109,7 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    if use_2_pics then
       dataset.patches = torch.Tensor(nSamples, 2, h, w)
    else
-		print("Using one pic")
+      print("Using one pic")
       dataset.patches = torch.Tensor(nSamples, 1, h, w)
    end
    dataset.targets = torch.Tensor(nSamples, nClasses):zero()
@@ -135,12 +135,12 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    
    local y,sorti = torch.sort(patches, 1)
    
-   local maxDepth = y[numberOfPatches][3]
+   maxDepth = y[numberOfPatches][3]
    local numberOfBins = math.ceil(maxDepth)
    for iBin = 1,numberOfBins do
       patchesMedianDepth[iBin] = {}
    end
-
+   
    local firstIndex = true
    local lastPatchIndex = 1
    for origi = 1,numberOfPatches do
@@ -149,6 +149,7 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
       local yo = patches[i][1]
       local xo = patches[i][2]
       if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
+	 --[[ (I temporarly don't use the median because it is way faster that way)
 	 for origj = lastPatchIndex,numberOfPatches do
             local j = sorti[origj][2]
             local x = patches[j][2]
@@ -172,6 +173,8 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
 	 end
 	 
 	 local currentPatchMedianDepth = median(currentPatchPts)
+	 --]]
+	 local currentPatchMedianDepth = patches[i][3]
 	 local binIndex = math.ceil(currentPatchMedianDepth)
 	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, yo, xo})
 	 
@@ -185,7 +188,7 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    while nGood <= nSamples do
       local randomBinIndex = randInt(1,numberOfBins)
       local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
-      if sizeOfBin>0 then
+      if sizeOfBin > 0 then
 	 local randomPatchIndex = randInt(1, sizeOfBin)
 	 local y = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][2])
 	 local x = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][3])
