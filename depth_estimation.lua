@@ -21,6 +21,12 @@ op:option{'-e', '--num-epochs', action='store', dest='nEpochs', default=10,
 	  help='Number of epochs'}
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
+op:option{'-i', '--input-image', action='store', dest='input_image', default=nil,
+	  help='Run network on image. Must be the number of the image (no .jpg)'}
+op:option{'-o', '--output_mode', action='store', dest='output_model', default='model',
+	  help='Name of the file to save the trained model'}
+op:option{'-d', '--delta', action='store', dest='delta', default=10,
+	  help='Delta between two consecutive frames'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
@@ -105,7 +111,7 @@ criterion = nn.DistNLLCriterion()
 criterion.targetIsProbability = true
 
 if not opt.network then
-   loadData(opt.num_input_images, 10)
+   loadData(opt.num_input_images, opt.delta)
    trainData = generateData(opt.n_train_set, 32, 32, true, opt.two_frames)
    testData = generateData(opt.n_test_set, 32, 32, false, opt.two_frames)
 
@@ -168,10 +174,12 @@ if not opt.network then
       print(confusion)
    end
 
-   torch.save('model', model)
-else
-   local im = image.loadJPG('000001715.jpg')
-   local im2 = image.loadJPG('000001725.jpg')
+   torch.save(opt.output_model, model)
+end
+
+if opt.input_image then
+   local im = image.loadJPG(opt.input_image .. '.jpg')
+   local im2 = image.loadJPG((tonumber(opt.input_image)+opt.delta) .. '.jpg')
    local h = 360
    local w = 640
    local input = torch.Tensor(2, h, w)
