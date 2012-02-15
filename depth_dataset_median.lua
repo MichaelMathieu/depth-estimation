@@ -12,7 +12,7 @@ patchesMedianDepth = {}
 nClasses = 2
 
 function loadImage(filebasename)
-   local imfilename = 'data/images/' .. filebasename .. '.jpg'
+   local imfilename = 'data/imgs/' .. filebasename .. '.jpg'
    local depthfilename = 'data/depths/' .. filebasename .. '.mat'
    --local imfilename = filebasename .. '.jpg'
    --local depthfilename = filebasename .. '.mat'
@@ -131,25 +131,36 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    
    print("Calculating patches median depth...")
    local currentPatchPts = {}
-   local patches = raw_data[1][2]
+   patches = raw_data[1][2]
    local numberOfPatches = patches:size(1)
    --local numberOfPatches = 2000
-   
+
+   local firstIndex = true
+   local lastPatchIndex = 1
    for i = 1,numberOfPatches do
 		xlua.progress(i, numberOfPatches)
 		local yo = patches[i][1]
 		local xo = patches[i][2]
-		
 		if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
-			for j = 1,numberOfPatches do
-				local y = patches[j][1]
-				local x = patches[j][2]
-				
-				if (y>=yo-h/2+1) and (y<=yo+h/2) and (x>=xo-w/2+1) and (x<=xo+w/2) then
-					local depth = patches[j][3]
-					table.insert(currentPatchPts, depth)
-					
-				end
+			for j = lastPatchIndex,numberOfPatches do
+            local x = patches[j][2]
+            if x>xo+w/2 then
+               firstIndex = true
+               break
+            end
+				if x>=xo-w/2 then
+               if firstIndex then
+                  lastPatchIndex = j-1
+                  firstIndex = false
+               end
+               local y = patches[j][1]
+   				
+   				if (y>=yo-h/2+1) and (y<=yo+h/2) then
+   					local depth = patches[j][3]
+   					table.insert(currentPatchPts, depth)
+   					
+   				end
+            end
 			end
 			
 			local currentPatchMedianDepth = median(currentPatchPts)
@@ -197,5 +208,5 @@ function loadData(nImgs, delta)
 	--preSortData()
 end
 
---loadData(2,100)
+--loadData(2,1)
 --generateData(1000, 32, 32, true, true)
