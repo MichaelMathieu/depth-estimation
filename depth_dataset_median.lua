@@ -7,6 +7,7 @@ require 'xlua'
 raw_data = {}
 w_imgs = 640
 h_imgs = 360
+patchesPerClass = {}
 patchesMedianDepth = {}
 nClasses = 2
 maxDepth = 0
@@ -15,14 +16,10 @@ numberOfBins = 0
 function loadImage(filebasename)
    local imfilename = 'data/images/' .. filebasename .. '.jpg'
    local depthfilename = 'data/depths/' .. filebasename .. '.mat'
-   if not paths.filep(imfilename) then
-      print('File ' .. imfilename .. 'not found. Skipping...')
-      return
-   end
-   if not paths.filep(depthfilename) then
-      print('File ' .. depthfilename .. 'not found. Skipping...')
-      return
-   end
+   --local imfilename = filebasename .. '.jpg'
+   --local depthfilename = filebasename .. '.mat'
+   assert(paths.filep(imfilename))
+   assert(paths.filep(depthfilename))
    local im = image.loadJPG(imfilename)
    local h_im = im:size(2)
    local w_im = im:size(3)
@@ -36,6 +33,7 @@ function loadImage(filebasename)
       depthPoints[i][3] = file_depth:readDouble()
    end
    table.insert(raw_data, {im, depthPoints})
+   
 end
 
 function getClass(depth)
@@ -105,13 +103,12 @@ function preSortData(wPatch, hPatch)
    local firstIndex = true
    local lastPatchIndex = 1
    for origi = 1,numberOfPatches do
-      xlua.progress(origi, numberOfPatches)
       local i = sorti[origi][2]
+      xlua.progress(origi, numberOfPatches)
       local yo = patches[i][1]
       local xo = patches[i][2]
       if (yo-hPatch/2 >= 1) and (yo+hPatch/2-1 <= h_imgs) and
          (xo-wPatch/2 >= 1) and (xo+wPatch/2-1 <= w_imgs) then
-
 	 --[[ (I temporarly don't use the median because it is way faster that way)
 	 local currentPatchPts = {}
 	 for origj = lastPatchIndex,numberOfPatches do
@@ -127,23 +124,22 @@ function preSortData(wPatch, hPatch)
                   firstIndex = false
                end
                local y = patches[j][1]
+   				
 	       if (y>=yo-hPatch/2) and (y<=yo+hPatch-1/2) then
 		  local depth = patches[j][3]
-		  table.insert(currentPatchPts, depth)		  
+		  table.insert(currentPatchPts, depth)
+		  
 	       end
             end
 	 end
 	 
 	 local currentPatchMedianDepth = median(currentPatchPts)
 	 --]]
-
 	 local currentPatchMedianDepth = patches[i][3]
 	 local binIndex = math.ceil(currentPatchMedianDepth)
 	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, yo, xo})
 	 
-	 for k in pairs(currentPatchPts) do
-	    currentPatchPts[k] = nil
-	 end
+	 for k in pairs(currentPatchPts) do currentPatchPts[k]=nil end
 	 
       end
    end
@@ -204,3 +200,6 @@ function loadData(nImgs, delta, geometry)
    print("Pre-sorting images")
    preSortData(geometry[1], geometry[2])
 end
+
+--loadData(2,1)
+--generateData(1000, 32, 32, true, true)
