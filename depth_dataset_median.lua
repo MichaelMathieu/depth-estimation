@@ -124,10 +124,7 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    end
    --]]
    
-   numberOfBins = 20
-   for iBin = 1,numberOfBins do
-		patchesMedianDepth[iBin] = {}
-   end
+   
    
    print("Calculating patches median depth...")
    local currentPatchPts = {}
@@ -135,14 +132,23 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    local numberOfPatches = patches:size(1)
    --local numberOfPatches = 2000
 
+   y,sorti = torch.sort(patches, 1)
+   
+   local numberOfBins = math.ceil(y[numberOfPatches][3])
+   for iBin = 1,numberOfBins do
+      patchesMedianDepth[iBin] = {}
+   end
+
    local firstIndex = true
    local lastPatchIndex = 1
-   for i = 1,numberOfPatches do
-		xlua.progress(i, numberOfPatches)
+   for origi = 1,numberOfPatches do
+		i = sorti[origi][2]
+      xlua.progress(i, numberOfPatches)
 		local yo = patches[i][1]
 		local xo = patches[i][2]
 		if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
-			for j = lastPatchIndex,numberOfPatches do
+			for origj = lastPatchIndex,numberOfPatches do
+            j = sorti[origj][2]
             local x = patches[j][2]
             if x>xo+w/2 then
                firstIndex = true
