@@ -209,8 +209,8 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
 	 local y = math.ceil(patch_descr[3])
 	 local x = math.ceil(patch_descr[4])
 	 local patch = image.rgb2y(raw_data[im_index][1]:sub(1, 3,
-							     y-hPatch/2+1, y+hPatch/2-1,
-							     x-wPatch/2+1, x+wPatch/2-1))
+							     y-hPatch/2, y+hPatch/2-1,
+							     x-wPatch/2, x+wPatch/2-1))
 	 dataset.patches[nGood][1]:copy(patch)
 	 if use_2_pics then
 	    local patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
