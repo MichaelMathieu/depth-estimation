@@ -191,7 +191,7 @@ function loadData(nImgs, delta)
    print("Loading images")
    for i = 0,nImgs-1 do
       xlua.progress(i+1, nImgs)
-      loadImage(string.format("%09d", i*delta+1000))
+      loadImage(string.format("%09d", i*delta))
    end
    --print("Pre-sorting images")
 	--preSortData()
