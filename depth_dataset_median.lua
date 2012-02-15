@@ -78,6 +78,7 @@ end
 
 -- Get the median of a table.
 function median(t)
+  print(#t)
   local temp={}
 
   -- deep copy table so that when we sort it, the original is unchanged
@@ -140,61 +141,62 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    local firstIndex = true
    local lastPatchIndex = 1
    for origi = 1,numberOfPatches do
-		i = sorti[origi][2]
-      xlua.progress(i, numberOfPatches)
-		local yo = patches[i][1]
-		local xo = patches[i][2]
-		if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
-			for origj = lastPatchIndex,numberOfPatches do
+      i = sorti[origi][2]
+      --xlua.progress(i, numberOfPatches)
+      local yo = patches[i][1]
+      local xo = patches[i][2]
+      if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
+	 for origj = lastPatchIndex,numberOfPatches do
             j = sorti[origj][2]
             local x = patches[j][2]
             if x>xo+w/2 then
                firstIndex = true
                break
             end
-				if x>=xo-w/2 then
+	    if x>=xo-w/2 then
                if firstIndex then
                   lastPatchIndex = j-1
                   firstIndex = false
                end
                local y = patches[j][1]
    				
-   				if (y>=yo-h/2+1) and (y<=yo+h/2) then
-   					local depth = patches[j][3]
-   					table.insert(currentPatchPts, depth)
-   					
-   				end
+	       if (y>=yo-h/2+1) and (y<=yo+h/2) then
+		  local depth = patches[j][3]
+		  table.insert(currentPatchPts, depth)
+		  
+	       end
             end
-			end
-			
-			local currentPatchMedianDepth = median(currentPatchPts)
-			local binIndex = math.ceil(currentPatchMedianDepth)
-			table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, yo, xo})
-			
-			for k in pairs(currentPatchPts) do currentPatchPts[k]=nil end
-			
-		end
+	 end
+	 
+	 local currentPatchMedianDepth = median(currentPatchPts)
+	 local binIndex = math.ceil(currentPatchMedianDepth)
+	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, yo, xo})
+	 
+	 for k in pairs(currentPatchPts) do currentPatchPts[k]=nil end
+	 
+      end
    end
    
    print("Sampling patches...")
    nGood = 1
    while nGood <= nSamples do
-		local randomBinIndex = randInt(1,numberOfBins)
-		local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
-		if sizeOfBin>0 then
-			local randomPatchIndex = randInt(1, sizeOfBin)
-			local y = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][2])
-			local x = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][3])
-			local patch = image.rgb2y(raw_data[1][1]:sub(1, 3, y-h/2+1, y+h/2, x-w/2+1, x+w/2))
-			dataset.patches[nGood][1]:copy(patch)
-			if use_2_pics then
-				local patch2 = image.rgb2y(raw_data[2][1]:sub(1, 3, y-h/2, y+h/2-1, x-w/2, x+w/2-1))
-				dataset.patches[nGood][2]:copy(patch2)
-			end
-			local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
-			dataset.targets[nGood][class] = 1
-			nGood = nGood + 1
-		end
+      local randomBinIndex = randInt(1,numberOfBins)
+      local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
+      if sizeOfBin>0 then
+	 local randomPatchIndex = randInt(1, sizeOfBin)
+	 local y = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][2])
+	 local x = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][3])
+	 local patch = image.rgb2y(raw_data[1][1]:sub(1, 3, y-h/2+1, y+h/2, x-w/2+1, x+w/2))
+	 dataset.patches[nGood][1]:copy(patch)
+	 if use_2_pics then
+	    local patch2 = image.rgb2y(raw_data[2][1]:sub(1, 3, y-h/2, y+h/2-1,
+							  x-w/2, x+w/2-1))
+	    dataset.patches[nGood][2]:copy(patch2)
+	 end
+	 local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
+	 dataset.targets[nGood][class] = 1
+	 nGood = nGood + 1
+      end
    end
    
    print("Done")
