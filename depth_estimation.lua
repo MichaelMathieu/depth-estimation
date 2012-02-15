@@ -84,17 +84,10 @@ if not opt.network then
 
    model:add(nn.SpatialConvolution(128, 200, 5, 5))
    model:add(nn.Tanh())
-
    spatial = nn.SpatialClassifier()
-   --spatial:add(nn.Reshape(128*5*5))
    spatial:add(nn.Linear(200,#classes))
-   --spatial:add(nn.Reshape(#classes, 1))
-   --spatial:add(nn.Linear(128*5*5,200))
-   --spatial:add(nn.Tanh())
-   --spatial:add(nn.Linear(200,#classes))
    model:add(spatial)
-   --model:add(nn.Reshape(128*5*5))
-   --model:add(nn.Linear(128*5*5,#classes))
+
    --[[
    model:add(nn.Reshape(128*5*5))
    model:add(nn.Linear(128*5*5,200))
@@ -123,7 +116,6 @@ if not opt.network then
 	 xlua.progress(t, trainData:size())
 	 local sample = trainData[t]
 	 local input = sample[1]
-	 --image.display{win=painter, image=input}
 	 local target = sample[2]
 	 
 	 local feval = function(x)
@@ -157,20 +149,13 @@ if not opt.network then
 	 xlua.progress(t, testData:size())
 	 local sample = testData[t]
 	 local input = sample[1]
-	 --image.display{win=painter, image=input}
 	 local target = sample[2]
 	 
 	 local output = model:forward(input)
 	 confusion:add(output, target)
 	 
       end
-      
-
-
-      --trainer = nn.StochasticGradient(model, criterion)
-      --trainer.learningRate = 1e-2
-      --trainer:train(trainData)
-      
+            
       print(confusion)
    end
 
@@ -178,8 +163,8 @@ if not opt.network then
 end
 
 if opt.input_image then
-   local im = image.loadJPG(opt.input_image .. '.jpg')
-   local im2 = image.loadJPG((tonumber(opt.input_image)+opt.delta) .. '.jpg')
+   local im = image.loadJPG('data/images/' .. opt.input_image .. '.jpg')
+   local im2 = image.loadJPG(string.format('data/images/%09d.jpg', tonumber(opt.input_image)+opt.delta))
    local h = 360
    local w = 640
    local input = torch.Tensor(2, h, w)
