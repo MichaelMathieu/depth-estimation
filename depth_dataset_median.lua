@@ -78,7 +78,6 @@ end
 
 -- Get the median of a table.
 function median(t)
-  print(#t)
   local temp={}
 
   -- deep copy table so that when we sort it, the original is unchanged
@@ -87,6 +86,10 @@ function median(t)
     if type(v) == 'number' then
       table.insert( temp, v )
     end
+ end
+
+  if (#temp == 0) then
+     print("error: median : empty table")
   end
 
   table.sort( temp )
@@ -142,25 +145,25 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    local lastPatchIndex = 1
    for origi = 1,numberOfPatches do
       local i = sorti[origi][2]
-      --xlua.progress(i, numberOfPatches)
+      xlua.progress(origi, numberOfPatches)
       local yo = patches[i][1]
       local xo = patches[i][2]
       if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
 	 for origj = lastPatchIndex,numberOfPatches do
             local j = sorti[origj][2]
             local x = patches[j][2]
-            if x>xo+w/2 then
+            if x>=xo+w/2 then
                firstIndex = true
                break
             end
 	    if x>=xo-w/2 then
                if firstIndex then
-                  lastPatchIndex = j-1
+                  lastPatchIndex = origj
                   firstIndex = false
                end
                local y = patches[j][1]
    				
-	       if (y>=yo-h/2+1) and (y<=yo+h/2) then
+	       if (y>=yo-h/2) and (y<=yo+h-1/2) then
 		  local depth = patches[j][3]
 		  table.insert(currentPatchPts, depth)
 		  
