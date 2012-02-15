@@ -7,7 +7,6 @@ require 'xlua'
 raw_data = {}
 w_imgs = 640
 h_imgs = 360
-patchesPerClass = {}
 patchesMedianDepth = {}
 nClasses = 2
 maxDepth = 0
@@ -16,10 +15,14 @@ numberOfBins = 0
 function loadImage(filebasename)
    local imfilename = 'data/images/' .. filebasename .. '.jpg'
    local depthfilename = 'data/depths/' .. filebasename .. '.mat'
-   --local imfilename = filebasename .. '.jpg'
-   --local depthfilename = filebasename .. '.mat'
-   assert(paths.filep(imfilename))
-   assert(paths.filep(depthfilename))
+   if not paths.filep(imfilename) then
+      print('File ' .. imfilename .. 'not found. Skipping...')
+      return
+   end
+   if not paths.filep(depthfilename) then
+      print('File ' .. depthfilename .. 'not found. Skipping...')
+      return
+   end
    local im = image.loadJPG(imfilename)
    local h_im = im:size(2)
    local w_im = im:size(3)
@@ -33,7 +36,6 @@ function loadImage(filebasename)
       depthPoints[i][3] = file_depth:readDouble()
    end
    table.insert(raw_data, {im, depthPoints})
-   
 end
 
 function getClass(depth)
@@ -87,59 +89,83 @@ function median(t)
   end
 end
 
-function preSortData(wPatch, hPatch)
-   print("Calculating patches median depth...")
-   local currentPatchPts = {}
-   local patches = raw_data[1][2]
-   local numberOfPatches = patches:size(1)
-   
-   local y,sorti = torch.sort(patches, 1)
-   
-   maxDepth = y[numberOfPatches][3]
+function preSortData(wPatch, hPatch, use_median)
+   -- Merge the patches of all the images
+   print("Merging the data from all the images...")
+   local numberOfPatches = 0
+   for iImg = 1,#raw_data do
+      numberOfPatches = numberOfPatches + raw_data[iImg][2]:size(1)
+   end
+   local patches = torch.Tensor(numberOfPatches, 4)
+   local iPatch = 1
+   maxDepth = 0
+   for iImg = 1,#raw_data-1 do
+      xlua.progress(iImg, #raw_data-1)
+      for iPatchInImg = 1,raw_data[iImg][2]:size(1) do
+	 patches[iPatch][1] = iImg
+	 patches[iPatch][2] = raw_data[iImg][2][iPatchInImg][1]
+	 patches[iPatch][3] = raw_data[iImg][2][iPatchInImg][2]
+	 patches[iPatch][4] = raw_data[iImg][2][iPatchInImg][3]
+	 if (patches[iPatch][4] > maxDepth) then
+	    maxDepth = patches[iPatch][4]
+	 end
+	 iPatch = iPatch + 1
+      end
+   end
    numberOfBins = math.ceil(maxDepth)
+
+   -- Compute histogram
+   --print("Calculating patches median depth...")
+   print("Computing the histogram of depths...")
+   local ySorted,sorti = torch.sort(patches:select(2,3), 1)
+   
    for iBin = 1,numberOfBins do
       patchesMedianDepth[iBin] = {}
    end
    
    local firstIndex = true
    local lastPatchIndex = 1
+   xlua.progress(0, numberOfPatches)
    for origi = 1,numberOfPatches do
-      local i = sorti[origi][2]
-      xlua.progress(origi, numberOfPatches)
-      local yo = patches[i][1]
-      local xo = patches[i][2]
+      if (math.mod(origi, 1000) == 0) then
+	 xlua.progress(origi, numberOfPatches)
+      end 
+      local i = sorti[origi]
+      local imo = patches[i][1]
+      local yo = patches[i][2]
+      local xo = patches[i][3]
       if (yo-hPatch/2 >= 1) and (yo+hPatch/2-1 <= h_imgs) and
          (xo-wPatch/2 >= 1) and (xo+wPatch/2-1 <= w_imgs) then
-	 --[[ (I temporarly don't use the median because it is way faster that way)
-	 for origj = lastPatchIndex,numberOfPatches do
-            local j = sorti[origj][2]
-            local x = patches[j][2]
-            if x>=xo+wPatch/2 then
-               firstIndex = true
-               break
-            end
-	    if x>=xo-wPatch/2 then
-               if firstIndex then
-                  lastPatchIndex = origj
-                  firstIndex = false
-               end
-               local y = patches[j][1]
-   				
-	       if (y>=yo-hPatch/2) and (y<=yo+hPatch-1/2) then
-		  local depth = patches[j][3]
-		  table.insert(currentPatchPts, depth)
-		  
+
+	 local currentPatchMedianDepth = 0
+	 if use_median then
+	    local currentPatchPts = {}
+	    for origj = lastPatchIndex,numberOfPatches do
+	       local j = sorti[origj]
+	       local x = patches[j][3]
+	       if x>=xo+wPatch/2 then
+		  firstIndex = true
+		  break
 	       end
-            end
+	       if x>=xo-wPatch/2 then
+		  if firstIndex then
+		     lastPatchIndex = origj
+		     firstIndex = false
+		  end
+		  local y = patches[j][2]
+		  if (y>=yo-hPatch/2) and (y<=yo+hPatch-1/2) then
+		     local depth = patches[j][4]
+		     table.insert(currentPatchPts, depth)		  
+		  end
+	       end
+	    end
+	    currentPatchMedianDepth = median(currentPatchPts)
+	 else
+	    currentPatchMedianDepth = patches[i][4]
 	 end
-	 
-	 local currentPatchMedianDepth = median(currentPatchPts)
-	 --]]
-	 local currentPatchMedianDepth = patches[i][3]
+
 	 local binIndex = math.ceil(currentPatchMedianDepth)
-	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, yo, xo})
-	 
-	 for k in pairs(currentPatchPts) do currentPatchPts[k]=nil end
+	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, imo, yo, xo})
 	 
       end
    end
@@ -170,14 +196,18 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
       local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
       if sizeOfBin > 0 then
 	 local randomPatchIndex = randInt(1, sizeOfBin)
-	 local y = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][2])
-	 local x = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][3])
-	 local patch = image.rgb2y(raw_data[1][1]:sub(1, 3, y-hPatch/2+1, y+hPatch/2,
-						            x-wPatch/2+1, x+wPatch/2))
+	 local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
+	 local im_index = math.ceil(patch_descr[2])
+	 local y = math.ceil(patch_descr[3])
+	 local x = math.ceil(patch_descr[4])
+	 local patch = image.rgb2y(raw_data[im_index][1]:sub(1, 3,
+							     y-hPatch/2+1, y+hPatch/2,
+							     x-wPatch/2+1, x+wPatch/2))
 	 dataset.patches[nGood][1]:copy(patch)
 	 if use_2_pics then
-	    local patch2 = image.rgb2y(raw_data[2][1]:sub(1, 3, y-hPatch/2, y+hPatch/2-1,
-							        x-wPatch/2, x+wPatch/2-1))
+	    local patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
+								   y-hPatch/2, y+hPatch/2-1,
+								   x-wPatch/2, x+wPatch/2-1))
 	    dataset.patches[nGood][2]:copy(patch2)
 	 end
 	 local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
@@ -198,8 +228,5 @@ function loadData(nImgs, delta, geometry)
       loadImage(string.format("%09d", i*delta))
    end
    print("Pre-sorting images")
-   preSortData(geometry[1], geometry[2])
+   preSortData(geometry[1], geometry[2], false) --temporarly not using median to improve speed
 end
-
---loadData(2,1)
---generateData(1000, 32, 32, true, true)
