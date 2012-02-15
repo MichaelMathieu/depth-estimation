@@ -102,7 +102,7 @@ function median(t)
 end
 
 function generateData(nSamples, w, h, is_train, use_2_pics)
-   dataset = {}
+   local dataset = {}
    if use_2_pics then
       dataset.patches = torch.Tensor(nSamples, 2, h, w)
    else
@@ -119,7 +119,7 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
       return nSamples
    end
    
-	--[[
+   --[[
    for i = 1,nClasses do
       assert(table.getn(patchesPerClass[i]) > nSamples/nClasses)
    end
@@ -127,12 +127,12 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    
    print("Calculating patches median depth...")
    local currentPatchPts = {}
-   patches = raw_data[1][2]
+   local patches = raw_data[1][2]
    local numberOfPatches = patches:size(1)
    
-   y,sorti = torch.sort(patches, 1)
+   local y,sorti = torch.sort(patches, 1)
    
-   maxDepth = y[numberOfPatches][3]
+   local maxDepth = y[numberOfPatches][3]
    local numberOfBins = math.ceil(maxDepth)
    for iBin = 1,numberOfBins do
       patchesMedianDepth[iBin] = {}
@@ -141,13 +141,13 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    local firstIndex = true
    local lastPatchIndex = 1
    for origi = 1,numberOfPatches do
-      i = sorti[origi][2]
+      local i = sorti[origi][2]
       --xlua.progress(i, numberOfPatches)
       local yo = patches[i][1]
       local xo = patches[i][2]
       if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
 	 for origj = lastPatchIndex,numberOfPatches do
-            j = sorti[origj][2]
+            local j = sorti[origj][2]
             local x = patches[j][2]
             if x>xo+w/2 then
                firstIndex = true
