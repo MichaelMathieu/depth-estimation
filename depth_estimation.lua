@@ -104,9 +104,9 @@ criterion = nn.DistNLLCriterion()
 criterion.targetIsProbability = true
 
 if not opt.network then
-   loadData(opt.num_input_images, opt.delta)
-   trainData = generateData(opt.n_train_set, 32, 32, true, opt.two_frames)
-   testData = generateData(opt.n_test_set, 32, 32, false, opt.two_frames)
+   loadData(opt.num_input_images, opt.delta, geometry)
+   trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
+   testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
 
    confusion = nn.ConfusionMatrix(classes)
 

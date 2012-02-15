@@ -11,6 +11,7 @@ patchesPerClass = {}
 patchesMedianDepth = {}
 nClasses = 2
 maxDepth = 0
+numberOfBins = 0
 
 function loadImage(filebasename)
    local imfilename = 'data/images/' .. filebasename .. '.jpg'
@@ -42,24 +43,6 @@ function getClass(depth)
       return nClases
    end
    return class
-end
-
-function preSortData()
-   for iClass = 1,nClasses do
-      patchesPerClass[iClass] = {}
-   end
-
-	for iImg = 1,(table.getn(raw_data)-1) do
-		xlua.progress(iImg, (table.getn(raw_data)-1))
-      local im = raw_data[iImg][1]
-      local patches = raw_data[iImg][2]
-      for iPatch = 1,patches:size(1) do
-			local y = patches[iPatch][1]
-			local x = patches[iPatch][2]
-			local depth = patches[iPatch][3]
-			table.insert(patchesPerClass[getClass(depth)], {iImg, y, x})
-      end
-   end
 end
 
 function randInt(a, b) --a included, b excluded
@@ -104,30 +87,7 @@ function median(t)
   end
 end
 
-function generateData(nSamples, w, h, is_train, use_2_pics)
-   local dataset = {}
-   if use_2_pics then
-      dataset.patches = torch.Tensor(nSamples, 2, h, w)
-   else
-      print("Using one pic")
-      dataset.patches = torch.Tensor(nSamples, 1, h, w)
-   end
-   dataset.targets = torch.Tensor(nSamples, nClasses):zero()
-   dataset.permutation = randomPermutation(nSamples)
-   setmetatable(dataset, {__index = function(self, index_)
-				       local index = self.permutation[index_]
-				       return {self.patches[index], self.targets[index]}
-				    end})
-   function dataset:size()
-      return nSamples
-   end
-   
-   --[[
-   for i = 1,nClasses do
-      assert(table.getn(patchesPerClass[i]) > nSamples/nClasses)
-   end
-   --]]
-   
+function preSortData(wPatch, hPatch)
    print("Calculating patches median depth...")
    local currentPatchPts = {}
    local patches = raw_data[1][2]
@@ -136,7 +96,7 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    local y,sorti = torch.sort(patches, 1)
    
    maxDepth = y[numberOfPatches][3]
-   local numberOfBins = math.ceil(maxDepth)
+   numberOfBins = math.ceil(maxDepth)
    for iBin = 1,numberOfBins do
       patchesMedianDepth[iBin] = {}
    end
@@ -148,23 +108,24 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
       xlua.progress(origi, numberOfPatches)
       local yo = patches[i][1]
       local xo = patches[i][2]
-      if (yo-h/2 >= 1) and (yo+h/2-1 <= h_imgs) and (xo-w/2 >= 1) and (xo+w/2-1 <= w_imgs) then
+      if (yo-hPatch/2 >= 1) and (yo+hPatch/2-1 <= h_imgs) and
+         (xo-wPatch/2 >= 1) and (xo+wPatch/2-1 <= w_imgs) then
 	 --[[ (I temporarly don't use the median because it is way faster that way)
 	 for origj = lastPatchIndex,numberOfPatches do
             local j = sorti[origj][2]
             local x = patches[j][2]
-            if x>=xo+w/2 then
+            if x>=xo+wPatch/2 then
                firstIndex = true
                break
             end
-	    if x>=xo-w/2 then
+	    if x>=xo-wPatch/2 then
                if firstIndex then
                   lastPatchIndex = origj
                   firstIndex = false
                end
                local y = patches[j][1]
    				
-	       if (y>=yo-h/2) and (y<=yo+h-1/2) then
+	       if (y>=yo-hPatch/2) and (y<=yo+hPatch-1/2) then
 		  local depth = patches[j][3]
 		  table.insert(currentPatchPts, depth)
 		  
@@ -182,6 +143,25 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
 	 
       end
    end
+end
+
+function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
+   local dataset = {}
+   if use_2_pics then
+      dataset.patches = torch.Tensor(nSamples, 2, hPatch, wPatch)
+   else
+      print("Using one pic")
+      dataset.patches = torch.Tensor(nSamples, 1, hPatch, wPatch)
+   end
+   dataset.targets = torch.Tensor(nSamples, nClasses):zero()
+   dataset.permutation = randomPermutation(nSamples)
+   setmetatable(dataset, {__index = function(self, index_)
+				       local index = self.permutation[index_]
+				       return {self.patches[index], self.targets[index]}
+				    end})
+   function dataset:size()
+      return nSamples
+   end   
    
    print("Sampling patches...")
    nGood = 1
@@ -192,11 +172,12 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
 	 local randomPatchIndex = randInt(1, sizeOfBin)
 	 local y = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][2])
 	 local x = math.ceil(patchesMedianDepth[randomBinIndex][randomPatchIndex][3])
-	 local patch = image.rgb2y(raw_data[1][1]:sub(1, 3, y-h/2+1, y+h/2, x-w/2+1, x+w/2))
+	 local patch = image.rgb2y(raw_data[1][1]:sub(1, 3, y-hPatch/2+1, y+hPatch/2,
+						            x-wPatch/2+1, x+wPatch/2))
 	 dataset.patches[nGood][1]:copy(patch)
 	 if use_2_pics then
-	    local patch2 = image.rgb2y(raw_data[2][1]:sub(1, 3, y-h/2, y+h/2-1,
-							  x-w/2, x+w/2-1))
+	    local patch2 = image.rgb2y(raw_data[2][1]:sub(1, 3, y-hPatch/2, y+hPatch/2-1,
+							        x-wPatch/2, x+wPatch/2-1))
 	    dataset.patches[nGood][2]:copy(patch2)
 	 end
 	 local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
@@ -210,14 +191,14 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    return dataset
 end   
 
-function loadData(nImgs, delta)
+function loadData(nImgs, delta, geometry)
    print("Loading images")
    for i = 0,nImgs-1 do
       xlua.progress(i+1, nImgs)
       loadImage(string.format("%09d", i*delta))
    end
-   --print("Pre-sorting images")
-	--preSortData()
+   print("Pre-sorting images")
+   preSortData(geometry[1], geometry[2])
 end
 
 --loadData(2,1)
