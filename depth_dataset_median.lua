@@ -10,6 +10,7 @@ h_imgs = 360
 patchesPerClass = {}
 patchesMedianDepth = {}
 nClasses = 2
+maxDepth = 0
 
 function loadImage(filebasename)
    local imfilename = 'data/images/' .. filebasename .. '.jpg'
@@ -35,7 +36,6 @@ function loadImage(filebasename)
 end
 
 function getClass(depth)
-   local maxDepth = 16
    
    local step = maxDepth/nClasses
    local class = math.ceil(depth/step)
@@ -124,17 +124,15 @@ function generateData(nSamples, w, h, is_train, use_2_pics)
    end
    --]]
    
-   
-   
    print("Calculating patches median depth...")
    local currentPatchPts = {}
    patches = raw_data[1][2]
    local numberOfPatches = patches:size(1)
-   --local numberOfPatches = 2000
-
+   
    y,sorti = torch.sort(patches, 1)
    
-   local numberOfBins = math.ceil(y[numberOfPatches][3])
+   maxDepth = y[numberOfPatches][3]
+   local numberOfBins = math.ceil(maxDepth)
    for iBin = 1,numberOfBins do
       patchesMedianDepth[iBin] = {}
    end
