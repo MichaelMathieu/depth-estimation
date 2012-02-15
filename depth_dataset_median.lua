@@ -12,7 +12,7 @@ patchesMedianDepth = {}
 nClasses = 2
 
 function loadImage(filebasename)
-   local imfilename = 'data/imgs/' .. filebasename .. '.jpg'
+   local imfilename = 'data/images/' .. filebasename .. '.jpg'
    local depthfilename = 'data/depths/' .. filebasename .. '.mat'
    --local imfilename = filebasename .. '.jpg'
    --local depthfilename = filebasename .. '.mat'
