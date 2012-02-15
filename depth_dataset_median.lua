@@ -89,6 +89,7 @@ end
 
 function preSortData(wPatch, hPatch)
    print("Calculating patches median depth...")
+   local currentPatchPts = {}
    local patches = raw_data[1][2]
    local numberOfPatches = patches:size(1)
    
@@ -110,7 +111,6 @@ function preSortData(wPatch, hPatch)
       if (yo-hPatch/2 >= 1) and (yo+hPatch/2-1 <= h_imgs) and
          (xo-wPatch/2 >= 1) and (xo+wPatch/2-1 <= w_imgs) then
 	 --[[ (I temporarly don't use the median because it is way faster that way)
-	 local currentPatchPts = {}
 	 for origj = lastPatchIndex,numberOfPatches do
             local j = sorti[origj][2]
             local x = patches[j][2]
