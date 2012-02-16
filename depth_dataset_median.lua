@@ -31,6 +31,7 @@ function loadImage(filebasename)
    local nPts = file_depth:readInt()
    local depthPoints = torch.Tensor(nPts, 3)
    for i = 1,nPts do
+      -- todo : indices are wrong by one because of the indexing from 1
       depthPoints[i][1] = file_depth:readInt() * h_imgs / h_im
       depthPoints[i][2] = file_depth:readInt() * w_imgs / w_im
       depthPoints[i][3] = file_depth:readDouble()
@@ -42,7 +43,7 @@ function getClass(depth)
    local step = maxDepth/nClasses
    local class = math.ceil(depth/step)
    if class > nClasses then
-      return nClases
+      return nClasses
    end
    return class
 end
@@ -113,6 +114,7 @@ function preSortData(wPatch, hPatch, use_median)
       end
    end
    numberOfBins = math.ceil(maxDepth)
+   print("maxDepth is " .. maxDepth)
 
    -- Compute histogram
    --print("Calculating patches median depth...")
@@ -176,6 +178,15 @@ function preSortData(wPatch, hPatch, use_median)
 	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, imo, yo, xo})
 	 
       end
+   end
+   print("")
+   nPerClass = torch.Tensor(nClasses):zero()
+   for i = 1,numberOfBins do
+      --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
+      nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
+   end
+   for i = 1,nClasses do
+      print("Class " .. i .. " has " .. nPerClass[i] .. " elements")
    end
 end
 
