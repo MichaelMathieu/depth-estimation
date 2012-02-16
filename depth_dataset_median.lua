@@ -181,6 +181,17 @@ function preSortData(wPatch, hPatch, use_median)
    end
    print("")
    nPerClass = torch.Tensor(nClasses):zero()
+   
+   local numberOfSamples = 0
+   for i = 1,numberOfBins do
+      numberOfSamples = numberOfSamples + #(patchesMedianDepth[i])
+      if (numberOfSamples>numberOfPatches/2) then
+         maxDepth = i
+         break
+      end
+   end
+
+   local numberOfSamples = 0
    for i = 1,numberOfBins do
       --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
       nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
