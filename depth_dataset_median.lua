@@ -86,7 +86,7 @@ function median(t)
     -- return mean value of middle two elements
     return ( temp[#temp/2] + temp[(#temp/2)+1] ) / 2
   else
-    -- return middle element
+    -- return middle elements
     return temp[math.ceil(#temp/2)]
   end
 end
@@ -225,7 +225,9 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
    print("Sampling patches...")
    nGood = 1
    while nGood <= nSamples do
-      local randomBinIndex = randInt(1,numberOfBins)
+      local randomClass = randInt(1,nClasses)
+      local binStep = math.floor(numberOfBins/nClasses)
+      local randomBinIndex = randInt(randomClass, randomClass+binStep)
       local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
       if sizeOfBin > 0 then
 	 local randomPatchIndex = randInt(1, sizeOfBin)
