@@ -10,6 +10,7 @@ h_imgs = 360
 patchesMedianDepth = {}
 nClasses = 2
 maxDepth = 0
+cutDepth = 0
 numberOfBins = 0
 
 function loadImage(filebasename)
@@ -40,7 +41,7 @@ function loadImage(filebasename)
 end
 
 function getClass(depth)
-   local step = maxDepth/nClasses
+   local step = 2*cutDepth/nClasses
    local class = math.ceil(depth/step)
    if class > nClasses then
       return nClasses
@@ -186,12 +187,11 @@ function preSortData(wPatch, hPatch, use_median)
    for i = 1,numberOfBins do
       numberOfSamples = numberOfSamples + #(patchesMedianDepth[i])
       if (numberOfSamples>numberOfPatches/2) then
-         maxDepth = i
+         cutDepth = i-1
          break
       end
    end
 
-   local numberOfSamples = 0
    for i = 1,numberOfBins do
       --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
       nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
