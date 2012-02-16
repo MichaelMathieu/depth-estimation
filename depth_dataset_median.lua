@@ -132,6 +132,7 @@ function preSortData(wPatch, hPatch, use_median)
    local firstIndex = true
    local lastPatchIndex = 1
    local i
+   local usedPatchesNumber = 0
    xlua.progress(0, numberOfPatches)
    for origi = 1,numberOfPatches do
       if (math.mod(origi, 1000) == 0) then
@@ -147,6 +148,8 @@ function preSortData(wPatch, hPatch, use_median)
       local xo = patches[i][3]
       if (yo-hPatch/2 >= 1) and (yo+hPatch/2-1 <= h_imgs) and
          (xo-wPatch/2 >= 1) and (xo+wPatch/2-1 <= w_imgs) then
+    
+      usedPatchesNumber = usedPatchesNumber + 1
 
 	 local currentPatchMedianDepth = 0
 	 if use_median then
@@ -186,14 +189,14 @@ function preSortData(wPatch, hPatch, use_median)
    local numberOfSamples = 0
    for i = 1,numberOfBins do
       numberOfSamples = numberOfSamples + #(patchesMedianDepth[i])
-      if (numberOfSamples>numberOfPatches/2) then
-         cutDepth = i-1
+      if (numberOfSamples>usedPatchesNumber/2) then
+         cutDepth = i
          break
       end
    end
 
    for i = 1,numberOfBins do
-      --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
+      print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
       nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
    end
    for i = 1,nClasses do
