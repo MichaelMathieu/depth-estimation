@@ -196,7 +196,7 @@ function preSortData(wPatch, hPatch, use_median)
    end
 
    for i = 1,numberOfBins do
-      print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
+      --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
       nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
    end
    for i = 1,nClasses do
@@ -223,9 +223,17 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
    end   
    
    print("Sampling patches...")
-   nGood = 1
+   local nPerClass = torch.Tensor(nClasses):zero()
+   local nGood = 1
+   assert(nClasses == 2)
    while nGood <= nSamples do
-      local randomBinIndex = randInt(1,numberOfBins)
+      local randomClass = randInt(1,nClasses+1)
+      local randomBinIndex = 0
+      if randomClass == 1 then
+	 randomBinIndex = randInt(1,cutDepth+1)
+      else
+	 randomBinIndex = randInt(cutDepth+1, numberOfBins)
+      end
       local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
       if sizeOfBin > 0 then
 	 local randomPatchIndex = randInt(1, sizeOfBin)
@@ -244,12 +252,16 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
 	    dataset.patches[nGood][2]:copy(patch2)
 	 end
 	 local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
+	 nPerClass[class] = nPerClass[class] + 1
 	 dataset.targets[nGood][class] = 1
 	 nGood = nGood + 1
       end
    end
    
-   print("Done")
+   print("Done :")
+   for i = 1,nClasses do
+      print("Class " .. i .. " has " .. nPerClass[i] .. " patches")
+   end
    
    return dataset
 end   
