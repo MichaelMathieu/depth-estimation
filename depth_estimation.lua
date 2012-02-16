@@ -45,9 +45,9 @@ if opt.nThreads > 1 then
 end
 
 classes = {'1', '2'}
+geometry = {32, 32}
 
 if not opt.network then
-   geometry = {32, 32}
 
    model = nn.Sequential()
 
@@ -103,11 +103,12 @@ parameters, gradParameters = model:getParameters()
 criterion = nn.DistNLLCriterion()
 criterion.targetIsProbability = true
 
-if not opt.network then
-   loadData(opt.num_input_images, opt.delta, geometry)
-   trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
-   testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
+--todo maxDepth depends on the dataset, therefore the classes depend too
+loadData(opt.num_input_images, opt.delta, geometry)
+trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
+testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
 
+if not opt.network then
    confusion = nn.ConfusionMatrix(classes)
 
    for epoch = 1,opt.nEpochs do
@@ -167,13 +168,52 @@ end
 
 if opt.input_image then
    local im = image.loadJPG('data/images/' .. opt.input_image .. '.jpg')
-   local im2 = image.loadJPG(string.format('data/images/%09d.jpg', tonumber(opt.input_image)+opt.delta))
+   local im2 = image.loadJPG(string.format('data/images/%09d.jpg',
+					   tonumber(opt.input_image)+opt.delta))
+   local h_im = im:size(2)
+   local w_im = im:size(3)
    local h = 360
    local w = 640
    local input = torch.Tensor(2, h, w)
    image.scale(image.rgb2y(im)[1], input[1], 'bilinear')
    image.scale(image.rgb2y(im2)[1], input[2], 'bilinear')
+   local gt = torch.DiskFile('data/depths/' .. opt.input_image .. '.mat')
+   local nPts = gt:readInt()
+   local inputdisplay = torch.Tensor(3, h, w)
+   for i = 1,3 do
+      inputdisplay[i]:copy(input[1])
+   end
+   for i = 1,nPts do
+      local yo = gt:readInt()
+      local xo = gt:readInt()
+      local y = math.floor(yo * h / h_im)+1
+      local x = math.floor(xo * w / w_im)+1
+      local depth = gt:readDouble()
+      inputdisplay[1][y][x] = 0
+      inputdisplay[2][y][x] = 0
+      inputdisplay[3][y][x] = 0
+      print (depth .. " " .. x .. " " .. y .. " " .. xo .. " " .. yo .. " " .. i .. " " .. getClass(depth))
+      if getClass(depth) == 1 then
+	 inputdisplay[1][y][x] = 1
+      else
+	 inputdisplay[2][y][x] = 1
+      end
+   end
+   image.display{image=inputdisplay}
    local output = model:forward(input)
-   image.display{image=output}
+   assert(output:size(1) == 2) --not implemented for nClasses > 2
+   local houtput = output:size(2)
+   local woutput = output:size(3)
+   todisplay = torch.Tensor(houtput, woutput)
+   for i = 1,houtput do
+      for j = 1,woutput do
+	 if output[1][i][j] < output[2][i][j] then
+	    todisplay[i][j] = 0
+	 else
+	    todisplay[i][j] = 1
+	 end
+      end
+   end
+   image.display{image=todisplay}
 end
 
