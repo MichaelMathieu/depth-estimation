@@ -227,12 +227,12 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
    local nGood = 1
    assert(nClasses == 2)
    while nGood <= nSamples do
-      local randomClass = randInt(1,nClasses)
+      local randomClass = randInt(1,nClasses+1)
       local binStep = math.floor(2*cutDepth/nClasses)
-      local randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep)
+      local randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
       local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
       if sizeOfBin > 0 then
-	 local randomPatchIndex = randInt(1, sizeOfBin)
+	 local randomPatchIndex = randInt(1, sizeOfBin+1)
 	 local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
 	 local im_index = math.ceil(patch_descr[2])
 	 local y = math.ceil(patch_descr[3])
