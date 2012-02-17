@@ -8,7 +8,7 @@ raw_data = {}
 w_imgs = 640
 h_imgs = 360
 patchesMedianDepth = {}
-nClasses = 2
+nClasses = 5
 maxDepth = 0
 cutDepth = 0
 numberOfBins = 0
@@ -225,7 +225,6 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
    print("Sampling patches...")
    local nPerClass = torch.Tensor(nClasses):zero()
    local nGood = 1
-   assert(nClasses == 2)
    while nGood <= nSamples do
       local randomClass = randInt(1,nClasses+1)
       local binStep = math.floor(2*cutDepth/nClasses)
