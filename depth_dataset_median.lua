@@ -8,7 +8,7 @@ raw_data = {}
 w_imgs = 640
 h_imgs = 360
 patchesMedianDepth = {}
-nClasses = 5
+nClasses = 2
 maxDepth = 0
 cutDepth = 0
 numberOfBins = 0
@@ -194,6 +194,7 @@ function preSortData(wPatch, hPatch, use_median)
          break
       end
    end
+   print("cutDepth is " .. cutDepth)
 
    for i = 1,numberOfBins do
       --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")

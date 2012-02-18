@@ -104,9 +104,14 @@ criterion = nn.DistNLLCriterion()
 criterion.targetIsProbability = true
 
 --todo maxDepth depends on the dataset, therefore the classes depend too
-loadData(opt.num_input_images, opt.delta, geometry)
-trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
-testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
+if not opt.network then
+   loadData(opt.num_input_images, opt.delta, geometry)
+   trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
+   testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
+else
+   maxDepth=model.maxDepth
+   cutDepth=model.cutDepth
+end
 
 if not opt.network then
    confusion = nn.ConfusionMatrix(classes)
@@ -163,6 +168,8 @@ if not opt.network then
       print(confusion)
    end
 
+   model.maxDepth = maxDepth
+   model.cutDepth = cutDepth
    torch.save(opt.output_model, model)
 end
 
@@ -192,11 +199,13 @@ if opt.input_image then
       inputdisplay[1][y][x] = 0
       inputdisplay[2][y][x] = 0
       inputdisplay[3][y][x] = 0
-      print (depth .. " " .. x .. " " .. y .. " " .. xo .. " " .. yo .. " " .. i .. " " .. getClass(depth))
+      --print (depth .. " " .. x .. " " .. y .. " " .. xo .. " " .. yo .. " " .. i .. " " .. getClass(depth))
+      inputdisplay[1][y][x] = 1-math.min(depth/30., 1.)
+      inputdisplay[2][y][x] = math.min(depth/30., 1.)
       if getClass(depth) == 1 then
-	 inputdisplay[1][y][x] = 1
+	 inputdisplay[3][y][x] = 1
       else
-	 inputdisplay[2][y][x] = 1
+	 inputdisplay[3][y][x] = 0
       end
    end
    image.display{image=inputdisplay}
