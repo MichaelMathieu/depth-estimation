@@ -29,10 +29,13 @@ op:option{'-d', '--delta', action='store', dest='delta', default=10,
 	  help='Delta between two consecutive frames'}
 op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
 	  help='Specify cutDepth manually'}
+op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
+	  help='Number of depth classes'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
+nClasses = tonumber(opt.num_classes)
 
 if opt.network_type == 'mul' and not opt.two_frames then
    print("Error: '-t mul' needs '-2'")
@@ -46,7 +49,10 @@ if opt.nThreads > 1 then
    openmp.setDefaultNumThreads(opt.nThreads)
 end
 
-classes = {'1', '2'}
+classes = {}
+for i = 1,opt.num_classes do
+   table.insert(classes, i)
+end
 geometry = {32, 32}
 
 if not opt.network then
