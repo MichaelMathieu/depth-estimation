@@ -224,34 +224,36 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
    end   
    
    print("Sampling patches...")
+   local binStep = math.floor(2*cutDepth/nClasses)
    local nPerClass = torch.Tensor(nClasses):zero()
    local nGood = 1
    while nGood <= nSamples do
       local randomClass = randInt(1,nClasses+1)
-      local binStep = math.floor(2*cutDepth/nClasses)
-      local randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
-      local sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
-      if sizeOfBin > 0 then
-	 local randomPatchIndex = randInt(1, sizeOfBin+1)
-	 local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
-	 local im_index = math.ceil(patch_descr[2])
-	 local y = math.ceil(patch_descr[3])
-	 local x = math.ceil(patch_descr[4])
-	 local patch = image.rgb2y(raw_data[im_index][1]:sub(1, 3,
-							     y-hPatch/2, y+hPatch/2-1,
-							     x-wPatch/2, x+wPatch/2-1))
-	 dataset.patches[nGood][1]:copy(patch)
-	 if use_2_pics then
-	    local patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
-								   y-hPatch/2, y+hPatch/2-1,
-								   x-wPatch/2, x+wPatch/2-1))
-	    dataset.patches[nGood][2]:copy(patch2)
-	 end
-	 local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
-	 nPerClass[class] = nPerClass[class] + 1
-	 dataset.targets[nGood][class] = 1
-	 nGood = nGood + 1
+      local sizeOfBin = 0
+      local randomBinIndex = 0
+      while sizeOfBin == 0 do
+	 randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
+	 sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
       end
+      local randomPatchIndex = randInt(1, sizeOfBin+1)
+      local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
+      local im_index = math.ceil(patch_descr[2])
+      local y = math.ceil(patch_descr[3])
+      local x = math.ceil(patch_descr[4])
+      local patch = image.rgb2y(raw_data[im_index][1]:sub(1, 3,
+							  y-hPatch/2, y+hPatch/2-1,
+							  x-wPatch/2, x+wPatch/2-1))
+      dataset.patches[nGood][1]:copy(patch)
+      if use_2_pics then
+	 local patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
+								y-hPatch/2, y+hPatch/2-1,
+								x-wPatch/2, x+wPatch/2-1))
+	 dataset.patches[nGood][2]:copy(patch2)
+      end
+      local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
+      nPerClass[class] = nPerClass[class] + 1
+      dataset.targets[nGood][class] = 1
+      nGood = nGood + 1
    end
    
    print("Done :")

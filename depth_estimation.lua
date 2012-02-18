@@ -27,6 +27,8 @@ op:option{'-o', '--output_mode', action='store', dest='output_model', default='m
 	  help='Name of the file to save the trained model'}
 op:option{'-d', '--delta', action='store', dest='delta', default=10,
 	  help='Delta between two consecutive frames'}
+op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
+	  help='Specify cutDepth manually'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
@@ -106,12 +108,16 @@ criterion.targetIsProbability = true
 --todo maxDepth depends on the dataset, therefore the classes depend too
 if not opt.network then
    loadData(opt.num_input_images, opt.delta, geometry)
+   if opt.cut_depth then
+      cutDepth=opt.cut_depth
+   end
    trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
    testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
 else
    maxDepth=model.maxDepth
    cutDepth=model.cutDepth
 end
+
 
 if not opt.network then
    confusion = nn.ConfusionMatrix(classes)
