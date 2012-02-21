@@ -190,7 +190,7 @@ end
 if opt.input_image then
    local directories = {}
    local nDirs = 0
-   local findIn = 'find ' .. opt.root_directory .. ' -name images'
+   local findIn = 'find -L ' .. opt.root_directory .. ' -name images'
    for i in io.popen(findIn):lines() do
       nDirs = nDirs + 1
       directories[nDirs] = string.gsub(i, "images", "")
