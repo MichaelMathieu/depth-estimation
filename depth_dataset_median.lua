@@ -268,7 +268,7 @@ function loadData(nImgs, delta, geometry, root_dir)
    --print("Loading images")
    local directories = {}
    local nDirs = 0
-   local findIn = 'find ' .. root_dir .. ' -name images'
+   local findIn = 'find -L ' .. root_dir .. ' -name images'
    for i in io.popen(findIn):lines() do
       nDirs = nDirs + 1
       directories[nDirs] = string.gsub(i, "images", "")
