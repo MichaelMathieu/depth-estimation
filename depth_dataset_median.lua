@@ -13,9 +13,9 @@ maxDepth = 0
 cutDepth = 0
 numberOfBins = 0
 
-function loadImage(filebasename)
-   local imfilename = 'data/images/' .. filebasename .. '.jpg'
-   local depthfilename = 'data/depths/' .. filebasename .. '.mat'
+function loadImage(dirbasename, filebasename)
+   local imfilename = dirbasename .. 'images/' .. filebasename .. '.jpg'
+   local depthfilename = dirbasename .. 'depths/' .. filebasename .. '.mat'
    if not paths.filep(imfilename) then
       print('File ' .. imfilename .. 'not found. Skipping...')
       return
@@ -264,11 +264,24 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
    return dataset
 end   
 
-function loadData(nImgs, delta, geometry)
-   print("Loading images")
-   for i = 0,nImgs-1 do
-      xlua.progress(i+1, nImgs)
-      loadImage(string.format("%09d", i*delta))
+function loadData(nImgs, delta, geometry, root_dir)
+   --print("Loading images")
+   local directories = {}
+   local nDirs = 0
+   local findIn = 'find ' .. root_dir .. ' -name images'
+   for i in io.popen(findIn):lines() do
+      nDirs = nDirs + 1
+      directories[nDirs] = string.gsub(i, "images", "")
+   end
+   --local imagesPerDir = math.floor(nImgs/nDirs)
+   local imagesPerDir = nImgs
+   for j=1,nDirs do
+      print("")
+      print("Loading " .. imagesPerDir .. " images from " .. directories[j])
+      for i = 0,imagesPerDir-1 do
+         xlua.progress(imagesPerDir*(j-1)+i+1, nImgs*nDirs)
+         loadImage(directories[j],string.format("%09d", i*delta))
+      end
    end
    print("Pre-sorting images")
    preSortData(geometry[1], geometry[2], false) --temporarly not using median to improve speed

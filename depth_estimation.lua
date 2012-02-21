@@ -31,6 +31,8 @@ op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
 	  help='Specify cutDepth manually'}
 op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
 	  help='Number of depth classes'}
+op:option{'-rd', '--root-directory', action='store', dest='root_directory', default='./data',
+     help='Root dataset directory'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
@@ -113,7 +115,7 @@ criterion.targetIsProbability = true
 
 --todo maxDepth depends on the dataset, therefore the classes depend too
 if not opt.network then
-   loadData(opt.num_input_images, opt.delta, geometry)
+   loadData(opt.num_input_images, opt.delta, geometry, opt.root_directory)
    if opt.cut_depth then
       cutDepth=opt.cut_depth
    end
@@ -186,8 +188,17 @@ if not opt.network then
 end
 
 if opt.input_image then
-   local im = image.loadJPG('data/images/' .. opt.input_image .. '.jpg')
-   local im2 = image.loadJPG(string.format('data/images/%09d.jpg',
+   local directories = {}
+   local nDirs = 0
+   local findIn = 'find ' .. opt.root_directory .. ' -name images'
+   for i in io.popen(findIn):lines() do
+      nDirs = nDirs + 1
+      directories[nDirs] = string.gsub(i, "images", "")
+   end
+   
+   print('Loading image: ' .. directories[1] .. 'images/' .. opt.input_image .. '.jpg')
+   local im = image.loadJPG(directories[1] .. 'images/' .. opt.input_image .. '.jpg')
+   local im2 = image.loadJPG(directories[1] .. string.format('images/%09d.jpg',
 					   tonumber(opt.input_image)+opt.delta))
    local h_im = im:size(2)
    local w_im = im:size(3)
@@ -196,7 +207,7 @@ if opt.input_image then
    local input = torch.Tensor(2, h, w)
    image.scale(image.rgb2y(im)[1], input[1], 'bilinear')
    image.scale(image.rgb2y(im2)[1], input[2], 'bilinear')
-   local gt = torch.DiskFile('data/depths/' .. opt.input_image .. '.mat')
+   local gt = torch.DiskFile(directories[1] .. 'depths/' .. opt.input_image .. '.mat')
    local nPts = gt:readInt()
    local inputdisplay = torch.Tensor(3, h, w)
    for i = 1,3 do
