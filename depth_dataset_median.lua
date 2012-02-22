@@ -278,9 +278,35 @@ function loadData(nImgs, delta, geometry, root_dir)
    for j=1,nDirs do
       print("")
       print("Loading " .. imagesPerDir .. " images from " .. directories[j])
+      
+      local blacklist = {}
+      local nBl
+      local bl = torch.DiskFile(directories[j] .. 'images/blacklist.txt',r,true)
+      if (bl == nil) then
+         nBl = 0
+      else
+         nBl = bl:readInt()
+         for iBl = 0, nBl-1 do blacklist[iBl] = bl:readInt() end
+      end
+      print('- ' .. nBl .. ' images in blacklist')
+      
       for i = 0,imagesPerDir-1 do
          xlua.progress(imagesPerDir*(j-1)+i+1, nImgs*nDirs)
-         loadImage(directories[j],string.format("%09d", i*delta))
+         local imageId = i*delta
+         
+         local isInBl = false
+         for iBl = 0, nBl-1 do
+            if (blacklist[iBl] == imageId) then
+               isInBl = true
+               break
+            end
+         end
+         if (isInBl) then
+            print("")
+            print('Skipping image ' .. string.format("%09d", imageId))
+         else
+            loadImage(directories[j],string.format("%09d", imageId))
+         end
       end
    end
    print("Pre-sorting images")
