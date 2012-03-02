@@ -13,15 +13,49 @@ maxDepth = 0
 cutDepth = 0
 numberOfBins = 0
 
+function loadCameras(dirbasename)
+   local filename = dirbasename .. 'depths/cameras'
+   if not paths.filep(filename) then
+      print('File' .. filename .. ' not found. Can\'t read camera positions.')
+      return nil
+   end
+   local file = torch.DiskFile(filename, 'r')
+   file:quiet()
+   local ret = {}
+   while true do
+      local cam = {}
+      cam.file = file:readString('*l')
+      cam.f = file:readDouble()
+      cam.k1 = file:readDouble()
+      cam.k2 = file:readDouble()
+      cam.R = torch.Tensor(3,3)
+      for i = 1,3 do
+	 for j = 1,3 do
+	    cam.R[i][j] = file:readDouble()
+	 end
+      end
+      cam.t = torch.Tensor(3)
+      for i = 1,3 do
+	 cam.t[i] = file:readDouble()
+      end
+      if file:hasError() then
+	 return ret
+      else
+	 table.insert(ret, cam)
+      end
+   end
+   file:close()
+end
+
 function loadImage(dirbasename, filebasename)
    local imfilename = dirbasename .. 'images/' .. filebasename .. '.jpg'
    local depthfilename = dirbasename .. 'depths/' .. filebasename .. '.mat'
    if not paths.filep(imfilename) then
-      print('File ' .. imfilename .. 'not found. Skipping...')
+      print('File ' .. imfilename .. ' not found. Skipping...')
       return
    end
    if not paths.filep(depthfilename) then
-      print('File ' .. depthfilename .. 'not found. Skipping...')
+      print('File ' .. depthfilename .. ' not found. Skipping...')
       return
    end
    local im = image.loadJPG(imfilename)
@@ -38,6 +72,7 @@ function loadImage(dirbasename, filebasename)
       depthPoints[i][3] = file_depth:readDouble()
    end
    table.insert(raw_data, {im, depthPoints})
+   file_depth:close()
 end
 
 function getClass(depth)
