@@ -1,90 +1,25 @@
 require 'torch'
 require 'paths'
-require 'image'
 require 'sys'
 require 'xlua'
+
+require 'load_data'
 
 raw_data = {}
 w_imgs = 640
 h_imgs = 360
 patchesMedianDepth = {}
+numberOfBins = 0
+
 nClasses = 2
 maxDepth = 0
 cutDepth = 0
-numberOfBins = 0
-
-function loadCameras(dirbasename)
-   local filename = dirbasename .. 'depths/cameras'
-   if not paths.filep(filename) then
-      print('File' .. filename .. ' not found. Can\'t read camera positions.')
-      return nil
-   end
-   local file = torch.DiskFile(filename, 'r')
-   local version = file:readString('*l')
-   if version ~= 'cameras version 1' then
-      print('File ' .. filename .. ': wrong version')
-      return nil
-   end
-   file:quiet()
-   local ret = {}
-   while true do
-      local cam = {}
-      cam.file = file:readString('*l')
-      cam.f = file:readDouble()
-      cam.k1 = file:readDouble()
-      cam.k2 = file:readDouble()
-      cam.R = torch.Tensor(3,3)
-      for i = 1,3 do
-	 for j = 1,3 do
-	    cam.R[i][j] = file:readDouble()
-	 end
-      end
-      cam.t = torch.Tensor(3)
-      for i = 1,3 do
-	 cam.t[i] = file:readDouble()
-      end
-      if file:hasError() then
-	 return ret
-      else
-	 table.insert(ret, cam)
-      end
-   end
-   file:close()
-end
-
-function loadImage(dirbasename, filebasename)
-   local imfilename = dirbasename .. 'images/' .. filebasename .. '.jpg'
-   local depthfilename = dirbasename .. 'depths/' .. filebasename .. '.mat'
-   if not paths.filep(imfilename) then
-      print('File ' .. imfilename .. ' not found. Skipping...')
-      return
-   end
-   if not paths.filep(depthfilename) then
-      print('File ' .. depthfilename .. ' not found. Skipping...')
-      return
-   end
-   local im = image.loadJPG(imfilename)
-   local h_im = im:size(2)
-   local w_im = im:size(3)
-   im = image.scale(im, w_imgs, h_imgs)
-   local file_depth = torch.DiskFile(depthfilename, 'r')
-   local version = file_depth:readString('*l')
-   if version ~= 'depths version 2' then
-      print('File ' .. depthfilename .. ': wrong version. Skipping...')
-      return
-   end
-   local nPts = file_depth:readInt()
-   local depthPoints = torch.Tensor(nPts, 4)
-   for i = 1,nPts do
-      -- todo : indices are wrong by one because of the indexing from 1
-      depthPoints[i][4] = file_depth:readInt()
-      depthPoints[i][1] = file_depth:readInt() * h_imgs / h_im
-      depthPoints[i][2] = file_depth:readInt() * w_imgs / w_im
-      depthPoints[i][3] = file_depth:readDouble()
-   end
-   table.insert(raw_data, {im, depthPoints})
-   file_depth:close()
-end
+--[[
+depthDescretizer = {}
+depthDescretizer.nClasses = -1
+depthDescretizer.maxDepth = 0
+depthDescretizer.cutDepth = 0
+--]]
 
 function getClass(depth)
    local step = 2*cutDepth/nClasses
@@ -146,7 +81,6 @@ function preSortData(wPatch, hPatch, use_median, use_continuous)
    end
    local patches = torch.Tensor(numberOfPatches, 4)
    local iPatch = 1
-   maxDepth = 0
    for iImg = 1,#raw_data-1 do
       xlua.progress(iImg, #raw_data-1)
       for iPatchInImg = 1,raw_data[iImg][2]:size(1) do
@@ -277,8 +211,9 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
    
    print("Sampling patches...")
    local binStep = math.floor(2*cutDepth/nClasses)
+   local nPerClass = {}
    if not use_continuous then
-      local nPerClass = torch.Tensor(nClasses):zero()
+      nPerClass = torch.Tensor(nClasses):zero()
    end
    local nGood = 1
    while nGood <= nSamples do
@@ -373,7 +308,7 @@ function loadData(nImgs, delta, geometry, root_dir, use_continuous)
             print("")
             print('Skipping image ' .. string.format("%09d", imageId))
          else
-            loadImage(directories[j],string.format("%09d", imageId))
+            table.insert(raw_data, loadImage(directories[j],string.format("%09d", imageId)))
          end
       end
    end
