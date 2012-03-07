@@ -137,7 +137,7 @@ function median(t)
   end
 end
 
-function preSortData(wPatch, hPatch, use_median)
+function preSortData(wPatch, hPatch, use_median, use_continuous)
    -- Merge the patches of all the images
    print("Merging the data from all the images...")
    local numberOfPatches = 0
@@ -230,28 +230,30 @@ function preSortData(wPatch, hPatch, use_median)
       end
    end
    print("")
-   nPerClass = torch.Tensor(nClasses):zero()
-   
-   local numberOfSamples = 0
-   for i = 1,numberOfBins do
-      numberOfSamples = numberOfSamples + #(patchesMedianDepth[i])
-      if (numberOfSamples>usedPatchesNumber/2) then
-         cutDepth = i
-         break
+   if not use_continuous then
+      local nPerClass = torch.Tensor(nClasses):zero()
+      
+      local numberOfSamples = 0
+      for i = 1,numberOfBins do
+	 numberOfSamples = numberOfSamples + #(patchesMedianDepth[i])
+	 if (numberOfSamples>usedPatchesNumber/2) then
+	    cutDepth = i
+	    break
+	 end
       end
-   end
-   print("cutDepth is " .. cutDepth)
+      print("cutDepth is " .. cutDepth)
 
-   for i = 1,numberOfBins do
-      --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
-      nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
-   end
-   for i = 1,nClasses do
-      print("Class " .. i .. " has " .. nPerClass[i] .. " elements")
+      for i = 1,numberOfBins do
+	 --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
+	 nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
+      end
+      for i = 1,nClasses do
+	 print("Class " .. i .. " has " .. nPerClass[i] .. " elements")
+      end
    end
 end
 
-function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
+function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_continuous)
    local dataset = {}
    if use_2_pics then
       dataset.patches = torch.Tensor(nSamples, 2, hPatch, wPatch)
@@ -259,7 +261,11 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
       print("Using one pic")
       dataset.patches = torch.Tensor(nSamples, 1, hPatch, wPatch)
    end
-   dataset.targets = torch.Tensor(nSamples, nClasses):zero()
+   if use_continuous then
+      dataset.targets = torch.Tensor(nSamples, 1):zero()
+   else
+      dataset.targets = torch.Tensor(nSamples, nClasses):zero()
+   end
    dataset.permutation = randomPermutation(nSamples)
    setmetatable(dataset, {__index = function(self, index_)
 				       local index = self.permutation[index_]
@@ -271,19 +277,29 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
    
    print("Sampling patches...")
    local binStep = math.floor(2*cutDepth/nClasses)
-   local nPerClass = torch.Tensor(nClasses):zero()
+   if not use_continuous then
+      local nPerClass = torch.Tensor(nClasses):zero()
+   end
    local nGood = 1
    while nGood <= nSamples do
-      local randomClass = randInt(1,nClasses+1)
       local sizeOfBin = 0
       local randomBinIndex = 0
-      while sizeOfBin == 0 do
-	 randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
-	 sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
+      if use_continuous then
+	 while sizeOfBin == 0 do
+	    randomBinIndex = randInt(1, numberOfBins+1)
+	    sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
+	 end
+      else
+	 local randomClass = randInt(1,nClasses+1)
+	 while sizeOfBin == 0 do
+	    randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
+	    sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
+	 end
       end
+
       local randomPatchIndex = randInt(1, sizeOfBin+1)
       local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
-      local im_index = math.ceil(patch_descr[2])
+      local im_index = patch_descr[2]
       local y = math.ceil(patch_descr[3])
       local x = math.ceil(patch_descr[4])
       local patch = image.rgb2y(raw_data[im_index][1]:sub(1, 3,
@@ -296,21 +312,27 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
 								x-wPatch/2, x+wPatch/2-1))
 	 dataset.patches[nGood][2]:copy(patch2)
       end
-      local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
-      nPerClass[class] = nPerClass[class] + 1
-      dataset.targets[nGood][class] = 1
+      if use_continuous then
+	 dataset.targets[nGood][1] = patch_descr[1]
+      else
+	 local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
+	 nPerClass[class] = nPerClass[class] + 1
+	 dataset.targets[nGood][class] = 1
+      end
       nGood = nGood + 1
    end
    
-   print("Done :")
-   for i = 1,nClasses do
-      print("Class " .. i .. " has " .. nPerClass[i] .. " patches")
+   if not use_continuous then
+      print("Done :")
+      for i = 1,nClasses do
+	 print("Class " .. i .. " has " .. nPerClass[i] .. " patches")
+      end
    end
    
    return dataset
 end   
 
-function loadData(nImgs, delta, geometry, root_dir)
+function loadData(nImgs, delta, geometry, root_dir, use_continuous)
    --print("Loading images")
    local directories = {}
    local nDirs = 0
@@ -356,5 +378,5 @@ function loadData(nImgs, delta, geometry, root_dir)
       end
    end
    print("Pre-sorting images")
-   preSortData(geometry[1], geometry[2], false) --temporarly not using median to improve speed
+   preSortData(geometry[1], geometry[2], false, use_continuous)
 end

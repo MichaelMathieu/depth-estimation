@@ -32,7 +32,9 @@ op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
 op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
 	  help='Number of depth classes'}
 op:option{'-rd', '--root-directory', action='store', dest='root_directory', default='./data',
-     help='Root dataset directory'}
+	  help='Root dataset directory'}
+op:option{'-c', '--continuous', action='store_true', dest='continuous', default=false,
+	  help='Continuous output (experimental)'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
@@ -51,9 +53,11 @@ if opt.nThreads > 1 then
    openmp.setDefaultNumThreads(opt.nThreads)
 end
 
-classes = {}
-for i = 1,opt.num_classes do
-   table.insert(classes, i)
+if not opt.continuous then
+   classes = {}
+   for i = 1,opt.num_classes do
+      table.insert(classes, i)
+   end
 end
 geometry = {32, 32}
 
@@ -95,10 +99,14 @@ if not opt.network then
    model:add(nn.SpatialConvolution(128, 200, 5, 5))
    model:add(nn.Tanh())
    spatial = nn.SpatialClassifier()
-   spatial:add(nn.Linear(200,#classes))
+   if opt.continuous then
+      spatial:add(nn.Linear(200,1))
+   else
+      spatial:add(nn.Linear(200,#classes))
+   end
    model:add(spatial)
 
-   --[[
+   --[[ old (from mnist)
    model:add(nn.Reshape(128*5*5))
    model:add(nn.Linear(128*5*5,200))
    model:add(nn.Tanh())
@@ -110,17 +118,23 @@ end
 
 parameters, gradParameters = model:getParameters()
 
-criterion = nn.DistNLLCriterion()
-criterion.targetIsProbability = true
+if opt.continuous then
+   criterion = nn.MSECriterion()
+else
+   criterion = nn.DistNLLCriterion()
+   criterion.targetIsProbability = true
+end
 
 --todo maxDepth depends on the dataset, therefore the classes depend too
 if not opt.network then
-   loadData(opt.num_input_images, opt.delta, geometry, opt.root_directory)
+   loadData(opt.num_input_images, opt.delta, geometry, opt.root_directory, opt.continuous)
    if opt.cut_depth then
       cutDepth=opt.cut_depth
    end
-   trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
-   testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
+   trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames,
+			 opt.continuous)
+   testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames,
+			opt.continuous)
 else
    maxDepth=model.maxDepth
    cutDepth=model.cutDepth
@@ -128,7 +142,12 @@ end
 
 
 if not opt.network then
-   confusion = nn.ConfusionMatrix(classes)
+   if opt.continuous then
+      sumdist = 0.0
+      nsamples = 0
+   else
+      confusion = nn.ConfusionMatrix(classes)
+   end
 
    for epoch = 1,opt.nEpochs do
       print("Epoch " .. epoch)
@@ -152,7 +171,12 @@ if not opt.network then
 			  local df_do = criterion:backward(output, target)
 			  model:backward(input, df_do)
 			  
-			  confusion:add(output, target)
+			  if opt.continuous then
+			     sumdist = sumdist + abs(output[1] - target[1])
+			     nsamples = nsamples + 1
+			  else
+			     confusion:add(output, target)
+			  end
 			  
 			  return err, gradParameters
 		       end
@@ -164,9 +188,14 @@ if not opt.network then
 	 optim.sgd(feval, parameters, config)
       end
 
-      print(confusion)
-
-      confusion = nn.ConfusionMatrix(classes)
+      if opt.continuous then
+	 print('Mean distance: ' .. sumdist/nsamples)
+	 sumdist = 0.0
+	 nsamples = 0
+      else
+	 print(confusion)
+	 confusion = nn.ConfusionMatrix(classes)
+      end
 
       for t = 1,testData:size() do
 	 xlua.progress(t, testData:size())
@@ -175,11 +204,20 @@ if not opt.network then
 	 local target = sample[2]
 	 
 	 local output = model:forward(input)
-	 confusion:add(output, target)
+	 if opt.continuous then
+	    sumdist = sumdist + abs(output[1][1][1] - target[1])
+	    nsamples = nsamples + 1
+	 else
+	    confusion:add(output, target)
+	 end
 	 
       end
-            
-      print(confusion)
+
+      if opt.continuous then
+	 print('Mean distance: ' .. sumdist/nsamples)
+      else
+	 print(confusion)
+      end
    end
 
    model.maxDepth = maxDepth
@@ -188,6 +226,10 @@ if not opt.network then
 end
 
 if opt.input_image then
+   if opt.continuous then
+      print('input_image not implemented for continuous output')
+      sys.exit(0)
+   end
    local directories = {}
    local nDirs = 0
    local findIn = 'find -L ' .. opt.root_directory .. ' -name images'
