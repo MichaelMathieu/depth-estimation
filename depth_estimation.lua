@@ -31,16 +31,15 @@ op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
 	  help='Specify cutDepth manually'}
 op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
 	  help='Number of depth classes'}
-op:option{'-rd', '--root-directory', action='store', dest='root_directory', default='./data',
-	  help='Root dataset directory'}
+op:option{'-rd', '--root-directory', action='store', dest='root_directory',
+	  default='./data', help='Root dataset directory'}
 op:option{'-c', '--continuous', action='store_true', dest='continuous', default=false,
 	  help='Continuous output (experimental)'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
-nClasses = tonumber(opt.num_classes)
-depthDescretizer.nClasses = nClasses
+depthDescretizer.nClasses = tonumber(opt.num_classes)
 
 if opt.network_type == 'mul' and not opt.two_frames then
    print("Error: '-t mul' needs '-2'")
@@ -56,7 +55,7 @@ end
 
 if not opt.continuous then
    classes = {}
-   for i = 1,opt.num_classes do
+   for i = 1,depthDescretizer.nClasses do
       table.insert(classes, i)
    end
 end
@@ -173,7 +172,7 @@ if not opt.network then
 			  model:backward(input, df_do)
 			  
 			  if opt.continuous then
-			     sumdist = sumdist + abs(output[1] - target[1])
+			     sumdist = sumdist + math.abs(output[1] - target[1])
 			     nsamples = nsamples + 1
 			  else
 			     confusion:add(output, target)
@@ -206,7 +205,7 @@ if not opt.network then
 	 
 	 local output = model:forward(input)
 	 if opt.continuous then
-	    sumdist = sumdist + abs(output[1][1][1] - target[1])
+	    sumdist = sumdist + math.abs(output[1][1][1] - target[1])
 	    nsamples = nsamples + 1
 	 else
 	    confusion:add(output, target)

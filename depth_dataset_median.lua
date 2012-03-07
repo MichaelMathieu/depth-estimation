@@ -137,6 +137,7 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
       if use_continuous then
 	 local sizeOfBin = 0
 	 while sizeOfBin == 0 do
+	    print('Empty bin : ' .. randomBinIndex .. ' with continuous output. This will bias the normalization')
 	    randomBinIndex = randInt(1, numberOfBins+1)
 	    sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
 	 end
