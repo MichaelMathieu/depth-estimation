@@ -20,6 +20,11 @@ function loadCameras(dirbasename)
       return nil
    end
    local file = torch.DiskFile(filename, 'r')
+   local version = file:readString('*l')
+   if version ~= 'cameras version 1' then
+      print('File ' .. filename .. ': wrong version')
+      return nil
+   end
    file:quiet()
    local ret = {}
    while true do
@@ -63,10 +68,16 @@ function loadImage(dirbasename, filebasename)
    local w_im = im:size(3)
    im = image.scale(im, w_imgs, h_imgs)
    local file_depth = torch.DiskFile(depthfilename, 'r')
+   local version = file_depth:readString('*l')
+   if version ~= 'depths version 2' then
+      print('File ' .. depthfilename .. ': wrong version. Skipping...')
+      return
+   end
    local nPts = file_depth:readInt()
-   local depthPoints = torch.Tensor(nPts, 3)
+   local depthPoints = torch.Tensor(nPts, 4)
    for i = 1,nPts do
       -- todo : indices are wrong by one because of the indexing from 1
+      depthPoints[i][4] = file_depth:readInt()
       depthPoints[i][1] = file_depth:readInt() * h_imgs / h_im
       depthPoints[i][2] = file_depth:readInt() * w_imgs / w_im
       depthPoints[i][3] = file_depth:readDouble()
