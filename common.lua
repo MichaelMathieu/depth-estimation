@@ -1,4 +1,11 @@
 require 'torch'
+require 'xlua'
+
+function modProgress(i, max, mod)
+   if math.mod(i, mod) == 0 then
+      xlua.progress(i, max)
+   end
+end
 
 function randInt(a, b) --a included, b excluded
    return math.floor(torch.uniform(a, b))

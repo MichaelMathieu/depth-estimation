@@ -40,6 +40,7 @@ opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 nClasses = tonumber(opt.num_classes)
+depthDescretizer.nClasses = nClasses
 
 if opt.network_type == 'mul' and not opt.two_frames then
    print("Error: '-t mul' needs '-2'")

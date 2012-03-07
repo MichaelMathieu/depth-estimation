@@ -5,31 +5,14 @@ require 'xlua'
 
 require 'load_data'
 require 'common'
+require 'groundtruth_descrete'
 
 raw_data = {}
 w_imgs = 640
 h_imgs = 360
 patchesMedianDepth = {}
 numberOfBins = 0
-
-nClasses = 2
 maxDepth = 0
-cutDepth = 0
---[[
-depthDescretizer = {}
-depthDescretizer.nClasses = -1
-depthDescretizer.maxDepth = 0
-depthDescretizer.cutDepth = 0
---]]
-
-function getClass(depth)
-   local step = 2*cutDepth/nClasses
-   local class = math.ceil(depth/step)
-   if class > nClasses then
-      return nClasses
-   end
-   return class
-end
 
 function preSortData(wPatch, hPatch, use_median, use_continuous)
    -- Merge the patches of all the images
@@ -57,7 +40,6 @@ function preSortData(wPatch, hPatch, use_median, use_continuous)
    print("maxDepth is " .. maxDepth)
 
    -- Compute histogram
-   --print("Calculating patches median depth...")
    print("Computing the histogram of depths...")
    local ySorted,sorti
    if use_median then
@@ -74,9 +56,7 @@ function preSortData(wPatch, hPatch, use_median, use_continuous)
    local usedPatchesNumber = 0
    xlua.progress(0, numberOfPatches)
    for origi = 1,numberOfPatches do
-      if (math.mod(origi, 1000) == 0) then
-	 xlua.progress(origi, numberOfPatches)
-      end
+      modProgress(origi, numberOfPatches, 1000);
       if use_median then
 	 i = sorti[origi]
       else
@@ -88,7 +68,7 @@ function preSortData(wPatch, hPatch, use_median, use_continuous)
       if (yo-hPatch/2 >= 1) and (yo+hPatch/2-1 <= h_imgs) and
          (xo-wPatch/2 >= 1) and (xo+wPatch/2-1 <= w_imgs) then
     
-      usedPatchesNumber = usedPatchesNumber + 1
+	 usedPatchesNumber = usedPatchesNumber + 1
 
 	 local currentPatchMedianDepth = 0
 	 if use_median then
@@ -119,30 +99,12 @@ function preSortData(wPatch, hPatch, use_median, use_continuous)
 
 	 local binIndex = math.ceil(currentPatchMedianDepth)
 	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, imo, yo, xo})
-	 
       end
    end
    print("")
-   if not use_continuous then
-      local nPerClass = torch.Tensor(nClasses):zero()
-      
-      local numberOfSamples = 0
-      for i = 1,numberOfBins do
-	 numberOfSamples = numberOfSamples + #(patchesMedianDepth[i])
-	 if (numberOfSamples>usedPatchesNumber/2) then
-	    cutDepth = i
-	    break
-	 end
-      end
-      print("cutDepth is " .. cutDepth)
 
-      for i = 1,numberOfBins do
-	 --print("Bin " .. i .. " has " .. #(patchesMedianDepth[i]) .. " elements")
-	 nPerClass[getClass(i-0.1)] = nPerClass[getClass(i-0.1)] + #(patchesMedianDepth[i])
-      end
-      for i = 1,nClasses do
-	 print("Class " .. i .. " has " .. nPerClass[i] .. " elements")
-      end
+   if not use_continuous then
+      depthDescretizer:computeCutDepth(patchesMedianDepth, usedPatchesNumber)
    end
 end
 
@@ -157,7 +119,7 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
    if use_continuous then
       dataset.targets = torch.Tensor(nSamples, 1):zero()
    else
-      dataset.targets = torch.Tensor(nSamples, nClasses):zero()
+      dataset.targets = torch.Tensor(nSamples, depthDescretizer.nClasses):zero()
    end
    dataset.permutation = randomPermutation(nSamples)
    setmetatable(dataset, {__index = function(self, index_)
@@ -166,32 +128,23 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
 				    end})
    function dataset:size()
       return nSamples
-   end   
+   end
    
    print("Sampling patches...")
-   local binStep = math.floor(2*cutDepth/nClasses)
-   local nPerClass = {}
-   if not use_continuous then
-      nPerClass = torch.Tensor(nClasses):zero()
-   end
    local nGood = 1
    while nGood <= nSamples do
-      local sizeOfBin = 0
       local randomBinIndex = 0
       if use_continuous then
+	 local sizeOfBin = 0
 	 while sizeOfBin == 0 do
 	    randomBinIndex = randInt(1, numberOfBins+1)
 	    sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
 	 end
       else
-	 local randomClass = randInt(1,nClasses+1)
-	 while sizeOfBin == 0 do
-	    randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
-	    sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
-	 end
+	 randomBinIndex = depthDescretizer:randomBin(patchesMedianDepth)
       end
 
-      local randomPatchIndex = randInt(1, sizeOfBin+1)
+      local randomPatchIndex = randInt(1, table.getn(patchesMedianDepth[randomBinIndex])+1)
       local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
       local im_index = patch_descr[2]
       local y = math.ceil(patch_descr[3])
@@ -209,16 +162,22 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
       if use_continuous then
 	 dataset.targets[nGood][1] = patch_descr[1]
       else
-	 local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
-	 nPerClass[class] = nPerClass[class] + 1
-	 dataset.targets[nGood][class] = 1
+	 dataset.targets[nGood][depthDescretizer:getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])] = 1
       end
       nGood = nGood + 1
    end
    
    if not use_continuous then
+      nPerClass = torch.Tensor(depthDescretizer.nClasses):zero()
+      for i = 1,nGood-1 do
+	 for j = 1,depthDescretizer.nClasses do
+	    if dataset.targets[i][j] == 1 then
+	       nPerClass[j] = nPerClass[j] + 1
+	    end
+	 end
+      end
       print("Done :")
-      for i = 1,nClasses do
+      for i = 1,depthDescretizer.nClasses do
 	 print("Class " .. i .. " has " .. nPerClass[i] .. " patches")
       end
    end
