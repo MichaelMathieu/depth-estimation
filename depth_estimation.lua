@@ -1,9 +1,9 @@
 require 'torch'
 require 'nnx'
 require 'image'
-require 'depth_dataset_median'
 require 'optim'
 require 'load_data'
+require 'groundtruth_descrete'
 require 'groundtruth_continuous'
 require 'sys'
 
