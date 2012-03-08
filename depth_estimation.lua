@@ -199,8 +199,14 @@ if not opt.network then
       end
 
       if opt.continuous then
-	 print('Mean distance: ')
-	 print(sumdist/nsamples)
+	 if opt.network_type == 'opticalflow' then
+	    sumdist = sumdist/nsamples
+	    print('\nMean optical flow error on training set in pixels (x, y):')
+	    print('(' ..sumdist[1]*geometry.wPatch .. ", " .. sumdist[2]*geometry.hPatch .. ")")
+	 else
+	    print('Mean error: ')
+	    print(sumdist/nsamples)
+	 end
 	 sumdist = torch.Tensor(output_dim):zero()
 	 nsamples = 0
       else
@@ -226,8 +232,14 @@ if not opt.network then
       end
 
       if opt.continuous then
-	 print('Mean distance:')
-	 print(sumdist/nsamples)
+	 if opt.network_type == 'opticalflow' then
+	    sumdist = sumdist/nsamples
+	    print('\nMean optical flow error on test set in pixels (x, y):')
+	    print('(' ..sumdist[1]*geometry.wPatch .. ", " .. sumdist[2]*geometry.hPatch .. ")")
+	 else
+	    print('Mean error:')
+	    print(sumdist/nsamples)
+	 end
       else
 	 print(confusion)
       end
