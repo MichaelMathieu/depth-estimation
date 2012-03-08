@@ -3,6 +3,9 @@ require 'nnx'
 require 'image'
 require 'depth_dataset_median'
 require 'optim'
+require 'load_data'
+require 'groundtruth_continuous'
+require 'sys'
 
 op = xlua.OptionParser('%prog [options]')
 op:option{'-2', '--two-frames', action='store_true', dest='two_frames', default=false,
@@ -43,7 +46,7 @@ depthDescretizer.nClasses = tonumber(opt.num_classes)
 
 if opt.network_type == 'mul' and not opt.two_frames then
    print("Error: '-t mul' needs '-2'")
-   sys.exit(0)
+   sys:exit(0)
 end
 
 torch.manualSeed(1)
@@ -59,7 +62,12 @@ if not opt.continuous then
       table.insert(classes, i)
    end
 end
-geometry = {32, 32}
+geometry = {}
+geometry.wImg = 640
+geometry.hImg = 360
+geometry.wPatch = 32
+geometry.hPatch = 32
+geometry.nImgsPerSample = 2 --todo
 
 if not opt.network then
 
@@ -100,18 +108,14 @@ if not opt.network then
    model:add(nn.Tanh())
    spatial = nn.SpatialClassifier()
    if opt.continuous then
+      print('Using continuous output')
       spatial:add(nn.Linear(200,1))
    else
+      print('Using descrete output')
       spatial:add(nn.Linear(200,#classes))
    end
    model:add(spatial)
 
-   --[[ old (from mnist)
-   model:add(nn.Reshape(128*5*5))
-   model:add(nn.Linear(128*5*5,200))
-   model:add(nn.Tanh())
-   model:add(nn.Linear(200,#classes))
-   --]]
 else
    model = torch.load(opt.network)
 end
@@ -125,16 +129,27 @@ else
    criterion.targetIsProbability = true
 end
 
---todo maxDepth depends on the dataset, therefore the classes depend too
 if not opt.network then
-   loadData(opt.num_input_images, opt.delta, geometry, opt.root_directory, opt.continuous)
-   if opt.cut_depth then
-      cutDepth=opt.cut_depth
+   loadData(opt.num_input_images, opt.delta, opt.root_directory)
+   if opt.continuous then
+      local data = preSortDataContinuous(geometry, raw_data, 28, 2);
+      if data == nil then
+	 sys:exit(0)
+      end
+      trainData = generateContinuousDataset(geometry, data, opt.n_train_set);
+      testData = generateContinuousDataset(geometry, data, opt.n_test_set);
+   else
+      --todo maxDepth depends on the dataset, therefore the classes depend too
+      preSortDataDescrete(geometry.hPatch, geometry.wPatch, false)
+      if opt.cut_depth then
+	 cutDepth=opt.cut_depth
+      end
+      trainData = generateDataDescrete(opt.n_train_set, geometry.hPatch, geometry.wPatch, true,
+				       opt.two_frames)
+      testData = generateDataDescrete(opt.n_test_set, geometry.hPatch, geometry.wPatch, false,
+				      opt.two_frames);
    end
-   trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames,
-			 opt.continuous)
-   testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames,
-			opt.continuous)
+
 else
    maxDepth=model.maxDepth
    cutDepth=model.cutDepth
@@ -203,9 +218,9 @@ if not opt.network then
 	 local input = sample[1]
 	 local target = sample[2]
 	 
-	 local output = model:forward(input)
+	 local output = model:forward(input):select(3,1):select(2,1)
 	 if opt.continuous then
-	    sumdist = sumdist + math.abs(output[1][1][1] - target[1])
+	    sumdist = sumdist + math.abs(output[1] - target[1])
 	    nsamples = nsamples + 1
 	 else
 	    confusion:add(output, target)

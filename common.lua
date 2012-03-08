@@ -1,6 +1,10 @@
 require 'torch'
 require 'xlua'
 
+function round(x)
+   return math.floor(x+0.5)
+end
+
 function modProgress(i, max, mod)
    if math.mod(i, mod) == 0 then
       xlua.progress(i, max)

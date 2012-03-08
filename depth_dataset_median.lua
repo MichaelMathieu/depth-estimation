@@ -3,18 +3,17 @@ require 'paths'
 require 'sys'
 require 'xlua'
 
-require 'load_data'
 require 'common'
 require 'groundtruth_descrete'
 
 raw_data = {}
 w_imgs = 640
 h_imgs = 360
-patchesMedianDepth = {}
+depthHistogram = {}
 numberOfBins = 0
 maxDepth = 0
 
-function preSortData(wPatch, hPatch, use_median, use_continuous)
+function preSortDataDescrete(wPatch, hPatch, use_median)
    -- Merge the patches of all the images
    print("Merging the data from all the images...")
    local numberOfPatches = 0
@@ -47,7 +46,7 @@ function preSortData(wPatch, hPatch, use_median, use_continuous)
    end
    
    for iBin = 1,numberOfBins do
-      patchesMedianDepth[iBin] = {}
+      depthHistogram[iBin] = {}
    end
    
    local firstIndex = true
@@ -98,17 +97,15 @@ function preSortData(wPatch, hPatch, use_median, use_continuous)
 	 end
 
 	 local binIndex = math.ceil(currentPatchMedianDepth)
-	 table.insert(patchesMedianDepth[binIndex], {currentPatchMedianDepth, imo, yo, xo})
+	 table.insert(depthHistogram[binIndex], {currentPatchMedianDepth, imo, yo, xo})
       end
    end
    print("")
 
-   if not use_continuous then
-      depthDescretizer:computeCutDepth(patchesMedianDepth, usedPatchesNumber)
-   end
+   depthDescretizer:computeCutDepth(depthHistogram, usedPatchesNumber)
 end
 
-function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_continuous)
+function generateDataDescrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
    local dataset = {}
    if use_2_pics then
       dataset.patches = torch.Tensor(nSamples, 2, hPatch, wPatch)
@@ -116,11 +113,7 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
       print("Using one pic")
       dataset.patches = torch.Tensor(nSamples, 1, hPatch, wPatch)
    end
-   if use_continuous then
-      dataset.targets = torch.Tensor(nSamples, 1):zero()
-   else
-      dataset.targets = torch.Tensor(nSamples, depthDescretizer.nClasses):zero()
-   end
+   dataset.targets = torch.Tensor(nSamples, depthDescretizer.nClasses):zero()
    dataset.permutation = randomPermutation(nSamples)
    setmetatable(dataset, {__index = function(self, index_)
 				       local index = self.permutation[index_]
@@ -133,20 +126,9 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
    print("Sampling patches...")
    local nGood = 1
    while nGood <= nSamples do
-      local randomBinIndex = 0
-      if use_continuous then
-	 local sizeOfBin = 0
-	 while sizeOfBin == 0 do
-	    print('Empty bin : ' .. randomBinIndex .. ' with continuous output. This will bias the normalization')
-	    randomBinIndex = randInt(1, numberOfBins+1)
-	    sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
-	 end
-      else
-	 randomBinIndex = depthDescretizer:randomBin(patchesMedianDepth)
-      end
-
-      local randomPatchIndex = randInt(1, table.getn(patchesMedianDepth[randomBinIndex])+1)
-      local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
+      local randomBinIndex = depthDescretizer:randomBin(depthHistogram)
+      local randomPatchIndex = randInt(1, table.getn(depthHistogram[randomBinIndex])+1)
+      local patch_descr = depthHistogram[randomBinIndex][randomPatchIndex]
       local im_index = patch_descr[2]
       local y = math.ceil(patch_descr[3])
       local x = math.ceil(patch_descr[4])
@@ -160,77 +142,23 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics, use_contin
 								x-wPatch/2, x+wPatch/2-1))
 	 dataset.patches[nGood][2]:copy(patch2)
       end
-      if use_continuous then
-	 dataset.targets[nGood][1] = patch_descr[1]
-      else
-	 dataset.targets[nGood][depthDescretizer:getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])] = 1
-      end
+
+      dataset.targets[nGood][depthDescretizer:getClass(depthHistogram[randomBinIndex][randomPatchIndex][1])] = 1
       nGood = nGood + 1
    end
    
-   if not use_continuous then
-      nPerClass = torch.Tensor(depthDescretizer.nClasses):zero()
-      for i = 1,nGood-1 do
-	 for j = 1,depthDescretizer.nClasses do
-	    if dataset.targets[i][j] == 1 then
-	       nPerClass[j] = nPerClass[j] + 1
-	    end
+   nPerClass = torch.Tensor(depthDescretizer.nClasses):zero()
+   for i = 1,nGood-1 do
+      for j = 1,depthDescretizer.nClasses do
+	 if dataset.targets[i][j] == 1 then
+	    nPerClass[j] = nPerClass[j] + 1
 	 end
       end
-      print("Done :")
-      for i = 1,depthDescretizer.nClasses do
-	 print("Class " .. i .. " has " .. nPerClass[i] .. " patches")
-      end
+   end
+   print("Done :")
+   for i = 1,depthDescretizer.nClasses do
+      print("Class " .. i .. " has " .. nPerClass[i] .. " patches")
    end
    
    return dataset
-end   
-
-function loadData(nImgs, delta, geometry, root_dir, use_continuous)
-   --print("Loading images")
-   local directories = {}
-   local nDirs = 0
-   local findIn = 'find -L ' .. root_dir .. ' -name images'
-   for i in io.popen(findIn):lines() do
-      nDirs = nDirs + 1
-      directories[nDirs] = string.gsub(i, "images", "")
-   end
-   --local imagesPerDir = math.floor(nImgs/nDirs)
-   local imagesPerDir = nImgs
-   for j=1,nDirs do
-      print("")
-      print("Loading " .. imagesPerDir .. " images from " .. directories[j])
-      
-      local blacklist = {}
-      local nBl
-      local bl = torch.DiskFile(directories[j] .. 'images/blacklist.txt',r,true)
-      if (bl == nil) then
-         nBl = 0
-      else
-         nBl = bl:readInt()
-         for iBl = 0, nBl-1 do blacklist[iBl] = bl:readInt() end
-      end
-      print('- ' .. nBl .. ' images in blacklist')
-      
-      for i = 0,imagesPerDir-1 do
-         xlua.progress(imagesPerDir*(j-1)+i+1, nImgs*nDirs)
-         local imageId = i*delta
-         
-         local isInBl = false
-         for iBl = 0, nBl-1 do
-            if (blacklist[iBl] == imageId) then
-               isInBl = true
-               break
-            end
-         end
-         if (isInBl) then
-            print("")
-            print('Skipping image ' .. string.format("%09d", imageId))
-         else
-            table.insert(raw_data, loadImage(directories[j],string.format("%09d", imageId)))
-         end
-      end
-   end
-   print("Pre-sorting images")
-   preSortData(geometry[1], geometry[2], false, use_continuous)
 end
