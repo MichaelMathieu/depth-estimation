@@ -173,7 +173,7 @@ function generateContinuousDatasetOpticalFlow(geometry, data, nSamples)
       local iImg1 = data.patches[iPatch1][1]
       local y1 = data.patches[iPatch1][2]
       local x1 = data.patches[iPatch1][3]
-      local iPatch2 = data.patches[iPatch][5]
+      local iPatch2 = data.patches[iPatch1][5]
       local iImg2 = data.patches[iPatch2][1]
       local y2 = data.patches[iPatch2][2]
       local x2 = data.patches[iPatch2][3]

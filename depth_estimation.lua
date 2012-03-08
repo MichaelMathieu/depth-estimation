@@ -9,7 +9,7 @@ require 'sys'
 
 op = xlua.OptionParser('%prog [options]')
 --common
-op:option{'-t', '--network-type', action='store', dest='newtork_type', default='mnist',
+op:option{'-t', '--network-type', action='store', dest='network_type', default='mnist',
 	  help='Network type: mnist | opticalflow'}
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -128,8 +128,13 @@ if not opt.network then
       if data == nil then
 	 sys:exit(0)
       end
-      trainData = generateContinuousDataset(geometry, data, opt.n_train_set);
-      testData = generateContinuousDataset(geometry, data, opt.n_test_set);
+      if opt.network_type == 'opticalflow' then
+	 trainData = generateContinuousDatasetOpticalFlow(geometry, data, opt.n_train_set);
+	 testData = generateContinuousDatasetOpticalFlow(geometry, data, opt.n_test_set);
+      else
+	 trainData = generateContinuousDataset(geometry, data, opt.n_train_set);
+	 testData = generateContinuousDataset(geometry, data, opt.n_test_set);
+      end
    else
       --todo maxDepth depends on the dataset, therefore the classes depend too
       preSortDataDiscrete(geometry.hPatch, geometry.wPatch, false)
@@ -160,9 +165,7 @@ if not opt.network then
       print("Epoch " .. epoch)
       xlua.progress(0, trainData:size())
       for t = 1,trainData:size() do
-	 if (math.mod(t, 100) == 0) then
-	    xlua.progress(t, trainData:size())
-	 end
+	 modProgress(t, trainData:size(), 100);
 	 local sample = trainData[t]
 	 local input = sample[1]
 	 local target = sample[2]
@@ -206,6 +209,7 @@ if not opt.network then
       end
 
       for t = 1,testData:size() do
+	 modProgress(t, testData:size(), 100)
 	 xlua.progress(t, testData:size())
 	 local sample = testData[t]
 	 local input = sample[1]
