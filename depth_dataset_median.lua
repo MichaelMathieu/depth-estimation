@@ -3,8 +3,12 @@ require 'paths'
 require 'image'
 require 'sys'
 require 'xlua'
+require 'opencv'
+require 'motion_correction'
 
 raw_data = {}
+H = {}
+warpImg = {}
 w_imgs = 640
 h_imgs = 360
 patchesMedianDepth = {}
@@ -12,6 +16,7 @@ nClasses = 2
 maxDepth = 0
 cutDepth = 0
 numberOfBins = 0
+use_motion_correction = true
 
 function loadCameras(dirbasename)
    local filename = dirbasename .. 'depths/cameras'
@@ -152,6 +157,18 @@ function preSortData(wPatch, hPatch, use_median)
    numberOfBins = math.ceil(maxDepth)
    print("maxDepth is " .. maxDepth)
 
+   if use_motion_correction then
+      print("Computing motion correction H...")
+      for iImg = 1,#raw_data-1 do
+         xlua.progress(iImg, #raw_data-1)
+         local ptsin = opencv.GoodFeaturesToTrack{image=raw_data[iImg+1][1], count=50}
+         local ptsout = opencv.TrackPyrLK{pair={raw_data[iImg+1][1],raw_data[iImg][1]},
+                           points_in=ptsin}
+         H[iImg] = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
+         --warpImg[iImg] = opencv.WarpAffine(raw_data[iImg+1][1],H[iImg])
+      end
+   end
+
    -- Compute histogram
    --print("Calculating patches median depth...")
    print("Computing the histogram of depths...")
@@ -267,8 +284,8 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
       local sizeOfBin = 0
       local randomBinIndex = 0
       while sizeOfBin == 0 do
-	 randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
-	 sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
+         randomBinIndex = randInt((randomClass-1)*binStep+1, (randomClass)*binStep+1)
+         sizeOfBin = table.getn(patchesMedianDepth[randomBinIndex])
       end
       local randomPatchIndex = randInt(1, sizeOfBin+1)
       local patch_descr = patchesMedianDepth[randomBinIndex][randomPatchIndex]
@@ -280,10 +297,31 @@ function generateData(nSamples, wPatch, hPatch, is_train, use_2_pics)
 							  x-wPatch/2, x+wPatch/2-1))
       dataset.patches[nGood][1]:copy(patch)
       if use_2_pics then
-	 local patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
-								y-hPatch/2, y+hPatch/2-1,
-								x-wPatch/2, x+wPatch/2-1))
-	 dataset.patches[nGood][2]:copy(patch2)
+         if use_motion_correction then
+            patch2 = torch.Tensor(wPatch,hPatch)
+            for i=-wPatch/2,wPatch/2-1 do
+            for j=-hPatch/2,hPatch/2-1 do
+               pt = torch.Tensor(3)
+               wpt = torch.Tensor(2) 
+               pt[1] = x+i
+               pt[2] = x+j
+               pt[3] = 1
+               wpt[1] = math.ceil(H[im_index][1]:dot(pt))
+               wpt[2] = math.ceil(H[im_index][2]:dot(pt))
+               if wpt[1]<1 then wpt[1] = 1 end
+               if wpt[1]>h_imgs then wpt[1] = h_imgs end
+               if wpt[2]<1 then wpt[2] = 1 end
+               if wpt[2]>w_imgs then wpt[2] = w_imgs end
+               patch2[i+wPatch/2+1][j+hPatch/2+1] = image.rgb2y(raw_data[im_index+1][1]:sub(1,3,
+                                                      wpt[1],wpt[1],wpt[2],wpt[2]))
+            end
+            end
+         else
+            local patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
+                           y-hPatch/2, y+hPatch/2-1,
+                           x-wPatch/2, x+wPatch/2-1))
+         end
+         dataset.patches[nGood][2]:copy(patch2)
       end
       local class = getClass(patchesMedianDepth[randomBinIndex][randomPatchIndex][1])
       nPerClass[class] = nPerClass[class] + 1
