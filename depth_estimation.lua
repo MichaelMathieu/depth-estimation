@@ -1,14 +1,16 @@
 require 'torch'
 require 'nnx'
 require 'image'
-require 'depth_dataset_median'
 require 'optim'
+require 'load_data'
+require 'groundtruth_discrete'
+require 'groundtruth_continuous'
+require 'sys'
 
 op = xlua.OptionParser('%prog [options]')
-op:option{'-2', '--two-frames', action='store_true', dest='two_frames', default=false,
-	  help='Use two consecutives frames instead of one'}
-op:option{'-t', '--network-type', action='store', dest='newtork_type', default='mnist',
-	  help='Network type: mnist | mul'}
+--common
+op:option{'-t', '--network-type', action='store', dest='network_type', default='mnist',
+	  help='Network type: mnist | opticalflow'}
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
 op:option{'-m', '--n-test-set', action='store', dest='n_test_set', default=1000,
@@ -21,28 +23,27 @@ op:option{'-e', '--num-epochs', action='store', dest='nEpochs', default=10,
 	  help='Number of epochs'}
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
-op:option{'-i', '--input-image', action='store', dest='input_image', default=nil,
-	  help='Run network on image. Must be the number of the image (no .jpg)'}
 op:option{'-o', '--output_mode', action='store', dest='output_model', default='model',
 	  help='Name of the file to save the trained model'}
 op:option{'-d', '--delta', action='store', dest='delta', default=10,
 	  help='Delta between two consecutive frames'}
+op:option{'-rd', '--root-directory', action='store', dest='root_directory',
+	  default='./data', help='Root dataset directory'}
+--discrete
+op:option{'-i', '--input-image', action='store', dest='input_image', default=nil,
+	  help='Run network on image. Must be the number of the image (no .jpg)'}
 op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
 	  help='Specify cutDepth manually'}
 op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
 	  help='Number of depth classes'}
-op:option{'-rd', '--root-directory', action='store', dest='root_directory', default='./data',
-     help='Root dataset directory'}
+--continuous
+op:option{'-c', '--continuous', action='store_true', dest='continuous', default=false,
+	  help='Continuous output (experimental)'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
-nClasses = tonumber(opt.num_classes)
-
-if opt.network_type == 'mul' and not opt.two_frames then
-   print("Error: '-t mul' needs '-2'")
-   sys.exit(0)
-end
+depthDiscretizer.nClasses = tonumber(opt.num_classes)
 
 torch.manualSeed(1)
 
@@ -51,41 +52,50 @@ if opt.nThreads > 1 then
    openmp.setDefaultNumThreads(opt.nThreads)
 end
 
-classes = {}
-for i = 1,opt.num_classes do
-   table.insert(classes, i)
+if not opt.continuous then
+   classes = {}
+   for i = 1,depthDiscretizer.nClasses do
+      table.insert(classes, i)
+   end
 end
-geometry = {32, 32}
+geometry = {}
+geometry.wImg = 640
+geometry.hImg = 360
+geometry.wPatch = 32
+geometry.hPatch = 32
+geometry.nImgsPerSample = 2 --todo
 
 if not opt.network then
 
-   model = nn.Sequential()
-
-   if opt.two_frames then
-      print('Using 2 frames')
-      if opt.network_type == 'mul' then
-	 model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
-	 model:add(nn.SpatialConvolution(2, 100, 5, 5))
-	 model:add(nn.Tanh())
-	 model:add(nn.SpatialSubtractiveNormalization(100, image.gaussian1D(15)))
-	 model:add(nn.SpatialMaxPooling(2,2,2,2))
-	 model:add(nn.Reshape(2, 50, 14, 14))
-	 model:add(nn.SplitTable(1))
-	 model:add(nn.CMulTable())
-	 model:add(nn.Tanh())
+   input_dim = 2
+   if opt.continuous then
+      if opt.network_type == 'opticalflow' then
+	 output_dim = 2
       else
-	 model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
-	 model:add(nn.SpatialConvolution(2, 50, 5, 5))
-	 model:add(nn.Tanh())
-	 model:add(nn.SpatialMaxPooling(2,2,2,2))
+	 output_dim = 1
       end
    else
-      print('Using 1 frame')
-      model:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolution(1, 50, 5, 5))
-      model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2,2,2,2))
+      output_dim = #classes
    end
+   
+   model = nn.Sequential()
+
+   --[[
+   model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
+   model:add(nn.SpatialConvolution(2, 100, 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialSubtractiveNormalization(100, image.gaussian1D(15)))
+   model:add(nn.SpatialMaxPooling(2,2,2,2))
+   model:add(nn.Reshape(2, 50, 14, 14))
+   model:add(nn.SplitTable(1))
+   model:add(nn.CMulTable())
+   model:add(nn.Tanh())
+   --]]
+
+   model:add(nn.SpatialSubtractiveNormalization(input_dim, image.gaussian1D(15)))
+   model:add(nn.SpatialConvolution(2, 50, 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialMaxPooling(2,2,2,2))
 
    model:add(nn.SpatialSubtractiveNormalization(50, image.gaussian1D(15)))
    model:add(nn.SpatialConvolutionMap(nn.tables.random(50, 128, 10), 5, 5))
@@ -95,32 +105,48 @@ if not opt.network then
    model:add(nn.SpatialConvolution(128, 200, 5, 5))
    model:add(nn.Tanh())
    spatial = nn.SpatialClassifier()
-   spatial:add(nn.Linear(200,#classes))
+   spatial:add(nn.Linear(200,output_dim))
    model:add(spatial)
 
-   --[[
-   model:add(nn.Reshape(128*5*5))
-   model:add(nn.Linear(128*5*5,200))
-   model:add(nn.Tanh())
-   model:add(nn.Linear(200,#classes))
-   --]]
 else
    model = torch.load(opt.network)
 end
 
 parameters, gradParameters = model:getParameters()
 
-criterion = nn.DistNLLCriterion()
-criterion.targetIsProbability = true
+if opt.continuous then
+   criterion = nn.MSECriterion()
+else
+   criterion = nn.DistNLLCriterion()
+   criterion.targetIsProbability = true
+end
 
---todo maxDepth depends on the dataset, therefore the classes depend too
 if not opt.network then
-   loadData(opt.num_input_images, opt.delta, geometry, opt.root_directory)
-   if opt.cut_depth then
-      cutDepth=opt.cut_depth
+   loadData(opt.num_input_images, opt.delta, opt.root_directory)
+   if opt.continuous then
+      local data = preSortDataContinuous(geometry, raw_data, 26, 20, true);
+      if data == nil then
+	 sys:exit(0)
+      end
+      if opt.network_type == 'opticalflow' then
+	 trainData = generateContinuousDatasetOpticalFlow(geometry, data, opt.n_train_set);
+	 testData = generateContinuousDatasetOpticalFlow(geometry, data, opt.n_test_set);
+      else
+	 trainData = generateContinuousDataset(geometry, data, opt.n_train_set);
+	 testData = generateContinuousDataset(geometry, data, opt.n_test_set);
+      end
+   else
+      --todo maxDepth depends on the dataset, therefore the classes depend too
+      preSortDataDiscrete(geometry.hPatch, geometry.wPatch, false)
+      if opt.cut_depth then
+	 cutDepth=opt.cut_depth
+      end
+      trainData = generateDataDiscrete(opt.n_train_set, geometry.hPatch, geometry.wPatch, true,
+				       opt.two_frames)
+      testData = generateDataDiscrete(opt.n_test_set, geometry.hPatch, geometry.wPatch, false,
+				      opt.two_frames);
    end
-   trainData = generateData(opt.n_train_set, geometry[1], geometry[2], true, opt.two_frames)
-   testData = generateData(opt.n_test_set, geometry[1], geometry[2], false, opt.two_frames)
+
 else
    maxDepth=model.maxDepth
    cutDepth=model.cutDepth
@@ -128,15 +154,18 @@ end
 
 
 if not opt.network then
-   confusion = nn.ConfusionMatrix(classes)
+   if opt.continuous then
+      sumdist = torch.Tensor(output_dim):zero()
+      nsamples = 0
+   else
+      confusion = nn.ConfusionMatrix(classes)
+   end
 
    for epoch = 1,opt.nEpochs do
       print("Epoch " .. epoch)
       xlua.progress(0, trainData:size())
       for t = 1,trainData:size() do
-	 if (math.mod(t, 100) == 0) then
-	    xlua.progress(t, trainData:size())
-	 end
+	 modProgress(t, trainData:size(), 100);
 	 local sample = trainData[t]
 	 local input = sample[1]
 	 local target = sample[2]
@@ -152,7 +181,12 @@ if not opt.network then
 			  local df_do = criterion:backward(output, target)
 			  model:backward(input, df_do)
 			  
-			  confusion:add(output, target)
+			  if opt.continuous then
+			     sumdist = sumdist + torch.abs(output - target)
+			     nsamples = nsamples + 1
+			  else
+			     confusion:add(output, target)
+			  end
 			  
 			  return err, gradParameters
 		       end
@@ -164,22 +198,51 @@ if not opt.network then
 	 optim.sgd(feval, parameters, config)
       end
 
-      print(confusion)
-
-      confusion = nn.ConfusionMatrix(classes)
+      if opt.continuous then
+	 if opt.network_type == 'opticalflow' then
+	    sumdist = sumdist/nsamples
+	    print('\nMean optical flow error on training set in pixels (x, y):')
+	    print('(' ..sumdist[1]*geometry.wPatch .. ", " .. sumdist[2]*geometry.hPatch .. ")")
+	 else
+	    print('Mean error: ')
+	    print(sumdist/nsamples)
+	 end
+	 sumdist = torch.Tensor(output_dim):zero()
+	 nsamples = 0
+      else
+	 print(confusion)
+	 confusion = nn.ConfusionMatrix(classes)
+      end
 
       for t = 1,testData:size() do
+	 modProgress(t, testData:size(), 100)
 	 xlua.progress(t, testData:size())
 	 local sample = testData[t]
 	 local input = sample[1]
 	 local target = sample[2]
 	 
-	 local output = model:forward(input)
-	 confusion:add(output, target)
+	 local output = model:forward(input):select(3,1):select(2,1)
+	 if opt.continuous then
+	    sumdist = sumdist + torch.abs(output - target)
+	    nsamples = nsamples + 1
+	 else
+	    confusion:add(output, target)
+	 end
 	 
       end
-            
-      print(confusion)
+
+      if opt.continuous then
+	 if opt.network_type == 'opticalflow' then
+	    sumdist = sumdist/nsamples
+	    print('\nMean optical flow error on test set in pixels (x, y):')
+	    print('(' ..sumdist[1]*geometry.wPatch .. ", " .. sumdist[2]*geometry.hPatch .. ")")
+	 else
+	    print('Mean error:')
+	    print(sumdist/nsamples)
+	 end
+      else
+	 print(confusion)
+      end
    end
 
    model.maxDepth = maxDepth
@@ -187,7 +250,11 @@ if not opt.network then
    torch.save(opt.output_model, model)
 end
 
-if opt.input_image then
+if opt.input_image then --todo this is old code, not sure this works anymore
+   if opt.continuous then
+      print('input_image not implemented for continuous output')
+      sys.exit(0)
+   end
    local directories = {}
    local nDirs = 0
    local findIn = 'find -L ' .. opt.root_directory .. ' -name images'
