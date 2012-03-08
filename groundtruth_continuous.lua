@@ -2,14 +2,14 @@ require 'torch'
 require 'xlua'
 require 'common'
 
-function getBinFromDepth(nBins, minDepth, binWidth, depth)
-   if depth < minDepth then
+function getBinFromDepth(nBins, depth)
+   if depth < 0 then
       return 1
    end
-   if depth-minDepth >= nBins*binWidth then
+   if depth >= 1 then
       return nBins
    else
-      return math.floor((depth-minDepth)/binWidth)+1
+      return math.floor(depth*nBins)+1
    end
 end
 
@@ -18,7 +18,7 @@ function isInFrame(geometry, y, x)
           (x+geometry.wPatch/2 <= geometry.wImg) and (y+geometry.hPatch/2 <= geometry.hImg)
 end
 
-function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth, keep_only_tracked_pts)
+function preSortDataContinuous(geometry, raw_data, maxDepth, nBins, keep_only_tracked_pts)
    local nPatches = 0
    for iImg = 1,#raw_data do
       nPatches = nPatches + raw_data[iImg][2]:size(1)
@@ -29,6 +29,22 @@ function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth, keep_only
    data.histogram = {} -- contains only usable patches (if keep_only_tracked_pts)
    data.perId = {}
    data.images = torch.Tensor(#raw_data, geometry.hImg, geometry.wImg)
+
+   -- find min and max depths
+   local minDepth = 1e20
+   local maxDepthData = 0
+   for iImg = 1,#raw_data do
+      for iPatchInImg = 1,raw_data[iImg][2]:size(1) do
+	 local depth = raw_data[iImg][2][iPatchInImg][3]
+	 if depth < minDepth then
+	    minDepth = depth
+	 end
+	 if depth > maxDepthData then
+	    maxDepthData = depth
+	 end
+      end
+   end
+   maxDepth = math.min(maxDepth, maxDepthData)
    
    -- get patches geometry (iImg, y, x, depth) and fill data.perId and data.images
    local iPatch = 1
@@ -37,9 +53,9 @@ function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth, keep_only
       for iPatchInImg = 1,raw_data[iImg][2]:size(1) do
 	 local y = round(raw_data[iImg][2][iPatchInImg][1]) + 1
 	 local x = round(raw_data[iImg][2][iPatchInImg][2]) + 1
-	 local depth = raw_data[iImg][2][iPatchInImg][3]
+	 local depth = (raw_data[iImg][2][iPatchInImg][3] - minDepth) / (maxDepth-minDepth)
 	 local id = raw_data[iImg][2][iPatchInImg][4]
-	 if isInFrame(geometry, y, x) and depth <= maxDepth then
+	 if isInFrame(geometry, y, x) and depth <= 1 then
 	    data.patches[iPatch][1] = iImg
 	    data.patches[iPatch][2] = y
 	    data.patches[iPatch][3] = x
@@ -69,21 +85,7 @@ function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth, keep_only
    end
 
    -- fill data.histogram
-   --   find min and max depths
-   local minDepth = 1e20
-   local maxDepthData = 0
-   for iPatch = 1,nPatches do
-      local depth = data.patches[iPatch][4]
-      if depth < minDepth then
-	 minDepth = depth
-      end
-      if depth > maxDepthData then
-	 maxDepthData = depth
-      end
-   end
-   maxDepth = math.min(maxDepth, maxDepthData)
    --   fill histogram
-   local nBins = round((maxDepth-minDepth)/binWidth)
    for i = 1,nBins do
       data.histogram[i] = {}
    end
@@ -100,7 +102,7 @@ function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth, keep_only
 	 end
       end
       if goodPatch then
-	 local iBin = getBinFromDepth(nBins, minDepth, binWidth, data.patches[iPatch][4])
+	 local iBin = getBinFromDepth(nBins, data.patches[iPatch][4])
 	 table.insert(data.histogram[iBin], iPatch)
       end
    end

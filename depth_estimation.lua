@@ -10,7 +10,7 @@ require 'sys'
 op = xlua.OptionParser('%prog [options]')
 --common
 op:option{'-t', '--network-type', action='store', dest='newtork_type', default='mnist',
-	  help='Network type: mnist | mul | opticalflow'}
+	  help='Network type: mnist | opticalflow'}
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
 op:option{'-m', '--n-test-set', action='store', dest='n_test_set', default=1000,
@@ -45,11 +45,6 @@ opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 depthDiscretizer.nClasses = tonumber(opt.num_classes)
 
-if opt.network_type == 'mul' and not opt.two_frames then
-   print("Error: '-t mul' needs '-2'")
-   sys:exit(0)
-end
-
 torch.manualSeed(1)
 
 if opt.nThreads > 1 then
@@ -72,24 +67,35 @@ geometry.nImgsPerSample = 2 --todo
 
 if not opt.network then
 
+   input_dim = 2
+   if opt.continuous then
+      if opt.network_type == 'opticalflow' then
+	 output_dim = 2
+      else
+	 output_dim = 1
+      end
+   else
+      output_dim = #classes
+   end
+   
    model = nn.Sequential()
 
-   if opt.network_type == 'mul' then
-      model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolution(2, 100, 5, 5))
-      model:add(nn.Tanh())
-      model:add(nn.SpatialSubtractiveNormalization(100, image.gaussian1D(15)))
-      model:add(nn.SpatialMaxPooling(2,2,2,2))
-      model:add(nn.Reshape(2, 50, 14, 14))
-      model:add(nn.SplitTable(1))
-      model:add(nn.CMulTable())
-      model:add(nn.Tanh())
-   else
-      model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolution(2, 50, 5, 5))
-      model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2,2,2,2))
-   end
+   --[[
+   model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
+   model:add(nn.SpatialConvolution(2, 100, 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialSubtractiveNormalization(100, image.gaussian1D(15)))
+   model:add(nn.SpatialMaxPooling(2,2,2,2))
+   model:add(nn.Reshape(2, 50, 14, 14))
+   model:add(nn.SplitTable(1))
+   model:add(nn.CMulTable())
+   model:add(nn.Tanh())
+   --]]
+
+   model:add(nn.SpatialSubtractiveNormalization(input_dim, image.gaussian1D(15)))
+   model:add(nn.SpatialConvolution(2, 50, 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialMaxPooling(2,2,2,2))
 
    model:add(nn.SpatialSubtractiveNormalization(50, image.gaussian1D(15)))
    model:add(nn.SpatialConvolutionMap(nn.tables.random(50, 128, 10), 5, 5))
@@ -99,13 +105,7 @@ if not opt.network then
    model:add(nn.SpatialConvolution(128, 200, 5, 5))
    model:add(nn.Tanh())
    spatial = nn.SpatialClassifier()
-   if opt.continuous then
-      print('Using continuous output')
-      spatial:add(nn.Linear(200,1))
-   else
-      print('Using discrete output')
-      spatial:add(nn.Linear(200,#classes))
-   end
+   spatial:add(nn.Linear(200,output_dim))
    model:add(spatial)
 
 else
@@ -124,7 +124,7 @@ end
 if not opt.network then
    loadData(opt.num_input_images, opt.delta, opt.root_directory)
    if opt.continuous then
-      local data = preSortDataContinuous(geometry, raw_data, 28, 2, true);
+      local data = preSortDataContinuous(geometry, raw_data, 26, 20, true);
       if data == nil then
 	 sys:exit(0)
       end
@@ -150,7 +150,7 @@ end
 
 if not opt.network then
    if opt.continuous then
-      sumdist = 0.0
+      sumdist = torch.Tensor(output_dim):zero()
       nsamples = 0
    else
       confusion = nn.ConfusionMatrix(classes)
@@ -179,7 +179,7 @@ if not opt.network then
 			  model:backward(input, df_do)
 			  
 			  if opt.continuous then
-			     sumdist = sumdist + math.abs(output[1] - target[1])
+			     sumdist = sumdist + abs(output - target)
 			     nsamples = nsamples + 1
 			  else
 			     confusion:add(output, target)
@@ -197,7 +197,7 @@ if not opt.network then
 
       if opt.continuous then
 	 print('Mean distance: ' .. sumdist/nsamples)
-	 sumdist = 0.0
+	 sumdist = torch.Tensor(output_dim):zero()
 	 nsamples = 0
       else
 	 print(confusion)
@@ -212,7 +212,7 @@ if not opt.network then
 	 
 	 local output = model:forward(input):select(3,1):select(2,1)
 	 if opt.continuous then
-	    sumdist = sumdist + math.abs(output[1] - target[1])
+	    sumdist = sumdist + abs(output - target)
 	    nsamples = nsamples + 1
 	 else
 	    confusion:add(output, target)
