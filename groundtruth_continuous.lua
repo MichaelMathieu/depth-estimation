@@ -167,6 +167,7 @@ function generateContinuousDatasetOpticalFlow(geometry, data, nSamples)
 				       return {self.patches[index], self.targets[index]}
 				    end})
 
+   meandist = torch.Tensor(2):zero()
    for iSample = 1,nSamples do
       local iBin = randInt(1, #data.histogram+1)
       local iPatch1 = data.histogram[iBin][randInt(1, #data.histogram[iBin]+1)]
@@ -187,12 +188,17 @@ function generateContinuousDatasetOpticalFlow(geometry, data, nSamples)
       -- normalize distances in [0..1] (outsiderso won't be predictable)
       dataset.targets[iSample][1] = (x2-x1) / geometry.wPatch + 0.5
       dataset.targets[iSample][2] = (y2-y1) / geometry.hPatch + 0.5
+      meandist[1] = meandist[1] + math.abs(x2-x1)
+      meandist[2] = meandist[2] + math.abs(y2-y1)
       if (dataset.targets[iSample][1] < 0) or (dataset.targets[iSample][1] > 1) or
-         (dataset.targets[iSample][2] < 0) or (dataset.targets[iSample][2] > 1) then
+         (dataset.targets[iSample][2] < 0) or (dataset.targets[iSample][2] > 1)  then
 	 print("Won't be able to predict that optical flow : too large " .. iSample .. " " ..
 	       x2-x1 .. " " .. y2-y1)
       end
    end
+   meandist = meandist/nSamples
+   print('Mean optical flow in pixels (x, y):')
+   print('(' .. meandist[1] .. ', ' .. meandist[2] .. ')')
    
    return dataset
 end

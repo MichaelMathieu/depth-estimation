@@ -250,7 +250,7 @@ if not opt.network then
    torch.save(opt.output_model, model)
 end
 
-if opt.input_image then
+if opt.input_image then --todo this is old code, not sure this works anymore
    if opt.continuous then
       print('input_image not implemented for continuous output')
       sys.exit(0)
