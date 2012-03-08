@@ -184,8 +184,14 @@ function generateContinuousDatasetOpticalFlow(geometry, data, nSamples)
       dataset.patches[iSample][2] =
 	 data.images[iImg2]:sub(y1-geometry.hPatch/2, y1+geometry.hPatch/2-1,
 				x1-geometry.wPatch/2, x1+geometry.wPatch/2-1)
-      dataset.targets[iSample][1] = x2-x1
-      dataset.targets[iSample][2] = y2-y1
+      -- normalize distances in [0..1] (outsiderso won't be predictable)
+      dataset.targets[iSample][1] = (x2-x1) / geometry.wPatch + 0.5
+      dataset.targets[iSample][2] = (y2-y1) / geometry.hPatch + 0.5
+      if (dataset.targets[iSample][1] < 0) or (dataset.targets[iSample][1] > 1) or
+         (dataset.targets[iSample][2] < 0) or (dataset.targets[iSample][2] > 1) then
+	 print("Won't be able to predict that optical flow : too large " .. iSample .. " " ..
+	       x2-x1 .. " " .. y2-y1)
+      end
    end
    
    return dataset
