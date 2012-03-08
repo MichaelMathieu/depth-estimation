@@ -179,7 +179,7 @@ if not opt.network then
 			  model:backward(input, df_do)
 			  
 			  if opt.continuous then
-			     sumdist = sumdist + abs(output - target)
+			     sumdist = sumdist + torch.abs(output - target)
 			     nsamples = nsamples + 1
 			  else
 			     confusion:add(output, target)
@@ -196,7 +196,8 @@ if not opt.network then
       end
 
       if opt.continuous then
-	 print('Mean distance: ' .. sumdist/nsamples)
+	 print('Mean distance: ')
+	 print(sumdist/nsamples)
 	 sumdist = torch.Tensor(output_dim):zero()
 	 nsamples = 0
       else
@@ -212,7 +213,7 @@ if not opt.network then
 	 
 	 local output = model:forward(input):select(3,1):select(2,1)
 	 if opt.continuous then
-	    sumdist = sumdist + abs(output - target)
+	    sumdist = sumdist + torch.abs(output - target)
 	    nsamples = nsamples + 1
 	 else
 	    confusion:add(output, target)
@@ -221,7 +222,8 @@ if not opt.network then
       end
 
       if opt.continuous then
-	 print('Mean distance: ' .. sumdist/nsamples)
+	 print('Mean distance:')
+	 print(sumdist/nsamples)
       else
 	 print(confusion)
       end
