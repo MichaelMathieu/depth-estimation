@@ -10,7 +10,7 @@ require 'sys'
 op = xlua.OptionParser('%prog [options]')
 --common
 op:option{'-t', '--network-type', action='store', dest='newtork_type', default='mnist',
-	  help='Network type: mnist | mul'}
+	  help='Network type: mnist | mul | opticalflow'}
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
 op:option{'-m', '--n-test-set', action='store', dest='n_test_set', default=1000,
@@ -32,8 +32,6 @@ op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 --discrete
 op:option{'-i', '--input-image', action='store', dest='input_image', default=nil,
 	  help='Run network on image. Must be the number of the image (no .jpg)'}
-op:option{'-2', '--two-frames', action='store_true', dest='two_frames', default=false,
-	  help='Use two consecutives frames instead of one'}
 op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
 	  help='Specify cutDepth manually'}
 op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
@@ -76,28 +74,19 @@ if not opt.network then
 
    model = nn.Sequential()
 
-   if opt.two_frames then
-      print('Using 2 frames')
-      if opt.network_type == 'mul' then
-	 model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
-	 model:add(nn.SpatialConvolution(2, 100, 5, 5))
-	 model:add(nn.Tanh())
-	 model:add(nn.SpatialSubtractiveNormalization(100, image.gaussian1D(15)))
-	 model:add(nn.SpatialMaxPooling(2,2,2,2))
-	 model:add(nn.Reshape(2, 50, 14, 14))
-	 model:add(nn.SplitTable(1))
-	 model:add(nn.CMulTable())
-	 model:add(nn.Tanh())
-      else
-	 model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
-	 model:add(nn.SpatialConvolution(2, 50, 5, 5))
-	 model:add(nn.Tanh())
-	 model:add(nn.SpatialMaxPooling(2,2,2,2))
-      end
+   if opt.network_type == 'mul' then
+      model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
+      model:add(nn.SpatialConvolution(2, 100, 5, 5))
+      model:add(nn.Tanh())
+      model:add(nn.SpatialSubtractiveNormalization(100, image.gaussian1D(15)))
+      model:add(nn.SpatialMaxPooling(2,2,2,2))
+      model:add(nn.Reshape(2, 50, 14, 14))
+      model:add(nn.SplitTable(1))
+      model:add(nn.CMulTable())
+      model:add(nn.Tanh())
    else
-      print('Using 1 frame')
-      model:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolution(1, 50, 5, 5))
+      model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
+      model:add(nn.SpatialConvolution(2, 50, 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2,2,2,2))
    end
