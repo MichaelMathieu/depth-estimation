@@ -18,7 +18,7 @@ function isInFrame(geometry, y, x)
           (x+geometry.wPatch/2 <= geometry.wImg) and (y+geometry.hPatch/2 <= geometry.hImg)
 end
 
-function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth)
+function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth, keep_only_tracked_pts)
    local nPatches = 0
    for iImg = 1,#raw_data do
       nPatches = nPatches + raw_data[iImg][2]:size(1)
@@ -26,7 +26,7 @@ function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth)
 
    local data = {}
    data.patches = torch.Tensor(nPatches, 5) -- patch: (iImg, y, x, depth, nextOccurence)
-   data.histogram = {} -- contains only usable patches
+   data.histogram = {} -- contains only usable patches (if keep_only_tracked_pts)
    data.perId = {}
    data.images = torch.Tensor(#raw_data, geometry.hImg, geometry.wImg)
    
@@ -90,11 +90,13 @@ function preSortDataContinuous(geometry, raw_data, maxDepth, binWidth)
    for iPatch = 1,nPatches do
       local iCurrentPatch = iPatch
       local goodPatch = true
-      for i = 1,geometry.nImgsPerSample-1 do
-	 iCurrentPatch = data.patches[iCurrentPatch][5]
-	 if iCurrentPatch == -1 then
-	    goodPatch = false
-	    break
+      if keep_only_tracked_pts then
+	 for i = 1,geometry.nImgsPerSample-1 do
+	    iCurrentPatch = data.patches[iCurrentPatch][5]
+	    if iCurrentPatch == -1 then
+	       goodPatch = false
+	       break
+	    end
 	 end
       end
       if goodPatch then
@@ -137,17 +139,52 @@ function generateContinuousDataset(geometry, data, nSamples)
 
       local y = data.patches[iPatch][2]
       local x = data.patches[iPatch][3]
+      local iImg = data.patches[iPatch][1]
 
-      -- for now, this is kind of stupid, but it is ready to set the target to optical flow
       for iImgIndex = 1,geometry.nImgsPerSample do
-	 local iImg = data.patches[iPatch][1]
 	 dataset.patches[iSample][iImgIndex] =
 	    data.images[iImg]:sub(y-geometry.hPatch/2, y+geometry.hPatch/2-1,
 				  x-geometry.wPatch/2, x+geometry.wPatch/2-1)
-	 iPatch = data.patches[iPatch][5]
+	 iImg = iImg + 1
       end
    end
    
    return dataset
 end
 
+function generateContinuousDatasetOpticalFlow(geometry, data, nSamples)
+   assert(geometry.nImgsPerSample == 2) -- optical flow is between 2 images
+   local dataset = {}
+   dataset.patches = torch.Tensor(nSamples, geometry.nImgsPerSample,
+				  geometry.hPatch, geometry.wPatch)
+   dataset.targets = torch.Tensor(nSamples, 2):zero()
+   function dataset:size()
+      return nSamples
+   end
+   setmetatable(dataset, {__index = function(self, index)
+				       return {self.patches[index], self.targets[index]}
+				    end})
+
+   for iSample = 1,nSamples do
+      local iBin = randInt(1, #data.histogram+1)
+      local iPatch1 = data.histogram[iBin][randInt(1, #data.histogram[iBin]+1)]
+      local iImg1 = data.patches[iPatch1][1]
+      local y1 = data.patches[iPatch1][2]
+      local x1 = data.patches[iPatch1][3]
+      local iPatch2 = data.patches[iPatch][5]
+      local iImg2 = data.patches[iPatch2][1]
+      local y2 = data.patches[iPatch2][2]
+      local x2 = data.patches[iPatch2][3]
+
+      dataset.patches[iSample][1] =
+	 data.images[iImg1]:sub(y1-geometry.hPatch/2, y1+geometry.hPatch/2-1,
+				x1-geometry.wPatch/2, x1+geometry.wPatch/2-1)
+      dataset.patches[iSample][2] =
+	 data.images[iImg2]:sub(y1-geometry.hPatch/2, y1+geometry.hPatch/2-1,
+				x1-geometry.wPatch/2, x1+geometry.wPatch/2-1)
+      dataset.targets[iSample][1] = x2-x1
+      dataset.targets[iSample][2] = y2-y1
+   end
+   
+   return dataset
+end

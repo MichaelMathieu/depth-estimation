@@ -3,13 +3,12 @@ require 'nnx'
 require 'image'
 require 'optim'
 require 'load_data'
-require 'groundtruth_descrete'
+require 'groundtruth_discrete'
 require 'groundtruth_continuous'
 require 'sys'
 
 op = xlua.OptionParser('%prog [options]')
-op:option{'-2', '--two-frames', action='store_true', dest='two_frames', default=false,
-	  help='Use two consecutives frames instead of one'}
+--common
 op:option{'-t', '--network-type', action='store', dest='newtork_type', default='mnist',
 	  help='Network type: mnist | mul'}
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
@@ -24,25 +23,29 @@ op:option{'-e', '--num-epochs', action='store', dest='nEpochs', default=10,
 	  help='Number of epochs'}
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
-op:option{'-i', '--input-image', action='store', dest='input_image', default=nil,
-	  help='Run network on image. Must be the number of the image (no .jpg)'}
 op:option{'-o', '--output_mode', action='store', dest='output_model', default='model',
 	  help='Name of the file to save the trained model'}
 op:option{'-d', '--delta', action='store', dest='delta', default=10,
 	  help='Delta between two consecutive frames'}
+op:option{'-rd', '--root-directory', action='store', dest='root_directory',
+	  default='./data', help='Root dataset directory'}
+--discrete
+op:option{'-i', '--input-image', action='store', dest='input_image', default=nil,
+	  help='Run network on image. Must be the number of the image (no .jpg)'}
+op:option{'-2', '--two-frames', action='store_true', dest='two_frames', default=false,
+	  help='Use two consecutives frames instead of one'}
 op:option{'-cd', '--cut-depth', action='store', dest='cut_depth', default=nil,
 	  help='Specify cutDepth manually'}
 op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
 	  help='Number of depth classes'}
-op:option{'-rd', '--root-directory', action='store', dest='root_directory',
-	  default='./data', help='Root dataset directory'}
+--continuous
 op:option{'-c', '--continuous', action='store_true', dest='continuous', default=false,
 	  help='Continuous output (experimental)'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
-depthDescretizer.nClasses = tonumber(opt.num_classes)
+depthDiscretizer.nClasses = tonumber(opt.num_classes)
 
 if opt.network_type == 'mul' and not opt.two_frames then
    print("Error: '-t mul' needs '-2'")
@@ -58,7 +61,7 @@ end
 
 if not opt.continuous then
    classes = {}
-   for i = 1,depthDescretizer.nClasses do
+   for i = 1,depthDiscretizer.nClasses do
       table.insert(classes, i)
    end
 end
@@ -111,7 +114,7 @@ if not opt.network then
       print('Using continuous output')
       spatial:add(nn.Linear(200,1))
    else
-      print('Using descrete output')
+      print('Using discrete output')
       spatial:add(nn.Linear(200,#classes))
    end
    model:add(spatial)
@@ -132,7 +135,7 @@ end
 if not opt.network then
    loadData(opt.num_input_images, opt.delta, opt.root_directory)
    if opt.continuous then
-      local data = preSortDataContinuous(geometry, raw_data, 28, 2);
+      local data = preSortDataContinuous(geometry, raw_data, 28, 2, true);
       if data == nil then
 	 sys:exit(0)
       end
@@ -140,13 +143,13 @@ if not opt.network then
       testData = generateContinuousDataset(geometry, data, opt.n_test_set);
    else
       --todo maxDepth depends on the dataset, therefore the classes depend too
-      preSortDataDescrete(geometry.hPatch, geometry.wPatch, false)
+      preSortDataDiscrete(geometry.hPatch, geometry.wPatch, false)
       if opt.cut_depth then
 	 cutDepth=opt.cut_depth
       end
-      trainData = generateDataDescrete(opt.n_train_set, geometry.hPatch, geometry.wPatch, true,
+      trainData = generateDataDiscrete(opt.n_train_set, geometry.hPatch, geometry.wPatch, true,
 				       opt.two_frames)
-      testData = generateDataDescrete(opt.n_test_set, geometry.hPatch, geometry.wPatch, false,
+      testData = generateDataDiscrete(opt.n_test_set, geometry.hPatch, geometry.wPatch, false,
 				      opt.two_frames);
    end
 

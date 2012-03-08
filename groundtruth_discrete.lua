@@ -5,12 +5,12 @@ require 'xlua'
 
 require 'common'
 
-depthDescretizer = {}
-depthDescretizer.nClasses = -1
-depthDescretizer.cutDepth = 0
-depthDescretizer.binStep = 0
+depthDiscretizer = {}
+depthDiscretizer.nClasses = -1
+depthDiscretizer.cutDepth = 0
+depthDiscretizer.binStep = 0
 
-function depthDescretizer:getClass(depth)
+function depthDiscretizer:getClass(depth)
    local step = 2*self.cutDepth/self.nClasses
    local class = math.ceil(depth/step)
    if class > self.nClasses then
@@ -19,7 +19,7 @@ function depthDescretizer:getClass(depth)
    return class
 end
 
-function depthDescretizer:computeCutDepth(histogram, nUsedPatches)
+function depthDiscretizer:computeCutDepth(histogram, nUsedPatches)
    local nPerClass = torch.Tensor(self.nClasses):zero()
       
    local numberOfSamples = 0
@@ -43,7 +43,7 @@ function depthDescretizer:computeCutDepth(histogram, nUsedPatches)
    self.binStep = math.floor(2*self.cutDepth/self.nClasses)
 end
 
-function depthDescretizer:randomBin(histogram)
+function depthDiscretizer:randomBin(histogram)
    local randomClass = randInt(1, self.nClasses+1)
    local randomBinIndex
    local sizeOfBin = 0
@@ -61,7 +61,7 @@ depthHistogram = {}
 numberOfBins = 0
 maxDepth = 0
 
-function preSortDataDescrete(wPatch, hPatch, use_median)
+function preSortDataDiscrete(wPatch, hPatch, use_median)
    -- Merge the patches of all the images
    print("Merging the data from all the images...")
    local numberOfPatches = 0
@@ -150,10 +150,10 @@ function preSortDataDescrete(wPatch, hPatch, use_median)
    end
    print("")
 
-   depthDescretizer:computeCutDepth(depthHistogram, usedPatchesNumber)
+   depthDiscretizer:computeCutDepth(depthHistogram, usedPatchesNumber)
 end
 
-function generateDataDescrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
+function generateDataDiscrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
    local dataset = {}
    if use_2_pics then
       dataset.patches = torch.Tensor(nSamples, 2, hPatch, wPatch)
@@ -161,7 +161,7 @@ function generateDataDescrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
       print("Using one pic")
       dataset.patches = torch.Tensor(nSamples, 1, hPatch, wPatch)
    end
-   dataset.targets = torch.Tensor(nSamples, depthDescretizer.nClasses):zero()
+   dataset.targets = torch.Tensor(nSamples, depthDiscretizer.nClasses):zero()
    dataset.permutation = randomPermutation(nSamples)
    setmetatable(dataset, {__index = function(self, index_)
 				       local index = self.permutation[index_]
@@ -174,7 +174,7 @@ function generateDataDescrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
    print("Sampling patches...")
    local nGood = 1
    while nGood <= nSamples do
-      local randomBinIndex = depthDescretizer:randomBin(depthHistogram)
+      local randomBinIndex = depthDiscretizer:randomBin(depthHistogram)
       local randomPatchIndex = randInt(1, table.getn(depthHistogram[randomBinIndex])+1)
       local patch_descr = depthHistogram[randomBinIndex][randomPatchIndex]
       local im_index = patch_descr[2]
@@ -191,20 +191,20 @@ function generateDataDescrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
 	 dataset.patches[nGood][2]:copy(patch2)
       end
 
-      dataset.targets[nGood][depthDescretizer:getClass(depthHistogram[randomBinIndex][randomPatchIndex][1])] = 1
+      dataset.targets[nGood][depthDiscretizer:getClass(depthHistogram[randomBinIndex][randomPatchIndex][1])] = 1
       nGood = nGood + 1
    end
    
-   nPerClass = torch.Tensor(depthDescretizer.nClasses):zero()
+   nPerClass = torch.Tensor(depthDiscretizer.nClasses):zero()
    for i = 1,nGood-1 do
-      for j = 1,depthDescretizer.nClasses do
+      for j = 1,depthDiscretizer.nClasses do
 	 if dataset.targets[i][j] == 1 then
 	    nPerClass[j] = nPerClass[j] + 1
 	 end
       end
    end
    print("Done :")
-   for i = 1,depthDescretizer.nClasses do
+   for i = 1,depthDiscretizer.nClasses do
       print("Class " .. i .. " has " .. nPerClass[i] .. " patches")
    end
    
