@@ -52,13 +52,15 @@ function lsq_trans(ptsin, ptsout, w_center, h_center)
 	x = torch.gesv(b,A)
 	
 	local dtheta = -torch.atan(x[4][1])
+	local dx = x[1][1]
+	local dy = x[2][1]
 
 	H[1][1] = torch.cos(dtheta)
 	H[1][2] = torch.sin(dtheta)
-	H[1][3] = ((1-torch.cos(dtheta))*w_center - torch.sin(dtheta)*h_center) + x[1][1]
+	H[1][3] = ((1-torch.cos(dtheta))*w_center - torch.sin(dtheta)*h_center) + dx
 	H[2][1] = -torch.sin(dtheta)
 	H[2][2] = torch.cos(dtheta)
-	H[2][3] = (torch.sin(dtheta)*w_center - (1-torch.cos(dtheta))*h_center) + x[2][1]
+	H[2][3] = (torch.sin(dtheta)*w_center - (1-torch.cos(dtheta))*h_center) + dy
 
-	return H
+	return H, dx, dy, dtheta
 end
