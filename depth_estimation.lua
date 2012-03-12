@@ -54,62 +54,90 @@ if opt.nThreads > 1 then
    openmp.setDefaultNumThreads(opt.nThreads)
 end
 
-if not opt.continuous then
-   classes = {}
-   for i = 1,depthDiscretizer.nClasses do
-      table.insert(classes, i)
-   end
-end
 geometry = {}
 geometry.wImg = 640
 geometry.hImg = 360
 geometry.wPatch = 32
 geometry.hPatch = 32
 geometry.nImgsPerSample = 2 --todo
+geometry.maxw = 17
+geometry.maxh = 17
+
+if not opt.continuous then
+   classes = {}
+   for i = 1,depthDiscretizer.nClasses do
+      table.insert(classes, i)
+   end
+end
+if opt.network_type == 'opticalflow' then
+   classes = {}
+   for i = 1,geometry.maxw*geometry.maxh do
+      table.insert(classes, i)
+   end
+end
 
 if not opt.network then
 
    input_dim = 2
    if opt.continuous then
-      if opt.network_type == 'opticalflow' then
-	 output_dim = 2
-      else
-	 output_dim = 1
-      end
+      output_dim = 1
    else
       output_dim = #classes
    end
    
    model = nn.Sequential()
 
-   --[[
-   model:add(nn.SpatialSubtractiveNormalization(2, image.gaussian1D(15)))
-   model:add(nn.SpatialConvolution(2, 100, 5, 5))
-   model:add(nn.Tanh())
-   model:add(nn.SpatialSubtractiveNormalization(100, image.gaussian1D(15)))
-   model:add(nn.SpatialMaxPooling(2,2,2,2))
-   model:add(nn.Reshape(2, 50, 14, 14))
-   model:add(nn.SplitTable(1))
-   model:add(nn.CMulTable())
-   model:add(nn.Tanh())
-   --]]
+   if opt.network_type == 'opticalflow' then
+      local hInput = geometry.hPatch
+      local wInput = geometry.wPatch
+      local kernelSize = 16
+      local nChannelsIn = 1
+      local nFeatures = 10
+      --model:add(nn.SpatialSubtractiveNormalization(input_dim, image.gaussian1D(15)))
+      model:add(nn.SplitTable(1))
+      local parallel = nn.ParallelTable()
+      local parallelElem1 = nn.Sequential()
+      local parallelElem2 = nn.Sequential()
+      local conv = nn.SpatialConvolution(nChannelsIn, nFeatures, kernelSize, kernelSize)
+      parallelElem1:add(nn.Reshape(nChannelsIn, hInput, wInput))
+      parallelElem1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), kernelSize))
+      parallelElem1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), kernelSize))
+      parallelElem1:add(conv)
+      parallelElem1:add(nn.Tanh())
+      
+      parallelElem2:add(nn.Reshape(nChannelsIn, hInput, wInput))
+      parallelElem2:add(conv)
+      parallelElem2:add(nn.Tanh())
 
-   model:add(nn.SpatialSubtractiveNormalization(input_dim, image.gaussian1D(15)))
-   model:add(nn.SpatialConvolution(2, 50, 5, 5))
-   model:add(nn.Tanh())
-   model:add(nn.SpatialMaxPooling(2,2,2,2))
+      parallel:add(parallelElem1)
+      parallel:add(parallelElem2)
+      model:add(parallel)
 
-   model:add(nn.SpatialSubtractiveNormalization(50, image.gaussian1D(15)))
-   model:add(nn.SpatialConvolutionMap(nn.tables.random(50, 128, 10), 5, 5))
-   model:add(nn.Tanh())
-   model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
-
-   model:add(nn.SpatialConvolution(128, 200, 5, 5))
-   model:add(nn.Tanh())
-   spatial = nn.SpatialClassifier()
-   spatial:add(nn.Linear(200,output_dim))
-   model:add(spatial)
-
+      model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
+      --model:add(nn.Tanh())
+      model:add(nn.Reshape(hInput-kernelSize-geometry.maxh+2,
+			   wInput-kernelSize-geometry.maxw+2,
+			   geometry.maxw*geometry.maxh))
+     
+   else
+      --model:add(nn.SpatialNormalization{nInputPlane=input_dim,
+	--				kernel=image.gaussian(15)})
+      model:add(nn.SpatialSubtractiveNormalization(input_dim, image.gaussian1D(15)))
+      model:add(nn.SpatialConvolution(input_dim, 50, 5, 5))
+      model:add(nn.Tanh())
+      model:add(nn.SpatialMaxPooling(2,2,2,2))
+      
+      model:add(nn.SpatialSubtractiveNormalization(50, image.gaussian1D(15)))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(50, 128, 10), 5, 5))
+      model:add(nn.Tanh())
+      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      
+      model:add(nn.SpatialConvolution(128, 200, 5, 5))
+      model:add(nn.Tanh())
+      local spatial = nn.SpatialClassifier()
+      spatial:add(nn.Linear(200,output_dim))
+      model:add(spatial)
+   end
 else
    model = torch.load(opt.network)
 end
@@ -117,7 +145,11 @@ end
 parameters, gradParameters = model:getParameters()
 
 if opt.continuous then
-   criterion = nn.MSECriterion()
+   if opt.network_type == 'opticalflow' then
+      criterion = nn.ClassNLLCriterion()
+   else
+      criterion = nn.MSECriterion()
+   end
 else
    criterion = nn.DistNLLCriterion()
    criterion.targetIsProbability = true
@@ -154,21 +186,32 @@ end
 
 
 if not opt.network then
-   if opt.continuous then
-      sumdist = torch.Tensor(output_dim):zero()
-      nsamples = 0
-   else
-      confusion = nn.ConfusionMatrix(classes)
-   end
-
    for epoch = 1,opt.nEpochs do
       print("Epoch " .. epoch)
       xlua.progress(0, trainData:size())
+
+      if opt.continuous then
+	 if opt.network_type == 'opticalflow' then
+	    nGood = 0
+	    nBad = 0
+	 else
+	    sumdist = torch.Tensor(output_dim):zero()
+	    nsamples = 0
+	 end
+      else
+	 confusion = nn.ConfusionMatrix(classes)
+      end
+
       for t = 1,trainData:size() do
 	 modProgress(t, trainData:size(), 100);
 	 local sample = trainData[t]
 	 local input = sample[1]
-	 local target = sample[2]
+	 local target
+	 if opt.network_type == 'opticalflow' then
+	    target = sample[2][2] * geometry.maxw + sample[2][1] + 1
+	 else
+	    target = sample[2]
+	 end
 	 
 	 local feval = function(x)
 			  if x ~= parameters then
@@ -176,14 +219,32 @@ if not opt.network then
 			  end
 			  gradParameters:zero()
 			  
-			  local output = model:forward(input):select(3,1):select(2,1)
+			  local output
+			  if opt.network_type == 'opticalflow' then
+			     output = model:forward(input)
+			     output = output:squeeze()
+			     output = torch.Tensor(output:size()):fill(1) - output:abs()
+			  else
+			     output = model:forward(input):select(3,1):select(2,1)
+			  end
 			  local err = criterion:forward(output, target)
 			  local df_do = criterion:backward(output, target)
 			  model:backward(input, df_do)
 			  
 			  if opt.continuous then
-			     sumdist = sumdist + torch.abs(output - target)
-			     nsamples = nsamples + 1
+			     if opt.network_type == 'opticalflow' then
+				_, ioutput = output:max(1)
+				ioutput = ioutput[1]
+				--print(output .. ' ' .. target)
+				if ioutput == target then
+				   nGood = nGood + 1
+				else
+				   nBad = nBad + 1
+				end
+			     else
+				sumdist = sumdist + torch.abs(output - target)
+				nsamples = nsamples + 1
+			     end
 			  else
 			     confusion:add(output, target)
 			  end
@@ -200,9 +261,9 @@ if not opt.network then
 
       if opt.continuous then
 	 if opt.network_type == 'opticalflow' then
-	    sumdist = sumdist/nsamples
-	    print('\nMean optical flow error on training set in pixels (x, y):')
-	    print('(' ..sumdist[1]*geometry.wPatch .. ", " .. sumdist[2]*geometry.hPatch .. ")")
+	    print('nGood = ' .. nGood .. ' nBad = ' .. nBad)
+	    nGood = 0
+	    nBad = 0
 	 else
 	    print('Mean error: ')
 	    print(sumdist/nsamples)
@@ -215,16 +276,44 @@ if not opt.network then
       end
 
       for t = 1,testData:size() do
-	 modProgress(t, testData:size(), 100)
-	 xlua.progress(t, testData:size())
+	 --modProgress(t, testData:size(), 100)
 	 local sample = testData[t]
 	 local input = sample[1]
-	 local target = sample[2]
-	 
-	 local output = model:forward(input):select(3,1):select(2,1)
+	 --input[2] = input[1]:clone()
+	 local target
+	 if opt.network_type == 'opticalflow' then
+	    target = sample[2][2] * geometry.maxw + sample[2][1] + 1
+	 else
+	    target = sample[2]
+	 end
+
+	 local output
+	 if opt.network_type == 'opticalflow' then
+	    output = model:forward(input):squeeze()
+	    --output = torch.Tensor(output:size()):fill(1) - output:abs()
+	    output = output:abs()
+	 else
+	    output = model:forward(input):select(3,1):select(2,1)
+	 end
 	 if opt.continuous then
-	    sumdist = sumdist + torch.abs(output - target)
-	    nsamples = nsamples + 1
+	       if opt.network_type == 'opticalflow' then
+		  _, ioutput = output:min(1)
+		  ioutput = ioutput[1]
+		  --[[
+		  youtput = (ioutput-1)/geometry.maxw
+		  xoutput = math.mod(ioutput-1, geometry.maxw)
+		  if (sample[2][2]-1 <= youtput) and (youtput <= sample[2][2]+1) and
+	             (sample[2][1]-1 <= xoutput) and (xoutput <= sample[2][1]+1) then
+		  --]]
+		  if ioutput == target then
+		     nGood = nGood + 1
+		  else
+		     nBad = nBad + 1
+		  end
+	       else
+		  sumdist = sumdist + torch.abs(output - target)
+		  nsamples = nsamples + 1
+	       end
 	 else
 	    confusion:add(output, target)
 	 end
@@ -233,9 +322,7 @@ if not opt.network then
 
       if opt.continuous then
 	 if opt.network_type == 'opticalflow' then
-	    sumdist = sumdist/nsamples
-	    print('\nMean optical flow error on test set in pixels (x, y):')
-	    print('(' ..sumdist[1]*geometry.wPatch .. ", " .. sumdist[2]*geometry.hPatch .. ")")
+	    print('nGood = ' .. nGood .. ' nBad = ' .. nBad)
 	 else
 	    print('Mean error:')
 	    print(sumdist/nsamples)

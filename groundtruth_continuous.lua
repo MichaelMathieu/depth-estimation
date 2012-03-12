@@ -168,6 +168,7 @@ function generateContinuousDatasetOpticalFlow(geometry, data, nSamples)
 				    end})
 
    meandist = torch.Tensor(2):zero()
+   meandist2 = torch.Tensor(2):zero()
    for iSample = 1,nSamples do
       local iBin = randInt(1, #data.histogram+1)
       local iPatch1 = data.histogram[iBin][randInt(1, #data.histogram[iBin]+1)]
@@ -186,19 +187,35 @@ function generateContinuousDatasetOpticalFlow(geometry, data, nSamples)
 	 data.images[iImg2]:sub(y1-geometry.hPatch/2, y1+geometry.hPatch/2-1,
 				x1-geometry.wPatch/2, x1+geometry.wPatch/2-1)
       -- normalize distances in [0..1] (outsiderso won't be predictable)
+      --[[
       dataset.targets[iSample][1] = (x2-x1) / geometry.wPatch + 0.5
       dataset.targets[iSample][2] = (y2-y1) / geometry.hPatch + 0.5
+      --]]
+      local dy = y2-y1+math.floor(geometry.maxh/2)
+      local dx = x2-x1+math.floor(geometry.maxw/2)
+      if (dy >= 0) and (dy < geometry.maxh) and (dx >= 0) and (dx < geometry.maxw) then
+	 dataset.targets[iSample][1] = dx
+	 dataset.targets[iSample][2] = dy
+      end --todo what if it is not in the area
       meandist[1] = meandist[1] + math.abs(x2-x1)
       meandist[2] = meandist[2] + math.abs(y2-y1)
+      meandist2[1] = meandist2[1] + (x2-x1)*(x2-x1)
+      meandist2[2] = meandist2[2] + (y2-y1)*(y2-y1)
+      --[[
       if (dataset.targets[iSample][1] < 0) or (dataset.targets[iSample][1] > 1) or
          (dataset.targets[iSample][2] < 0) or (dataset.targets[iSample][2] > 1)  then
 	 print("Won't be able to predict that optical flow : too large " .. iSample .. " " ..
 	       x2-x1 .. " " .. y2-y1)
       end
+      --]]
    end
    meandist = meandist/nSamples
+   meandist2 = meandist2/nSamples
    print('Mean optical flow in pixels (x, y):')
    print('(' .. meandist[1] .. ', ' .. meandist[2] .. ')')
+   print('Std deviation of optical flow in pixels (x, y):')
+   print('(' .. math.sqrt(meandist2[1] - meandist[1]*meandist[1]) .. ', ' ..
+      math.sqrt(meandist2[2] - meandist[2]*meandist[2]) .. ')')
    
    return dataset
 end
