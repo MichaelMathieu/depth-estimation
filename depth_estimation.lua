@@ -39,6 +39,8 @@ op:option{'-nc', '--num-classes', action='store', dest='num_classes', default=2,
 --continuous
 op:option{'-c', '--continuous', action='store_true', dest='continuous', default=false,
 	  help='Continuous output (experimental)'}
+op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correction', default=false,
+     help='Eliminate panning, tilting and rotation camera movements'}
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.n_train_set = tonumber(opt.n_train_set)
@@ -169,14 +171,12 @@ if not opt.network then
       end
    else
       --todo maxDepth depends on the dataset, therefore the classes depend too
-      preSortDataDiscrete(geometry.hPatch, geometry.wPatch, false)
+      preSortDataDiscrete(geometry.hPatch, geometry.wPatch, false, opt.motion_correction)
       if opt.cut_depth then
 	 cutDepth=opt.cut_depth
       end
-      trainData = generateDataDiscrete(opt.n_train_set, geometry.hPatch, geometry.wPatch, true,
-				       opt.two_frames)
-      testData = generateDataDiscrete(opt.n_test_set, geometry.hPatch, geometry.wPatch, false,
-				      opt.two_frames);
+      trainData = generateDataDiscrete(opt.n_train_set, geometry.hPatch, geometry.wPatch, true, true, opt.motion_correction)
+      testData = generateDataDiscrete(opt.n_test_set, geometry.hPatch, geometry.wPatch, false, true, opt.motion_correction)
    end
 
 else

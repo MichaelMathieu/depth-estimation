@@ -2,8 +2,10 @@ require 'torch'
 require 'paths'
 require 'sys'
 require 'xlua'
+require 'image'
 
 require 'common'
+require 'motion_correction'
 
 depthDiscretizer = {}
 depthDiscretizer.nClasses = -1
@@ -60,8 +62,10 @@ h_imgs = 360
 depthHistogram = {}
 numberOfBins = 0
 maxDepth = 0
+H = {}
+warpImg = {}
 
-function preSortDataDiscrete(wPatch, hPatch, use_median)
+function preSortDataDiscrete(wPatch, hPatch, use_median, use_motion_correction)
    -- Merge the patches of all the images
    print("Merging the data from all the images...")
    local numberOfPatches = 0
@@ -85,6 +89,36 @@ function preSortDataDiscrete(wPatch, hPatch, use_median)
    end
    numberOfBins = math.ceil(maxDepth)
    print("maxDepth is " .. maxDepth)
+
+   if use_motion_correction then
+      print("Computing motion correction H...")
+      for iImg = 1,#raw_data-1 do
+         xlua.progress(iImg, #raw_data-1)
+         local ptsin = opencv.GoodFeaturesToTrack{image=raw_data[iImg][1], count=50}
+         local ptsout = opencv.TrackPyrLK{pair={raw_data[iImg][1],raw_data[iImg+1][1]},
+                           points_in=ptsin}
+         local dx, dy, dtheta
+         H[iImg],dx,dy,dtheta = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
+         --[[
+         print(H[iImg])
+         print(dx)
+         print(dy)
+         print(dtheta)
+         --]]
+         warpImg[iImg] = opencv.WarpAffine(raw_data[iImg+1][1],H[iImg])
+         --[[
+         ddx = tonumber(dx)
+         ddy = tonumber(dy)
+         print(ddx)
+         print(ddy)
+         --]]
+         --[[
+         trImg = raw_data[iImg+1][1]
+         trImg = image.translate(trImg,dx,dy)
+         warpImg[iImg] = image.rotate(trImg,dtheta)
+         --]]
+      end
+   end
 
    -- Compute histogram
    print("Computing the histogram of depths...")
@@ -153,7 +187,7 @@ function preSortDataDiscrete(wPatch, hPatch, use_median)
    depthDiscretizer:computeCutDepth(depthHistogram, usedPatchesNumber)
 end
 
-function generateDataDiscrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
+function generateDataDiscrete(nSamples, wPatch, hPatch, is_train, use_2_pics, use_motion_correction)
    local dataset = {}
    if use_2_pics then
       dataset.patches = torch.Tensor(nSamples, 2, hPatch, wPatch)
@@ -184,14 +218,47 @@ function generateDataDiscrete(nSamples, wPatch, hPatch, is_train, use_2_pics)
 							  y-hPatch/2, y+hPatch/2-1,
 							  x-wPatch/2, x+wPatch/2-1))
       dataset.patches[nGood][1]:copy(patch)
-      if use_2_pics then
-	 local patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
-								y-hPatch/2, y+hPatch/2-1,
-								x-wPatch/2, x+wPatch/2-1))
-	 dataset.patches[nGood][2]:copy(patch2)
-      end
-
       dataset.targets[nGood][depthDiscretizer:getClass(depthHistogram[randomBinIndex][randomPatchIndex][1])] = 1
+      if use_2_pics then
+         if use_motion_correction then
+
+            patch2 = image.rgb2y(warpImg[im_index]:sub(1, 3,
+                              y-hPatch/2, y+hPatch/2-1,
+                              x-wPatch/2, x+wPatch/2-1))
+            dataset.patches[nGood][2]:copy(patch2)
+            
+            local wpt = torch.Tensor(2)
+            local chpt = torch.Tensor(2)
+            local invH = torch.inverse(H[im_index]:sub(1,2,1,2))
+            
+            for i=0,1 do
+               for j=0,1 do
+                  wpt[1] = x - w_imgs/2 + wPatch*(i-0.5) - H[im_index][1][3]
+                  wpt[2] = y - h_imgs/2 + hPatch*(j-0.5) - H[im_index][2][3]
+                  
+                  chpt[1] = invH[1]:dot(wpt) + w_imgs/2
+                  if chpt[1]<1 or chpt[1]>w_imgs then
+                     if nGood>1 then nGood = nGood-1 end
+                     break
+                  end
+
+                  chpt[2] = invH[2]:dot(wpt) + h_imgs/2
+                  if chpt[2]<1 or chpt[2]>h_imgs then
+                     if nGood>1 then nGood = nGood-1 end
+                     break
+                  end
+
+               end
+            end
+
+         else
+            patch2 = image.rgb2y(raw_data[im_index+1][1]:sub(1, 3,
+                              y-hPatch/2, y+hPatch/2-1,
+                              x-wPatch/2, x+wPatch/2-1))
+            dataset.patches[nGood][2]:copy(patch2)
+         end
+      end
+      
       nGood = nGood + 1
    end
    
