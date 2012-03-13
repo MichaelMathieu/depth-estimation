@@ -1,9 +1,11 @@
 require 'torch'
+require 'xlua'
 require 'nnx'
 require 'image'
 require 'optim'
 require 'load_data'
 require 'groundtruth_opticalflow'
+require 'opticalflow_model'
 require 'sys'
 
 op = xlua.OptionParser('%prog [options]')
@@ -53,56 +55,20 @@ geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = 10
 
-function prepareInput(geometry, patch1, patch2)
-   ret = {}
-   ret[1] = patch1:narrow(2, math.ceil(geometry.maxh/2), geometry.hPatch1)
-                  :narrow(3, math.ceil(geometry.maxw/2), geometry.wPatch1)
-   ret[2] = patch2
-   return ret
-end
+local model = getModel(geometry, false)
+local parameters, gradParameters = model:getParameters()
 
-local model = nn.Sequential()
-local parallel = nn.ParallelTable()
-local parallelElem1 = nn.Sequential()
-local parallelElem2 = nn.Sequential()
-local conv = nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-				   geometry.wKernel, geometry.hKernel)
-parallelElem1:add(nn.Reshape(geometry.nChannelsIn, geometry.hPatch1, geometry.wPatch1))
-parallelElem1:add(conv)
-parallelElem1:add(nn.Tanh())
-
-parallelElem2:add(nn.Reshape(geometry.nChannelsIn, geometry.hPatch2, geometry.wPatch2))
-parallelElem2:add(conv)
-parallelElem2:add(nn.Tanh())
-
-parallel:add(parallelElem1)
-parallel:add(parallelElem2)
-model:add(parallel)
-
-model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-model:add(nn.Reshape(geometry.hPatch2 - geometry.hKernel - geometry.maxh + 2,
-		     geometry.wPatch2 - geometry.wKernel - geometry.maxw + 2,
-		     geometry.maxw*geometry.maxh))
-model:add(nn.Reshape(geometry.maxw*geometry.maxh)) --todo
-
-model:add(nn.Minus())
-model:add(nn.LogSoftMax())
-
-parameters, gradParameters = model:getParameters()
-
-criterion = nn.ClassNLLCriterion()
+local criterion = nn.ClassNLLCriterion()
 
 print('Loading images...')
-raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images, opt.delta)
---raw_data[2] = raw_data[1]
+local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images, opt.delta)
 print('Generating training set...')
-trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set);
+local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set);
 print('Generating test set...')
-testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set);
+local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set);
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)
-
 
    nGood = 0
    nBad = 0
@@ -113,15 +79,10 @@ for iEpoch = 1,opt.n_epochs do
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
       local target = yx2x(geometry, sample[2][2], sample[2][1])
       
-      local output = model:forward(input)
-      output = output:squeeze()
+      local output = model:forward(input):squeeze()
       
-      _, ioutput = output:max(1)
-      ioutput = ioutput:squeeze()
-      a1, a2 = x2yx(geometry, ioutput)
-      b1, b2 = x2yx(geometry, target)
-      --print(a1 .. " " .. a2 .. " | " .. b1 .. " " .. b2)
-      if ioutput == target then
+      output = processOutput(geometry, output)
+      if output.index == target then
 	 nGood = nGood + 1
       else
 	 nBad = nBad + 1
@@ -146,17 +107,13 @@ for iEpoch = 1,opt.n_epochs do
 		       end
 		       gradParameters:zero()
 		       
-		       local output = model:forward(input)
-		       --output = torch.Tensor(output:size()):fill(1) - output:abs()
-		       output = output:squeeze()
+		       local output = model:forward(input):squeeze()
 		       local err = criterion:forward(output, target)
 		       local df_do = criterion:backward(output, target)
 		       model:backward(input, df_do)
 		       
-		       _, ioutput = output:max(1)
-		       ioutput = ioutput:squeeze()
-		       --print(ioutput .. ' ' .. target)
-		       if ioutput == target then
+		       output = processOutput(geometry, output)
+		       if output.index == target then
 			  nGood = nGood + 1
 		       else
 			  nBad = nBad + 1
@@ -175,3 +132,5 @@ for iEpoch = 1,opt.n_epochs do
    print('nGood = ' .. nGood .. ' nBad = ' .. nBad)
 
 end
+
+torch.save('model_opticalflow', {parameters, geometry})

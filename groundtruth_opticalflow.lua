@@ -3,13 +3,7 @@ require 'xlua'
 require 'common'
 require 'image'
 require 'common'
-
-function yx2x(geometry, y, x)
-   return (x-1) * geometry.maxw + y
-end
-function x2yx(geometry, x)
-   return (math.floor((x-1)/geometry.maxw)+1), (math.mod(x-1, geometry.maxw)+1)
-end
+require 'opticalflow_model'
 
 function findMax(geometry, of)
    _, imax = of:reshape(of:size(1), of:size(2), of:size(3)*of:size(4)):max(3)
@@ -146,7 +140,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples)
    local iFlow = 1
    local iSample = 1
    while iSample <= nSamples do
-      xlua.progress(iSample, nSamples)
+      modProgress(iSample, nSamples, 100)
       local yFlow, xFlow = x2yx(geometry, iFlow)
       local candidates = raw_data.histogram[yFlow][xFlow]
       if #candidates ~= 0 then
