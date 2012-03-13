@@ -21,6 +21,8 @@ op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
 op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
+op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
+          default=5e-3, help='Learning rate'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -28,6 +30,7 @@ opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
 opt.num_input_images = tonumber(opt.num_input_images)
+opt.learning_rate = tonumber(opt.learning_rate)
 
 torch.manualSeed(1)
 
@@ -162,7 +165,7 @@ for iEpoch = 1,opt.n_epochs do
 		       return err, gradParameters
 		    end
 
-      config = {learningRate = 1e-2,
+      config = {learningRate = opt.learning_rate,
 		weightDecay = 0,
 		momentum = 0,
 		learningRateDecay = 5e-7}
