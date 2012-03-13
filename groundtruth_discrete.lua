@@ -91,7 +91,7 @@ function preSortDataDiscrete(wPatch, hPatch, use_median, use_motion_correction)
    print("maxDepth is " .. maxDepth)
 
    if use_motion_correction then
-      print("Computing motion correction H...")
+      print("Computing motion cor rection H...")
       for iImg = 1,#raw_data-1 do
          xlua.progress(iImg, #raw_data-1)
          local ptsin = opencv.GoodFeaturesToTrack{image=raw_data[iImg][1], count=50}
@@ -99,24 +99,8 @@ function preSortDataDiscrete(wPatch, hPatch, use_median, use_motion_correction)
                            points_in=ptsin}
          local dx, dy, dtheta
          H[iImg],dx,dy,dtheta = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
-         --[[
-         print(H[iImg])
-         print(dx)
-         print(dy)
-         print(dtheta)
-         --]]
-         warpImg[iImg] = opencv.WarpAffine(raw_data[iImg+1][1],H[iImg])
-         --[[
-         ddx = tonumber(dx)
-         ddy = tonumber(dy)
-         print(ddx)
-         print(ddy)
-         --]]
-         --[[
-         trImg = raw_data[iImg+1][1]
-         trImg = image.translate(trImg,dx,dy)
-         warpImg[iImg] = image.rotate(trImg,dtheta)
-         --]]
+         local inputImg = raw_data[iImg+1][1]:clone()
+         warpImg[iImg] = opencv.WarpAffine(inputImg,H[iImg])
       end
    end
 
