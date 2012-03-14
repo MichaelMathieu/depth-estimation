@@ -149,4 +149,10 @@ for iEpoch = 1,opt.n_epochs do
 
 end
 
-torch.save('model_opticalflow', {parameters, geometry})
+local st
+if opt.soft_targets then
+   st = '_st'
+else
+   st = '_ht'
+end
+torch.save('model_of_' .. opt.nEpochs .. '_' .. opt.learning_rate .. '_' .. opt.num_input_images .. '_' .. opt.n_train_set .. st, {parameters, geometry})
