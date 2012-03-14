@@ -67,7 +67,7 @@ function displayResult(geometry, output, gt, init_value)
 			   output:size(1)+math.ceil(geometry.hKernel/2)-1,
 			   math.ceil(geometry.wKernel/2),
 			   output:size(2)+math.ceil(geometry.wKernel/2)-1):copy(output)
-      image.display{outputWithBorder, gt}
+      image.display{image={outputWithBorder, gt}, min=1, max=17}
    end
 end
 
@@ -81,10 +81,12 @@ local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
 local image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
 local image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
 				       opt.input_image1, delta)
-
+image.display{image1, image2}
 local input = {image1, image2}
 
+t = torch.Timer()
 local output = model:forward(input)
+print(t:time())
 output = processOutput(geometry, output)
 
 local inity, initx = centered2onebased(geometry, 0, 0)

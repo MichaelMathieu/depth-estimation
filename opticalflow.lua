@@ -27,6 +27,8 @@ op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
+op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets',
+          default=false, help='Enable soft targets (targets are gaussians centered on groundtruth)'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -62,7 +64,14 @@ geometry.nFeatures = 10
 local model = getModel(geometry, false)
 local parameters, gradParameters = model:getParameters()
 
-local criterion = nn.ClassNLLCriterion()
+local criterion
+if opt.soft_targets then
+   criterion = nn.DistNLLCriterion()
+   criterion.inputAsADistance = true
+   criterion.targetIsProbability = true
+else
+   criterion = nn.ClassNLLCriterion()
+end
 
 print('Loading images...')
 local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
@@ -84,7 +93,7 @@ for iEpoch = 1,opt.n_epochs do
       xlua.progress(t, testData:size())
       local sample = testData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local target = yx2x(geometry, sample[2][2], sample[2][1])
+      local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
       
       local output = model:forward(input):squeeze()
       
@@ -106,7 +115,7 @@ for iEpoch = 1,opt.n_epochs do
       xlua.progress(t, trainData:size())
       local sample = trainData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local target = yx2x(geometry, sample[2][2], sample[2][1])
+      local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
       
       local feval = function(x)
 		       if x ~= parameters then
@@ -115,8 +124,8 @@ for iEpoch = 1,opt.n_epochs do
 		       gradParameters:zero()
 		       
 		       local output = model:forward(input):squeeze()
-		       local err = criterion:forward(output, target)
-		       local df_do = criterion:backward(output, target)
+		       local err = criterion:forward(output, targetCrit)
+		       local df_do = criterion:backward(output, targetCrit)
 		       model:backward(input, df_do)
 		       
 		       output = processOutput(geometry, output)
