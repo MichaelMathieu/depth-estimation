@@ -27,8 +27,10 @@ op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
-op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets',
-          default=false, help='Enable soft targets (targets are gaussians centered on groundtruth)'}
+op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
+	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
+op:option{'-nf', '--n-features', action='store', dest='n_features',
+          default=10, help='Number of features in the first layer'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -39,6 +41,7 @@ opt.num_input_images = tonumber(opt.num_input_images)
 opt.learning_rate = tonumber(opt.learning_rate)
 opt.delta = tonumber(opt.delta)
 opt.first_image = tonumber(opt.first_image)
+opt.n_features = tonumber(opt.n_features)
 
 torch.manualSeed(1)
 
@@ -59,7 +62,7 @@ geometry.maxh = geometry.hPatch2 - geometry.hKernel + 1
 geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
 geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
-geometry.nFeatures = 10
+geometry.nFeatures = opt.n_features
 
 local model = getModel(geometry, false)
 local parameters, gradParameters = model:getParameters()
@@ -90,7 +93,7 @@ for iEpoch = 1,opt.n_epochs do
    nBad = 0
 
    for t = 1,testData:size() do
-      xlua.progress(t, testData:size())
+      modProgress(t, testData:size(), 100)
       local sample = testData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
       local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
@@ -104,15 +107,15 @@ for iEpoch = 1,opt.n_epochs do
 	 nBad = nBad + 1
       end
    end
-      
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad)
+
+   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
 
 
    nGood = 0
    nBad = 0
    
    for t = 1,trainData:size() do
-      xlua.progress(t, trainData:size())
+      modProgress(t, trainData:size(), 100)
       local sample = trainData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
       local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
@@ -145,7 +148,7 @@ for iEpoch = 1,opt.n_epochs do
       optim.sgd(feval, parameters, config)
    end
       
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad)
+   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
 
 end
 
@@ -155,4 +158,4 @@ if opt.soft_targets then
 else
    st = '_ht'
 end
-torch.save('model_of_' .. opt.nEpochs .. '_' .. opt.learning_rate .. '_' .. opt.num_input_images .. '_' .. opt.n_train_set .. st, {parameters, geometry})
+torch.save('model_of_' .. opt.n_features .. '_' .. opt.n_epochs .. '_' .. opt.learning_rate .. '_' .. opt.num_input_images .. '_' .. opt.n_train_set .. st, {parameters, geometry})
