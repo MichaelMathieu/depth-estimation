@@ -13,6 +13,8 @@ op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=200
 	  help='Number of patches in the training set'}
 op:option{'-m', '--n-test-set', action='store', dest='n_test_set', default=1000,
 	  help='Number of patches in the test set'}
+op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
+	  help='Index of first image used'}
 op:option{'-d', '--delta', action='store', dest='delta', default=2,
 	  help='Delta between two consecutive frames'}
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -33,6 +35,8 @@ opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
 opt.num_input_images = tonumber(opt.num_input_images)
 opt.learning_rate = tonumber(opt.learning_rate)
+opt.delta = tonumber(opt.delta)
+opt.first_image = tonumber(opt.first_image)
 
 torch.manualSeed(1)
 
@@ -61,11 +65,14 @@ local parameters, gradParameters = model:getParameters()
 local criterion = nn.ClassNLLCriterion()
 
 print('Loading images...')
-local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images, opt.delta)
+local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
+				     opt.first_image, opt.delta)
 print('Generating training set...')
-local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set);
+local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
+					  'uniform_position');
 print('Generating test set...')
-local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set);
+local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
+				      'uniform_position');
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)
