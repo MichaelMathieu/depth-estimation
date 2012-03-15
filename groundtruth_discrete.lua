@@ -97,8 +97,7 @@ function preSortDataDiscrete(wPatch, hPatch, use_median, use_motion_correction)
          local ptsin = opencv.GoodFeaturesToTrack{image=raw_data[iImg][1], count=50}
          local ptsout = opencv.TrackPyrLK{pair={raw_data[iImg][1],raw_data[iImg+1][1]},
                            points_in=ptsin}
-         local dx, dy, dtheta
-         H[iImg],dx,dy,dtheta = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
+         H[iImg] = lsq_trans_ransac(ptsin, ptsout, w_imgs/2, h_imgs/2)
          local inputImg = raw_data[iImg+1][1]:clone()
          warpImg[iImg] = opencv.WarpAffine(inputImg,H[iImg])
       end
