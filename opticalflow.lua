@@ -43,6 +43,14 @@ opt.delta = tonumber(opt.delta)
 opt.first_image = tonumber(opt.first_image)
 opt.n_features = tonumber(opt.n_features)
 
+local st
+if opt.soft_targets then
+   st = 'st'
+else
+   st = 'ht'
+end
+local summary = 'nf=' .. opt.n_features .. ' e=' .. opt.n_epochs .. ' r=' .. opt.learning_rate .. ' ni=' .. opt.num_input_images .. ' d=' .. opt.delta .. ' n=' .. opt.n_train_set .. ' ' .. st
+
 torch.manualSeed(1)
 
 if opt.nThreads > 1 then
@@ -88,6 +96,7 @@ local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)
+   print(summary)
 
    nGood = 0
    nBad = 0
@@ -152,10 +161,5 @@ for iEpoch = 1,opt.n_epochs do
 
 end
 
-local st
-if opt.soft_targets then
-   st = '_st'
-else
-   st = '_ht'
-end
-torch.save('model_of_' .. opt.n_features .. '_' .. opt.n_epochs .. '_' .. opt.learning_rate .. '_' .. opt.num_input_images .. '_' .. opt.n_train_set .. st, {parameters, geometry})
+
+torch.save('model_of_' .. 'nf_' .. opt.n_features .. '_e_' .. opt.n_epochs .. '_r_' .. opt.learning_rate .. '_ni_' .. opt.num_input_images .. '_d_' .. opt.delta .. '_n_' .. opt.n_train_set .. '_' .. st, {parameters, geometry})
