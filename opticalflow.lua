@@ -1,9 +1,11 @@
 require 'torch'
+require 'xlua'
 require 'nnx'
 require 'image'
 require 'optim'
 require 'load_data'
 require 'groundtruth_opticalflow'
+require 'opticalflow_model'
 require 'sys'
 
 op = xlua.OptionParser('%prog [options]')
@@ -11,6 +13,8 @@ op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=200
 	  help='Number of patches in the training set'}
 op:option{'-m', '--n-test-set', action='store', dest='n_test_set', default=1000,
 	  help='Number of patches in the test set'}
+op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
+	  help='Index of first image used'}
 op:option{'-d', '--delta', action='store', dest='delta', default=2,
 	  help='Delta between two consecutive frames'}
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -23,6 +27,10 @@ op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
+op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
+	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
+op:option{'-nf', '--n-features', action='store', dest='n_features',
+          default=10, help='Number of features in the first layer'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -31,6 +39,17 @@ opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
 opt.num_input_images = tonumber(opt.num_input_images)
 opt.learning_rate = tonumber(opt.learning_rate)
+opt.delta = tonumber(opt.delta)
+opt.first_image = tonumber(opt.first_image)
+opt.n_features = tonumber(opt.n_features)
+
+local st
+if opt.soft_targets then
+   st = 'st'
+else
+   st = 'ht'
+end
+local summary = 'nf=' .. opt.n_features .. ' e=' .. opt.n_epochs .. ' r=' .. opt.learning_rate .. ' ni=' .. opt.num_input_images .. ' d=' .. opt.delta .. ' n=' .. opt.n_train_set .. ' ' .. st
 
 torch.manualSeed(1)
 
@@ -51,94 +70,64 @@ geometry.maxh = geometry.hPatch2 - geometry.hKernel + 1
 geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
 geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
-geometry.nFeatures = 10
+geometry.nFeatures = opt.n_features
 
-function prepareInput(geometry, patch1, patch2)
-   ret = {}
-   ret[1] = patch1:narrow(2, math.ceil(geometry.maxh/2), geometry.hPatch1)
-                  :narrow(3, math.ceil(geometry.maxw/2), geometry.wPatch1)
-   ret[2] = patch2
-   return ret
+local model = getModel(geometry, false)
+local parameters, gradParameters = model:getParameters()
+
+local criterion
+if opt.soft_targets then
+   criterion = nn.DistNLLCriterion()
+   criterion.inputAsADistance = true
+   criterion.targetIsProbability = true
+else
+   criterion = nn.ClassNLLCriterion()
 end
 
-local model = nn.Sequential()
-local parallel = nn.ParallelTable()
-local parallelElem1 = nn.Sequential()
-local parallelElem2 = nn.Sequential()
-local conv = nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-				   geometry.wKernel, geometry.hKernel)
-parallelElem1:add(nn.Reshape(geometry.nChannelsIn, geometry.hPatch1, geometry.wPatch1))
-parallelElem1:add(conv)
-parallelElem1:add(nn.Tanh())
-
-parallelElem2:add(nn.Reshape(geometry.nChannelsIn, geometry.hPatch2, geometry.wPatch2))
-parallelElem2:add(conv)
-parallelElem2:add(nn.Tanh())
-
-parallel:add(parallelElem1)
-parallel:add(parallelElem2)
-model:add(parallel)
-
-model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-model:add(nn.Reshape(geometry.hPatch2 - geometry.hKernel - geometry.maxh + 2,
-		     geometry.wPatch2 - geometry.wKernel - geometry.maxw + 2,
-		     geometry.maxw*geometry.maxh))
-model:add(nn.Reshape(geometry.maxw*geometry.maxh)) --todo
-
-model:add(nn.Minus())
-model:add(nn.LogSoftMax())
-
-parameters, gradParameters = model:getParameters()
-
-criterion = nn.ClassNLLCriterion()
-
 print('Loading images...')
-raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images, opt.delta)
---raw_data[2] = raw_data[1]
+local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
+				     opt.first_image, opt.delta)
 print('Generating training set...')
-trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set);
+local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
+					  'uniform_position');
 print('Generating test set...')
-testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set);
+local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
+				      'uniform_position');
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)
-
+   print(summary)
 
    nGood = 0
    nBad = 0
 
    for t = 1,testData:size() do
-      xlua.progress(t, testData:size())
+      modProgress(t, testData:size(), 100)
       local sample = testData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local target = yx2x(geometry, sample[2][2], sample[2][1])
+      local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
       
-      local output = model:forward(input)
-      output = output:squeeze()
+      local output = model:forward(input):squeeze()
       
-      _, ioutput = output:max(1)
-      ioutput = ioutput:squeeze()
-      a1, a2 = x2yx(geometry, ioutput)
-      b1, b2 = x2yx(geometry, target)
-      --print(a1 .. " " .. a2 .. " | " .. b1 .. " " .. b2)
-      if ioutput == target then
+      output = processOutput(geometry, output)
+      if output.index == target then
 	 nGood = nGood + 1
       else
 	 nBad = nBad + 1
       end
    end
-      
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad)
+
+   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
 
 
    nGood = 0
    nBad = 0
    
    for t = 1,trainData:size() do
-      xlua.progress(t, trainData:size())
+      modProgress(t, trainData:size(), 100)
       local sample = trainData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local target = yx2x(geometry, sample[2][2], sample[2][1])
+      local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
       
       local feval = function(x)
 		       if x ~= parameters then
@@ -146,17 +135,13 @@ for iEpoch = 1,opt.n_epochs do
 		       end
 		       gradParameters:zero()
 		       
-		       local output = model:forward(input)
-		       --output = torch.Tensor(output:size()):fill(1) - output:abs()
-		       output = output:squeeze()
-		       local err = criterion:forward(output, target)
-		       local df_do = criterion:backward(output, target)
+		       local output = model:forward(input):squeeze()
+		       local err = criterion:forward(output, targetCrit)
+		       local df_do = criterion:backward(output, targetCrit)
 		       model:backward(input, df_do)
 		       
-		       _, ioutput = output:max(1)
-		       ioutput = ioutput:squeeze()
-		       --print(ioutput .. ' ' .. target)
-		       if ioutput == target then
+		       output = processOutput(geometry, output)
+		       if output.index == target then
 			  nGood = nGood + 1
 		       else
 			  nBad = nBad + 1
@@ -172,6 +157,9 @@ for iEpoch = 1,opt.n_epochs do
       optim.sgd(feval, parameters, config)
    end
       
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad)
+   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
 
 end
+
+
+torch.save('model_of_' .. 'nf_' .. opt.n_features .. '_e_' .. opt.n_epochs .. '_r_' .. opt.learning_rate .. '_ni_' .. opt.num_input_images .. '_d_' .. opt.delta .. '_n_' .. opt.n_train_set .. '_' .. st, {parameters, geometry})
