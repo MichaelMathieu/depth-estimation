@@ -7,14 +7,14 @@ require 'common'
 require 'opticalflow_model'
 
 function findMax(geometry, of)
-   local maxs, imax = of:reshape(of:size(1), of:size(2), of:size(3)*of:size(4)):max(3)
+   local maxs, imax = of:reshape(of:size(1)*of:size(2), of:size(3),of:size(4)):max(1)
    local yc, xc = centered2onebased(geometry, 0, 0)
-   local xmax = torch.Tensor(imax:size(1), imax:size(2)):fill(yc)
-   local ymax = torch.Tensor(imax:size(1), imax:size(2)):fill(xc)
-   for i = 1,imax:size(1) do
-      for j = 1,imax:size(2) do
-	 if maxs[i][j][1] ~= -1 then
-	    local y, x = x2yx(geometry, imax[i][j][1])
+   local xmax = torch.Tensor(imax:size(2), imax:size(3)):fill(yc)
+   local ymax = torch.Tensor(imax:size(2), imax:size(3)):fill(xc)
+   for i = 1,imax:size(2) do
+      for j = 1,imax:size(3) do
+	 if maxs[1][i][j] ~= -1 then
+	    local y, x = x2yx(geometry, imax[1][i][j])
 	    ymax[i][j] = y
 	    xmax[i][j] = x
 	 end
@@ -23,12 +23,29 @@ function findMax(geometry, of)
    return ymax,xmax
 end
 
-function getOpticalFlow(geometry, image1, image2)
+--[[
+function getOpticalFlowFast(geometry, image1, image2)
    local halfmaxh = math.ceil(geometry.maxh/2)-1
    local halfmaxw = math.ceil(geometry.maxw/2)-1
    local halfhKernel = math.ceil(geometry.hKernel/2)-1
    local halfwKernel = math.ceil(geometry.wKernel/2)-1
-   of = torch.Tensor(image1:size(2), image1:size(3), geometry.maxh, geometry.maxw):fill(-1)
+   local matching = nn.SpatialMatching(geometry.maxh, geometry.maxw, true)
+   local unfolded1 = image1:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
+   unfolded1:resize(unfolded1:size(1), unfolded1:size(2), unfolded1:size(3),
+		    unfolded1:size(4)*unfolded1:size(5))
+   local input1 = Torch.tensor(unfolded1:size(1)*unfolded1:size(4),
+			       unfolded1:size(2), unfolded1:size(3))
+   for i = 1,unfolded1:size(2) do
+      for j = 1,unfolded1:size(3) do
+	 for k = 1,unfolded1:size(1) do
+	    input1:sub(select(2,i):select(2,j) = unfolded1:
+   local unfolded2 = image2:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
+   unfolded2:resize(unfolded2:size(1), unfolded2:size(2), unfolded2:size(3),
+		    unfolded2:size(4)*unfolded2:size(5))
+   local input2 = Torch.tensor(unfolded2:size(1)*unfolded2:size(4),
+			       unfolded2:size(2), unfolded2:size(3))
+
+   of = torch.Tensor(geometry.maxh, geometry.maxw, image1:size(2), image1:size(3)):fill(-1)
    for i = 1, image1:size(2) - geometry.hKernel - geometry.maxh + 2 do
       xlua.progress(i, image1:size(2) - geometry.hKernel - geometry.maxh + 2)
       for j = 1, image1:size(3) - geometry.wKernel - geometry.maxw + 2 do
@@ -43,7 +60,37 @@ function getOpticalFlow(geometry, image1, image2)
 	 for k = 1, geometry.maxh do
 	    for l = 1, geometry.maxw do
 	       local win2 = unfolded:select(2,k):select(2,l)
-	       of[i+halfmaxh+halfhKernel][j+halfmaxw+halfwKernel][k][l] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
+	       of[k][l][i+halfmaxh+halfhKernel][j+halfmaxw+halfwKernel] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
+	    end
+	 end
+      end
+   end
+   --'of' contains now the expected result of the newtork
+   return findMax(geometry, of)
+end
+--]]
+
+function getOpticalFlow(geometry, image1, image2)
+   local halfmaxh = math.ceil(geometry.maxh/2)-1
+   local halfmaxw = math.ceil(geometry.maxw/2)-1
+   local halfhKernel = math.ceil(geometry.hKernel/2)-1
+   local halfwKernel = math.ceil(geometry.wKernel/2)-1
+   of = torch.Tensor(geometry.maxh, geometry.maxw, image1:size(2), image1:size(3)):fill(-1)
+   for i = 1, image1:size(2) - geometry.hKernel - geometry.maxh + 2 do
+      xlua.progress(i, image1:size(2) - geometry.hKernel - geometry.maxh + 2)
+      for j = 1, image1:size(3) - geometry.wKernel - geometry.maxw + 2 do
+	 local win = image1:sub(1, image1:size(1),
+				i+halfmaxh, i+halfmaxh+geometry.hKernel-1,
+				j+halfmaxw, j+halfmaxw+geometry.wKernel-1)
+	 local tomul = image2:sub(1, image2:size(1),
+				  i, i+geometry.maxh+geometry.hKernel-2,
+				  j, j+geometry.maxw+geometry.wKernel-2)
+	 local unfolded = tomul:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
+	 local norm2win = win:dot(win)
+	 for k = 1, geometry.maxh do
+	    for l = 1, geometry.maxw do
+	       local win2 = unfolded:select(2,k):select(2,l)
+	       of[k][l][i+halfmaxh+halfhKernel][j+halfmaxw+halfwKernel] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
 	    end
 	 end
       end
@@ -121,6 +168,8 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
       table.insert(raw_data.flow, flow)
    end
 
+   local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
+   local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
    raw_data.histogram = {}
    for i = 1,geometry.maxh do
       raw_data.histogram[i] = {}
@@ -129,9 +178,9 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
       end
    end
    for iImg = 1,#raw_data.flow do
-      for i = 1,raw_data.flow[iImg]:size(2) do
-	 for j = 1,raw_data.flow[iImg]:size(3) do
-	    table.insert(raw_data.histogram[raw_data.flow[iImg][2][i][j]][raw_data.flow[iImg][1][i][j]], {iImg+1, i, j})
+      for i = 1,geometry.hImg-geometry.hPatch2 do
+	 for j = 1,geometry.wImg-geometry.wPatch2 do
+	    table.insert(raw_data.histogram[raw_data.flow[iImg][1][i+hoffset][j+woffset]][raw_data.flow[iImg][2][i+hoffset][j+woffset]], {iImg+1, i, j})
 	 end
       end
    end
@@ -154,11 +203,12 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
    if method == 'uniform_flow' then
       local iFlow = 1
       local iSample = 1
+      local thres_n_candidates = (geometry.hImg-geometry.hPatch2)*(geometry.wImg-geometry.wPatch2) * #raw_data.flow / 20
       while iSample <= nSamples do
 	 modProgress(iSample, nSamples, 100)
 	 local yFlow, xFlow = x2yx(geometry, iFlow)
 	 local candidates = raw_data.histogram[yFlow][xFlow]
-	 if #candidates ~= 0 then
+	 if #candidates > thres_n_candidates then
 	    local iCandidate = randInt(1, #candidates+1)
 	    local iImg = candidates[iCandidate][1]
 	    local yPatch = candidates[iCandidate][2]

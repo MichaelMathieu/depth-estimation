@@ -32,10 +32,10 @@ function flow2hsv(geometry, flow)
       for j = 1,flow:size(3) do
 	 local y, x = onebased2centered(geometry, flow[1][i][j], flow[2][i][j])
 	 local ang = math.atan2(y, x)
-	 local norm = math.sqrt(flow[1][i][j]*flow[1][i][j]+flow[2][i][j]*flow[2][i][j])
+	 local norm = math.sqrt(x*x+y*y)
 	 todisplay[1][i][j] = ang/(math.pi*2.0)
-	 todisplay[2][i][j] = norm/math.max(geometry.maxh, geometry.maxw)
-	 todisplay[3][i][j] = 1.0
+	 todisplay[2][i][j] = 1.0
+	 todisplay[3][i][j] = norm/math.max(geometry.maxh/2, geometry.maxw/2)
       end
    end
    return image.hsv2rgb(todisplay)
@@ -88,8 +88,35 @@ t = torch.Timer()
 local output = model:forward(input)
 print(t:time())
 output = processOutput(geometry, output)
+local output2 = torch.Tensor(2, output.x:size(1), output.x:size(2))
+output2[1] = output.y
+output2[2] = output.x
+local gt2 = gt:sub(1,2,
+		   math.ceil(geometry.hKernel/2),
+		   output.x:size(1)+math.ceil(geometry.hKernel/2)-1,
+		   math.ceil(geometry.wKernel/2),
+		   output.x:size(2)+math.ceil(geometry.wKernel/2)-1)
+
+local diff = (output2 - gt2):abs()
+diff = diff[1]+diff[2]
+local nGood = 0
+local nNear = 0
+local nBad = 0
+for i = 1,diff:size(1) do
+   for j = 1,diff:size(2) do
+      if diff[i][j] == 0 then
+	 nGood = nGood + 1
+      elseif diff[i][j] == 1 then
+	 nNear = nNear + 1
+      else
+	 nBad = nBad + 1
+      end
+   end
+end
+print('nGood=' .. nGood .. ' nNear=' .. nNear .. ' nBad=' .. nBad)
+print(100.*nGood/(nGood+nNear+nBad) .. '% accurate, ' .. 100.*(nGood+nNear)/(nGood+nNear+nBad) .. '% almost accurate')
 
 local inity, initx = centered2onebased(geometry, 0, 0)
 displayResult(geometry, output.y, gt[1], inity)
 displayResult(geometry, output.x, gt[2], initx)
-displayResult(geometry, {output.y, output.x}, gt)
+displayResult(geometry, output2, gt)

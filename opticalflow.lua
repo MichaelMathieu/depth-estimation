@@ -31,6 +31,8 @@ op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', def
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
 op:option{'-nf', '--n-features', action='store', dest='n_features',
           default=10, help='Number of features in the first layer'}
+op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
+	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -89,10 +91,10 @@ local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
 				     opt.first_image, opt.delta)
 print('Generating training set...')
 local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
-					  'uniform_position');
+					  opt.sampling_method)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
-				      'uniform_position');
+					 opt.sampling_method)
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)
