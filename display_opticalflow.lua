@@ -15,9 +15,13 @@ op:option{'-i', '--input-model', action='store', dest='input_model',
 	  help='Trained convnet'}
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
+op:option{'-p', '--post-process-win-size', action='store', dest='post_process_winsize',
+	  default=1,
+	  help='Basic output post-processing window size (1 disables post-processing)'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
+opt.post_process_winsize = tonumber(opt.post_process_winsize)
 
 torch.manualSeed(1)
 
@@ -45,22 +49,6 @@ function displayResult(geometry, output, gt, init_value)
    init_value = init_value or 0
    if (type(output) == 'table') or (output:size():size(1) == 3) then
       local outputWithBorder = torch.Tensor(2, gt:size(2), gt:size(3)):zero()
-      if type(output) == 'table' then
-	 for i = 1,2 do
-	    outputWithBorder:sub(i, i,
-				 math.ceil(geometry.hKernel/2),
-				 output[1]:size(1)+math.ceil(geometry.hKernel/2)-1,
-				 math.ceil(geometry.wKernel/2),
-				 output[1]:size(2)+math.ceil(geometry.wKernel/2)-1):copy(output[i])
-	 end
-      else
-	 outputWithBorder:sub(1, 2,
-			      math.ceil(geometry.hKernel/2),
-			      output:size(2)+math.ceil(geometry.hKernel/2)-1,
-			      math.ceil(geometry.wKernel/2),
-			      output:size(3)+math.ceil(geometry.wKernel/2)-1):copy(output)
-      end
-      image.display{flow2hsv(geometry, outputWithBorder), flow2hsv(geometry, gt)}
    else
       local outputWithBorder = torch.Tensor(gt:size()):fill(init_value)
       outputWithBorder:sub(math.ceil(geometry.hKernel/2),
@@ -88,9 +76,42 @@ t = torch.Timer()
 local output = model:forward(input)
 print(t:time())
 output = processOutput(geometry, output)
-local output2 = torch.Tensor(2, output.x:size(1), output.x:size(2))
-output2[1] = output.y
-output2[2] = output.x
+
+local output2 = torch.Tensor(2, output.x:size(1), output.x:size(2)):zero()
+
+if opt.post_process_winsize ~= 1 then
+   local winsize = opt.post_process_winsize
+   local winsizeh1 = math.ceil(winsize/2)-1
+   local winsizeh2 = math.floor(winsize/2)
+   local win = torch.Tensor(2,winsize,winsize)
+   for i = 1+winsizeh1,output2:size(2)-winsizeh2 do
+      for j = 1+winsizeh1,output2:size(3)-winsizeh2 do
+	 win[1] = (output.y:sub(i-winsizeh1, i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
+	 win[2] = (output.x:sub(i-winsizeh1, i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
+	 local win2 = win:reshape(2, winsize*winsize)
+	 win2 = win2:sort(2)
+	 local t = 1
+	 local tbest = 1
+	 local nbest = 1
+	 for k = 2,9 do
+	    if (win2:select(2,k) - win2:select(2,t)):abs():sum(1)[1] < 0.5 then
+	       if k-t > nbest then
+		  nbest = k-t
+		  tbest = t
+	       end
+	    else
+	       t = k
+	    end
+	 end
+	 output2[1][i][j] = win2[1][tbest]
+	 output2[2][i][j] = win2[2][tbest]
+      end
+   end
+else
+   output2[1] = output.y
+   output2[2] = output.x
+end
+
 local gt2 = gt:sub(1,2,
 		   math.ceil(geometry.hKernel/2),
 		   output.x:size(1)+math.ceil(geometry.hKernel/2)-1,
@@ -117,6 +138,6 @@ print('nGood=' .. nGood .. ' nNear=' .. nNear .. ' nBad=' .. nBad)
 print(100.*nGood/(nGood+nNear+nBad) .. '% accurate, ' .. 100.*(nGood+nNear)/(nGood+nNear+nBad) .. '% almost accurate')
 
 local inity, initx = centered2onebased(geometry, 0, 0)
-displayResult(geometry, output.y, gt[1], inity)
-displayResult(geometry, output.x, gt[2], initx)
+displayResult(geometry, output2[1], gt[1], inity)
+displayResult(geometry, output2[2], gt[2], initx)
 displayResult(geometry, output2, gt)
