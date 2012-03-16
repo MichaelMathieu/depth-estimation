@@ -96,6 +96,9 @@ print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
 					 opt.sampling_method)
 
+saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
+	  opt.first_image, opt.delta, 0, opt.learning_rate)
+
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)
    print(summary)
@@ -161,8 +164,7 @@ for iEpoch = 1,opt.n_epochs do
       
    print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
 
-end
+   saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
+	     opt.first_image, opt.delta, iEpoch, opt.learning_rate)
 
-saveModel('model_of_', geometry, parameters, opt.n_features,
-	  opt.num_input_images, opt.first_image, opt.delta,
-	  opt.n_epochs, opt.learning_rate)
+end
