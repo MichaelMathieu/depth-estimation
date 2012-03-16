@@ -97,3 +97,41 @@ function prepareTarget(geometry, target, soft_targets)
       return itarget, itarget
    end
 end
+
+function describeModel(geometry)
+   local summary = ''
+   for key, value in pairs(geometry) do
+      summary = summary .. key .. '=' .. value .. ' '
+   end
+   return summary
+   --[[
+   local st
+   if opt.soft_targets then
+      st = 'st'
+   else
+      st = 'ht'
+   end
+   local summary = 'nf=' .. opt.n_features .. ' e=' .. opt.n_epochs .. ' r=' .. opt.learning_rate .. ' ni=' .. opt.num_input_images .. ' d=' .. opt.delta .. ' n=' .. opt.n_train_set .. ' ' .. st
+   --]]
+end
+
+function saveModel(basefilename, geometry, parameters)
+   local modelsdirbase = 'models'
+   local modeldir = modelsdirbase .. '/' .. geometry.hImg .. 'x' .. geometry.wImg .. '/'
+   modeldir = modeldir .. geometry.maxh .. 'x' .. geometry.maxw .. 'x' .. geometry.hKernel
+   modeldir = modeldir .. 'x' .. geometry.wKernel
+   io.popen('mkdir -p ' .. modeldir)
+   local st, sampling
+   if opt.soft_targets then st = 'st' else st = 'ht' end
+   if opt.sampling_method == 'uniform_position' then sampling = 'unipos' else sampling = 'uniflow' end
+   torch.save(modeldir .. '/' .. basefilename .. 'nf_' .. opt.n_features .. '_e_' .. opt.n_epochs .. '_r_' .. opt.learning_rate .. '_ni_' .. opt.num_input_images .. '_d_' .. opt.delta .. '_n_' .. opt.n_train_set .. '_s_' .. sampling .. '_' .. st, {parameters, geometry})
+end
+
+function loadModel(filename, full_output)
+   local loaded = torch.load(filename)
+   local geometry = loaded[2]
+   local model = getModel(geometry, full_output)
+   local parameters = model:getParameters()
+   parameters:copy(loaded[1])
+   return geometry, model
+end

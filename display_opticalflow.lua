@@ -59,11 +59,7 @@ function displayResult(geometry, output, gt, init_value)
    end
 end
 
-local loaded = torch.load(opt.input_model)
-local geometry = loaded[2]
-local model = getModel(geometry, true)
-local parameters = model:getParameters()
-parameters:copy(loaded[1])
+geometry, model = loadModel(opt.input_model, true)
 
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
 local image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)

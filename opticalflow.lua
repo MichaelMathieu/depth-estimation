@@ -51,14 +51,6 @@ opt.n_features = tonumber(opt.n_features)
 opt.win_size = tonumber(opt.win_size)
 opt.kernel_size = tonumber(opt.kernel_size)
 
-local st
-if opt.soft_targets then
-   st = 'st'
-else
-   st = 'ht'
-end
-local summary = 'nf=' .. opt.n_features .. ' e=' .. opt.n_epochs .. ' r=' .. opt.learning_rate .. ' ni=' .. opt.num_input_images .. ' d=' .. opt.delta .. ' n=' .. opt.n_train_set .. ' ' .. st
-
 torch.manualSeed(1)
 
 if opt.nThreads > 1 then
@@ -79,6 +71,8 @@ geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
 geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
+
+local summary = describeModel(geometry)
 
 local model = getModel(geometry, false)
 local parameters, gradParameters = model:getParameters()
@@ -169,5 +163,4 @@ for iEpoch = 1,opt.n_epochs do
 
 end
 
-
-torch.save('model_of_' .. 'nf_' .. opt.n_features .. '_e_' .. opt.n_epochs .. '_r_' .. opt.learning_rate .. '_ni_' .. opt.num_input_images .. '_d_' .. opt.delta .. '_n_' .. opt.n_train_set .. '_' .. st, {parameters, geometry})
+saveModel('model_of_', geometry, parameters)
