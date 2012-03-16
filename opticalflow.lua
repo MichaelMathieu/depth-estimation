@@ -33,6 +33,10 @@ op:option{'-nf', '--n-features', action='store', dest='n_features',
           default=10, help='Number of features in the first layer'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
 	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
+op:option{'-ks', '--kernel-size', action='store', dest='kernel_size',
+	  default=16, help='Kernel size'}
+op:option{'-ws', '--window-size', action='store', dest='win_size',
+	  default=17, help='Window size (maxh)'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -44,6 +48,8 @@ opt.learning_rate = tonumber(opt.learning_rate)
 opt.delta = tonumber(opt.delta)
 opt.first_image = tonumber(opt.first_image)
 opt.n_features = tonumber(opt.n_features)
+opt.win_size = tonumber(opt.win_size)
+opt.kernel_size = tonumber(opt.kernel_size)
 
 local st
 if opt.soft_targets then
@@ -63,10 +69,10 @@ end
 local geometry = {}
 geometry.wImg = 320
 geometry.hImg = 180
-geometry.wPatch2 = 32
-geometry.hPatch2 = 32
-geometry.wKernel = 16
-geometry.hKernel = 16
+geometry.wPatch2 = opt.win_size + opt.kernel_size - 1
+geometry.hPatch2 = opt.win_size + opt.kernel_size - 1
+geometry.wKernel = opt.kernel_size
+geometry.hKernel = opt.kernel_size
 geometry.maxw = geometry.wPatch2 - geometry.wKernel + 1
 geometry.maxh = geometry.hPatch2 - geometry.hKernel + 1
 geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
