@@ -98,33 +98,30 @@ function prepareTarget(geometry, target, soft_targets)
    end
 end
 
-function describeModel(geometry)
-   local summary = ''
-   for key, value in pairs(geometry) do
-      summary = summary .. key .. '=' .. value .. ' '
-   end
+function describeModel(geometry, nImgs, first_image, delta)
+   local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
+   local kernel = 'kernel=(' .. geometry.hKernel .. 'x' .. geometry.wKernel .. ')'
+   local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
+   local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
+   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images
    return summary
-   --[[
-   local st
-   if opt.soft_targets then
-      st = 'st'
-   else
-      st = 'ht'
-   end
-   local summary = 'nf=' .. opt.n_features .. ' e=' .. opt.n_epochs .. ' r=' .. opt.learning_rate .. ' ni=' .. opt.num_input_images .. ' d=' .. opt.delta .. ' n=' .. opt.n_train_set .. ' ' .. st
-   --]]
 end
 
-function saveModel(basefilename, geometry, parameters)
+function saveModel(basefilename, geometry, parameters, nFeatures, nImgs, first_image, delta,
+		   nEpochs, learningRate)
    local modelsdirbase = 'models'
    local modeldir = modelsdirbase .. '/' .. geometry.hImg .. 'x' .. geometry.wImg .. '/'
    modeldir = modeldir .. geometry.maxh .. 'x' .. geometry.maxw .. 'x' .. geometry.hKernel
-   modeldir = modeldir .. 'x' .. geometry.wKernel
-   io.popen('mkdir -p ' .. modeldir)
+   modeldir = modeldir .. 'x' .. geometry.wKernel .. '/' .. nFeatures
+   os.execute('mkdir -p ' .. modeldir)
+   
    local st, sampling
    if opt.soft_targets then st = 'st' else st = 'ht' end
    if opt.sampling_method == 'uniform_position' then sampling = 'unipos' else sampling = 'uniflow' end
-   torch.save(modeldir .. '/' .. basefilename .. 'nf_' .. opt.n_features .. '_e_' .. opt.n_epochs .. '_r_' .. opt.learning_rate .. '_ni_' .. opt.num_input_images .. '_d_' .. opt.delta .. '_n_' .. opt.n_train_set .. '_s_' .. sampling .. '_' .. st, {parameters, geometry})
+   local images = 'imgs_'..first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
+   local train_params = 'e_' .. nEpochs .. '_r_' .. learningRate .. '_' .. sampling .. '_' .. st
+   torch.save(modeldir .. '/' .. basefilename .. train_params .. '_' .. images,
+	      {parameters, geometry})
 end
 
 function loadModel(filename, full_output)

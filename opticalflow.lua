@@ -72,7 +72,7 @@ geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
 
-local summary = describeModel(geometry)
+local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
 
 local model = getModel(geometry, false)
 local parameters, gradParameters = model:getParameters()
@@ -163,4 +163,6 @@ for iEpoch = 1,opt.n_epochs do
 
 end
 
-saveModel('model_of_', geometry, parameters)
+saveModel('model_of_', geometry, parameters, opt.n_features,
+	  opt.num_input_images, opt.first_image, opt.delta,
+	  opt.n_epochs, opt.learning_rate)

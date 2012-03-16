@@ -112,7 +112,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    local flowdir = dirbasename .. 'flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxh .. 'x' ..geometry.maxw .. 'x'
    flowdir = flowdir .. geometry.hKernel .. 'x' ..geometry.wKernel .. '/' .. delta
-   io.popen('mkdir -p ' .. flowdir)
+   os.execute('mkdir -p ' .. flowdir)
    local flowfilename = flowdir .. '/' .. imagebasename .. '.png'
    local flow = nil
    if paths.filep(flowfilename) then
