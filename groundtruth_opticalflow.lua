@@ -109,9 +109,9 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    if not previmagebasename then
       return im
    end
-   local flowdir = dirbasename..'flow/'..geometry.wImg..'x'..geometry.hImg..'/'..delta
+   local flowdir = dirbasename .. 'flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxh .. 'x' ..geometry.maxw .. 'x'
-   flowdir = flowdir .. geometry.hKernel .. 'x' ..geometry.wKernel
+   flowdir = flowdir .. geometry.hKernel .. 'x' ..geometry.wKernel .. '/' .. delta
    io.popen('mkdir -p ' .. flowdir)
    local flowfilename = flowdir .. '/' .. imagebasename .. '.png'
    local flow = nil
