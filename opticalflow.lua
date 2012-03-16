@@ -53,10 +53,10 @@ opt.kernel_size = tonumber(opt.kernel_size)
 
 torch.manualSeed(1)
 
-if opt.nThreads > 1 then
+--if opt.nThreads > 1 then
    require 'openmp'
    openmp.setDefaultNumThreads(opt.nThreads)
-end
+--end
 
 local geometry = {}
 geometry.wImg = 320
