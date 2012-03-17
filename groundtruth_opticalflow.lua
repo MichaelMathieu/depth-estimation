@@ -264,7 +264,7 @@ end
 
 
 
-
+--[[
 local geometry = {}
 geometry.wImg = 32
 geometry.hImg = 32
@@ -279,7 +279,7 @@ geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = 10
 geometry.soft_target = true
-
+--]]
 --[[
 raw_data = loadDataOpticalFlow(geometry, 'data/', 2, 0, 2)
 im1 = raw_data.images[1]
@@ -294,6 +294,7 @@ im2:sub(1,3,1,10,1,16):copy(im1:sub(1,3,1,10,1,16))
 im2:sub(1,3,11,16,1,5):copy(im1:sub(1,3,10,15,1,5))
 im2:sub(1,3,11,16,6,16):copy(im1:sub(1,3,10,15,4,14))
 --]]
+--[[
 im1 = torch.randn(3, 32, 32)
 im1:zero()
 for i = 1,32 do
@@ -307,6 +308,7 @@ im2 = torch.Tensor(im1:size())
 im2:sub(1,3,1,10,1,32):copy(im1:sub(1,3,1,10,1,32))
 im2:sub(1,3,11,32,1,10):copy(im1:sub(1,3,10,31,1,10))
 im2:sub(1,3,11,32,11,32):copy(im1:sub(1,3,10,31,9,30))
+--]]
 --[[
 im1 = torch.randn(3, 64, 64)
 im2 = torch.Tensor(im1:size())
@@ -315,7 +317,7 @@ im2:sub(1,3,1,20,62,64):copy(im1:sub(1,3,2,21,62,64))
 im2:sub(1,3,21,64,1,32):copy(im1:sub(1,3,21,64,1,32))
 im2:sub(1,3,21,64,33,64):copy(im1:sub(1,3,21,64,30,61))
 --]]
-
+--[[
 image.display{im1, im2}
 yflow,xflow = getOpticalFlow(geometry, im1, im2)
 flow = torch.Tensor(2, yflow:size(1), yflow:size(2))
@@ -346,3 +348,4 @@ end
 
 --image.display(a)
 image.display(image.scale(a, 128, 128, 'simple'))
+--]]
