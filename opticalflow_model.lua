@@ -72,7 +72,7 @@ function prepareInput(geometry, patch1, patch2)
 end
 
 function processOutput(geometry, output)
-   ret = {}
+   local ret = {}
    if geometry.soft_targets then
       _, ret.index = output:min(1)
    else
@@ -80,13 +80,14 @@ function processOutput(geometry, output)
    end
    ret.index = ret.index:squeeze()
    ret.y, ret.x = x2yx(geometry, ret.index)
-   ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
    local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
    local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
    if type(ret.y) == 'number' then
+      ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
       ret.full[1][1+hoffset][1+hoffset] = ret.y
       ret.full[2][1+hoffset][1+woffset] = ret.x
    else
+      ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
       ret.full:sub(1,1,1+hoffset,ret.y:size(1)+hoffset,1+woffset,ret.y:size(2)+woffset):copy(ret.y)
       ret.full:sub(2,2,1+hoffset,ret.x:size(1)+hoffset,1+woffset,ret.x:size(2)+woffset):copy(ret.x)
    end
@@ -116,7 +117,8 @@ function describeModel(geometry, nImgs, first_image, delta)
    local kernel = 'kernel=(' .. geometry.hKernel .. 'x' .. geometry.wKernel .. ')'
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
-   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images
+   local features = 'nFeatures=' .. geometry.nFeatures
+   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. features
    return summary
 end
 

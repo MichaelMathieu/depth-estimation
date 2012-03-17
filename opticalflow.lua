@@ -114,9 +114,9 @@ for iEpoch = 1,opt.n_epochs do
       local targetCrit, target = prepareTarget(geometry, sample[2])
       
       local output = model:forward(input):squeeze()
-      
-      output = processOutput(geometry, output)
-      if output.index == target then
+
+      local outputp = processOutput(geometry, output)
+      if outputp.index == target then
 	 nGood = nGood + 1
       else
 	 nBad = nBad + 1

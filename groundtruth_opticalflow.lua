@@ -192,14 +192,23 @@ end
 
 function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
    local dataset = {}
-   dataset.patches = torch.Tensor(nSamples, 2, raw_data.images[1]:size(1),
-				  geometry.hPatch2, geometry.wPatch2)
+   dataset.raw_data = raw_data
+   dataset.patches = torch.Tensor(nSamples, 6)
    dataset.targets = torch.Tensor(nSamples, 2)
    function dataset:size()
       return nSamples
    end
    setmetatable(dataset, {__index = function(self, index)
-				       return {self.patches[index], self.targets[index]}
+				       local coords = self.patches[index]
+				       local image1 = self.raw_data.images[coords[1]]
+				       local image2 = self.raw_data.images[coords[2]]
+				       local patch1 = image1:sub(1, image1:size(1),
+								 coords[3], coords[4],
+								 coords[5], coords[6])
+				       local patch2 = image2:sub(1, image2:size(1),
+								 coords[3], coords[4],
+								 coords[5], coords[6])
+				       return {{patch1, patch2}, self.targets[index]}
 				    end})
 
    if method == 'uniform_flow' then
@@ -216,14 +225,13 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
 	    local yPatch = candidates[iCandidate][2]
 	    local xPatch = candidates[iCandidate][3]
 	    
-	    local patch1 = raw_data.images[iImg-1]:sub(1, raw_data.images[iImg-1]:size(1),
-						       yPatch, yPatch+geometry.hPatch2-1,
-						       xPatch, xPatch+geometry.wPatch2-1)
-	    local patch2 = raw_data.images[iImg]:sub(1, raw_data.images[iImg]:size(1),
-						     yPatch, yPatch+geometry.hPatch2-1,
-						     xPatch, xPatch+geometry.wPatch2-1)
-	    dataset.patches[iSample][1] = patch1
-	    dataset.patches[iSample][2] = patch2
+	    dataset.patches[iSample][1] = iImg-1
+	    dataset.patches[iSample][2] = iImg
+	    dataset.patches[iSample][3] = yPatch
+	    dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
+	    dataset.patches[iSample][5] = xPatch
+	    dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+
 	    dataset.targets[iSample][1] = yFlow
 	    dataset.targets[iSample][2] = xFlow
 	    iSample = iSample + 1
@@ -244,14 +252,13 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
 	 local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
 	 local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
 
-	 local patch1 = raw_data.images[iImg-1]:sub(1, raw_data.images[iImg-1]:size(1),
-						    yPatch, yPatch+geometry.hPatch2-1,
-						    xPatch, xPatch+geometry.wPatch2-1)
-	 local patch2 = raw_data.images[iImg]:sub(1, raw_data.images[iImg]:size(1),
-						  yPatch, yPatch+geometry.hPatch2-1,
-						  xPatch, xPatch+geometry.wPatch2-1)
-	 dataset.patches[iSample][1] = patch1
-	 dataset.patches[iSample][2] = patch2
+	 dataset.patches[iSample][1] = iImg-1
+	 dataset.patches[iSample][2] = iImg
+	 dataset.patches[iSample][3] = yPatch
+	 dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
+	 dataset.patches[iSample][5] = xPatch
+	 dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+
 	 dataset.targets[iSample][1] = yFlow
 	 dataset.targets[iSample][2] = xFlow
       end
@@ -279,22 +286,7 @@ geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = 10
 geometry.soft_target = true
---]]
---[[
-raw_data = loadDataOpticalFlow(geometry, 'data/', 2, 0, 2)
-im1 = raw_data.images[1]
-im2 = raw_data.images[2]
-flow = raw_data.flow[1]
---]]
 
---[[
-im1 = torch.randn(3, 16, 16)
-im2 = torch.Tensor(im1:size())
-im2:sub(1,3,1,10,1,16):copy(im1:sub(1,3,1,10,1,16))
-im2:sub(1,3,11,16,1,5):copy(im1:sub(1,3,10,15,1,5))
-im2:sub(1,3,11,16,6,16):copy(im1:sub(1,3,10,15,4,14))
---]]
---[[
 im1 = torch.randn(3, 32, 32)
 im1:zero()
 for i = 1,32 do
@@ -308,16 +300,7 @@ im2 = torch.Tensor(im1:size())
 im2:sub(1,3,1,10,1,32):copy(im1:sub(1,3,1,10,1,32))
 im2:sub(1,3,11,32,1,10):copy(im1:sub(1,3,10,31,1,10))
 im2:sub(1,3,11,32,11,32):copy(im1:sub(1,3,10,31,9,30))
---]]
---[[
-im1 = torch.randn(3, 64, 64)
-im2 = torch.Tensor(im1:size())
-im2:sub(1,3,1,20,1,61):copy(im1:sub(1,3,2,21,3,63))
-im2:sub(1,3,1,20,62,64):copy(im1:sub(1,3,2,21,62,64))
-im2:sub(1,3,21,64,1,32):copy(im1:sub(1,3,21,64,1,32))
-im2:sub(1,3,21,64,33,64):copy(im1:sub(1,3,21,64,30,61))
---]]
---[[
+
 image.display{im1, im2}
 yflow,xflow = getOpticalFlow(geometry, im1, im2)
 flow = torch.Tensor(2, yflow:size(1), yflow:size(2))
@@ -327,7 +310,9 @@ flow[2]:copy(xflow)
 require 'opticalflow_model'
 input = prepareInput(geometry, im1, im2)
 model = getModel(geometry, true)
-flow_model = processOutput(geometry, model:forward(input)).full
+for i = 1,100000 do
+   flow_model = processOutput(geometry, model:forward(input)).full
+end
 flow = flow_model
 
 print(flow)
