@@ -83,8 +83,13 @@ function processOutput(geometry, output)
    ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
    local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
    local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
-   ret.full:sub(1,1,1+hoffset,ret.y:size(1)+hoffset,1+woffset,ret.y:size(2)+woffset):copy(ret.y)
-   ret.full:sub(2,2,1+hoffset,ret.x:size(1)+hoffset,1+woffset,ret.x:size(2)+woffset):copy(ret.x)
+   if type(ret.y) == 'number' then
+      ret.full[1][1+hoffset][1+hoffset] = ret.y
+      ret.full[2][1+hoffset][1+woffset] = ret.x
+   else
+      ret.full:sub(1,1,1+hoffset,ret.y:size(1)+hoffset,1+woffset,ret.y:size(2)+woffset):copy(ret.y)
+      ret.full:sub(2,2,1+hoffset,ret.x:size(1)+hoffset,1+woffset,ret.x:size(2)+woffset):copy(ret.x)
+   end
    return ret
 end
 

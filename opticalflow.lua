@@ -75,7 +75,7 @@ geometry.soft_targets = opt.soft_targets
 
 local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
 
-local model = getModel(geometry, true)
+local model = getModel(geometry, false)
 local parameters, gradParameters = model:getParameters()
 
 local criterion
