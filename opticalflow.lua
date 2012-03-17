@@ -71,14 +71,15 @@ geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
 geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
+geometry.soft_targets = opt.soft_targets
 
 local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
 
-local model = getModel(geometry, false)
+local model = getModel(geometry, true)
 local parameters, gradParameters = model:getParameters()
 
 local criterion
-if opt.soft_targets then
+if geometry.soft_targets then
    criterion = nn.DistNLLCriterion()
    criterion.inputAsADistance = true
    criterion.targetIsProbability = true
@@ -110,7 +111,7 @@ for iEpoch = 1,opt.n_epochs do
       modProgress(t, testData:size(), 100)
       local sample = testData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
+      local targetCrit, target = prepareTarget(geometry, sample[2])
       
       local output = model:forward(input):squeeze()
       
@@ -132,7 +133,7 @@ for iEpoch = 1,opt.n_epochs do
       modProgress(t, trainData:size(), 100)
       local sample = trainData[t]
       local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local targetCrit, target = prepareTarget(geometry, sample[2], opt.soft_targets)
+      local targetCrit, target = prepareTarget(geometry, sample[2])
       
       local feval = function(x)
 		       if x ~= parameters then
@@ -165,6 +166,6 @@ for iEpoch = 1,opt.n_epochs do
    print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
 
    saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
-	     opt.first_image, opt.delta, iEpoch, opt.learning_rate)
+	     opt.first_image, opt.delta, iEpoch, opt.learning_rate, opt.sampling_method)
 
 end
