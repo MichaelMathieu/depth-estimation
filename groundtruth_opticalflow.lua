@@ -132,8 +132,8 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
       local yflow, xflow = getOpticalFlow(geometry, previmage, im)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
-      flow[1]:copy(xflow/255)
-      flow[2]:copy(yflow/255)
+      flow[1]:copy(yflow/255)
+      flow[2]:copy(xflow/255)
       image.savePNG(flowfilename, flow)
    end
    flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
