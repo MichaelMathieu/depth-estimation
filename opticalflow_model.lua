@@ -134,8 +134,8 @@ function saveModel(basefilename, geometry, parameters, nFeatures, nImgs, first_i
    if geometry.soft_targets then st = 'st' else st = 'ht' end
    if sampling_method == 'uniform_position' then sampling = 'unipos' else sampling = 'uniflow' end
    local images = 'imgs_'..first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
-   local train_params = 'e_' .. nEpochs .. '_r_' .. learningRate .. '_' .. sampling .. '_' .. st
-   torch.save(modeldir .. '/' .. basefilename .. train_params .. '_' .. images,
+   local train_params = '_r_' .. learningRate .. '_' .. sampling .. '_' .. st
+   torch.save(modeldir .. '/' .. basefilename .. train_params .. '_' .. images..'_e'..nEpochs,
 	      {parameters, geometry})
 end
 
