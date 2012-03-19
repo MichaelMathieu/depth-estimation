@@ -5,6 +5,9 @@ require 'image'
 require 'nnx'
 require 'opticalflow_model'
 require 'groundtruth_opticalflow'
+require 'openmp'
+
+torch.manualSeed(1)
 
 op = xlua.OptionParser('%prog [options]')
 op:option{'-i1', '--input-image1', action='store', dest='input_image1',
@@ -23,12 +26,7 @@ opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.post_process_winsize = tonumber(opt.post_process_winsize)
 
-torch.manualSeed(1)
-
-if opt.nThreads > 1 then
-   require 'openmp'
-   openmp.setDefaultNumThreads(opt.nThreads)
-end
+openmp.setDefaultNumThreads(opt.nThreads)
 
 function flow2hsv(geometry, flow)
    local todisplay = torch.Tensor(3, flow:size(2), flow:size(3))
@@ -47,16 +45,21 @@ end
 
 function displayResult(geometry, output, gt, init_value)
    init_value = init_value or 0
-   if (type(output) == 'table') or (output:size():size(1) == 3) then
-      local outputWithBorder = torch.Tensor(2, gt:size(2), gt:size(3)):zero()
+   local outputWithBorder
+   if output:size():size(1) == 3 then
+      outputWithBorder = torch.Tensor(3, gt:size(2), gt:size(3)):zero()
+      outputWithBorder:sub(1,3, math.ceil(geometry.hKernel/2),
+			   output:size(2)+math.ceil(geometry.hKernel/2)-1,
+			   math.ceil(geometry.wKernel/2),
+			   output:size(3)+math.ceil(geometry.wKernel/2)-1):copy(output)
    else
-      local outputWithBorder = torch.Tensor(gt:size()):fill(init_value)
+      outputWithBorder = torch.Tensor(gt:size()):fill(init_value)
       outputWithBorder:sub(math.ceil(geometry.hKernel/2),
 			   output:size(1)+math.ceil(geometry.hKernel/2)-1,
 			   math.ceil(geometry.wKernel/2),
 			   output:size(2)+math.ceil(geometry.wKernel/2)-1):copy(output)
-      image.display{image={outputWithBorder, gt}, min=1, max=17}
    end
+   image.display{outputWithBorder, gt}
 end
 
 geometry, model = loadModel(opt.input_model, true)
@@ -65,10 +68,12 @@ local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
 local image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
 local image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
 				       opt.input_image1, delta)
-image.display{image1, image2}
 local input = {image1, image2}
+image.display(input)
 
 t = torch.Timer()
+print(geometry)
+input = prepareInput(geometry, input[1], input[2])
 local output = model:forward(input)
 print(t:time())
 output = processOutput(geometry, output)
@@ -76,33 +81,7 @@ output = processOutput(geometry, output)
 local output2 = torch.Tensor(2, output.x:size(1), output.x:size(2)):zero()
 
 if opt.post_process_winsize ~= 1 then
-   local winsize = opt.post_process_winsize
-   local winsizeh1 = math.ceil(winsize/2)-1
-   local winsizeh2 = math.floor(winsize/2)
-   local win = torch.Tensor(2,winsize,winsize)
-   for i = 1+winsizeh1,output2:size(2)-winsizeh2 do
-      for j = 1+winsizeh1,output2:size(3)-winsizeh2 do
-	 win[1] = (output.y:sub(i-winsizeh1, i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
-	 win[2] = (output.x:sub(i-winsizeh1, i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
-	 local win2 = win:reshape(2, winsize*winsize)
-	 win2 = win2:sort(2)
-	 local t = 1
-	 local tbest = 1
-	 local nbest = 1
-	 for k = 2,9 do
-	    if (win2:select(2,k) - win2:select(2,t)):abs():sum(1)[1] < 0.5 then
-	       if k-t > nbest then
-		  nbest = k-t
-		  tbest = t
-	       end
-	    else
-	       t = k
-	    end
-	 end
-	 output2[1][i][j] = win2[1][tbest]
-	 output2[2][i][j] = win2[2][tbest]
-      end
-   end
+   output2 = postProcessImage({output.y, output.x}, opt.post_process_winsize)
 else
    output2[1] = output.y
    output2[2] = output.x
@@ -136,4 +115,7 @@ print(100.*nGood/(nGood+nNear+nBad) .. '% accurate, ' .. 100.*(nGood+nNear)/(nGo
 local inity, initx = centered2onebased(geometry, 0, 0)
 displayResult(geometry, output2[1], gt[1], inity)
 displayResult(geometry, output2[2], gt[2], initx)
-displayResult(geometry, output2, gt)
+print("--")
+local hsv = flow2hsv(geometry, output2)
+local gthsv = flow2hsv(geometry, gt)
+displayResult(geometry, hsv, gthsv)
