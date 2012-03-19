@@ -7,56 +7,61 @@ require 'load_data'
 require 'groundtruth_opticalflow'
 require 'opticalflow_model'
 require 'sys'
+require 'openmp'
+
+torch.manualSeed(1)
 
 op = xlua.OptionParser('%prog [options]')
+-- general
+op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
+	  help='Number of threads used'}
+-- network
+op:option{'-nf', '--n-features', action='store', dest='n_features',
+          default=10, help='Number of features in the first layer'}
+op:option{'-ks', '--kernel-size', action='store', dest='kernel_size',
+	  default=16, help='Kernel size'}
+op:option{'-ws', '--window-size', action='store', dest='win_size',
+	  default=17, help='Window size (maxh)'}
+-- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
 op:option{'-m', '--n-test-set', action='store', dest='n_test_set', default=1000,
 	  help='Number of patches in the test set'}
-op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
-	  help='Index of first image used'}
-op:option{'-d', '--delta', action='store', dest='delta', default=2,
-	  help='Delta between two consecutive frames'}
-op:option{'-rd', '--root-directory', action='store', dest='root_directory',
-	  default='./data', help='Root dataset directory'}
-op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
-	  help='Number of threads used'}
-op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
-	  default=10, help='Number of annotated images used'}
 op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
 op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
-op:option{'-nf', '--n-features', action='store', dest='n_features',
-          default=10, help='Number of features in the first layer'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
 	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
-op:option{'-ks', '--kernel-size', action='store', dest='kernel_size',
-	  default=16, help='Kernel size'}
-op:option{'-ws', '--window-size', action='store', dest='win_size',
-	  default=17, help='Window size (maxh)'}
+-- input
+op:option{'-rd', '--root-directory', action='store', dest='root_directory',
+	  default='./data', help='Root dataset directory'}
+op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
+	  help='Index of first image used'}
+op:option{'-d', '--delta', action='store', dest='delta', default=2,
+	  help='Delta between two consecutive frames'}
+op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
+	  default=10, help='Number of annotated images used'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
+
+opt.n_features = tonumber(opt.n_features)
+opt.kernel_size = tonumber(opt.kernel_size)
+opt.win_size = tonumber(opt.win_size)
+
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
-opt.num_input_images = tonumber(opt.num_input_images)
 opt.learning_rate = tonumber(opt.learning_rate)
-opt.delta = tonumber(opt.delta)
+
 opt.first_image = tonumber(opt.first_image)
-opt.n_features = tonumber(opt.n_features)
-opt.win_size = tonumber(opt.win_size)
-opt.kernel_size = tonumber(opt.kernel_size)
+opt.delta = tonumber(opt.delta)
+opt.num_input_images = tonumber(opt.num_input_images)
 
-torch.manualSeed(1)
-
---if opt.nThreads > 1 then
-   require 'openmp'
-   openmp.setDefaultNumThreads(opt.nThreads)
---end
+openmp.setDefaultNumThreads(opt.nThreads)
 
 local geometry = {}
 geometry.wImg = 320

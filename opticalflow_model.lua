@@ -43,6 +43,7 @@ function getModel(geometry, full_image)
    model:add(parallel)
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
+
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
 			   geometry.hImg - geometry.hPatch2 + 1,
@@ -50,7 +51,7 @@ function getModel(geometry, full_image)
    else
       model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
-
+   
    if not geometry.soft_targets then
       model:add(nn.Minus())
       local spatial = nn.SpatialClassifier()
@@ -95,7 +96,7 @@ function processOutput(geometry, output)
 end
 
 function prepareTarget(geometry, target)
-   local itarget = yx2x(geometry, target[2], target[1])
+   local itarget = yx2x(geometry, target[1], target[2])
    if geometry.soft_targets then
       local ret = torch.Tensor(geometry.maxh*geometry.maxw):zero()
       local sigma2 = 1
@@ -146,4 +147,35 @@ function loadModel(filename, full_output)
    local parameters = model:getParameters()
    parameters:copy(loaded[1])
    return geometry, model
+end
+
+function postProcessImage(input, winsize)
+   local output = torch.Tensor(2, input:size(1), input:size(2)):zero()
+   local winsizeh1 = math.ceil(winsize/2)-1
+   local winsizeh2 = math.floor(winsize/2)
+   local win = torch.Tensor(2,winsize,winsize)
+   for i = 1+winsizeh1,output2:size(2)-winsizeh2 do
+      for j = 1+winsizeh1,output2:size(3)-winsizeh2 do
+	 win[1] = (input[1]:sub(i-winsizeh1,i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
+	 win[2] = (input[2]:sub(i-winsizeh1,i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
+	 local win2 = win:reshape(2, winsize*winsize)
+	 win2 = win2:sort(2)
+	 local t = 1
+	 local tbest = 1
+	 local nbest = 1
+	 for k = 2,9 do
+	    if (win2:select(2,k) - win2:select(2,t)):abs():sum(1)[1] < 0.5 then
+	       if k-t > nbest then
+		  nbest = k-t
+		  tbest = t
+	       end
+	    else
+	       t = k
+	    end
+	 end
+	 output[1][i][j] = win2[1][tbest]
+	 output[2][i][j] = win2[2][tbest]
+      end
+   end
+   return output
 end
