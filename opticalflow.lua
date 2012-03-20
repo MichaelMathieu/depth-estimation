@@ -103,7 +103,7 @@ local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
 					 opt.sampling_method)
 
 saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
-	  opt.first_image, opt.delta, 0, opt.learning_rate)
+	  opt.first_image, opt.delta, 0, opt.learning_rate, opt.sampling_method)
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)

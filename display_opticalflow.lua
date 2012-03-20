@@ -37,32 +37,19 @@ function flow2hsv(geometry, flow)
 	 local norm = math.sqrt(x*x+y*y)
 	 todisplay[1][i][j] = ang/(math.pi*2.0)
 	 todisplay[2][i][j] = 1.0
-	 todisplay[3][i][j] = norm/math.max(geometry.maxh/2, geometry.maxw/2)
+	 todisplay[3][i][j] = norm/(geometry.maxh/2+geometry.maxw/2)
       end
    end
-   return image.hsv2rgb(todisplay)
+   return image.hsl2rgb(todisplay)
 end
 
-function displayResult(geometry, output, gt, init_value)
-   init_value = init_value or 0
-   local outputWithBorder
-   if output:size():size(1) == 3 then
-      outputWithBorder = torch.Tensor(3, gt:size(2), gt:size(3)):zero()
-      outputWithBorder:sub(1,3, math.ceil(geometry.hKernel/2),
-			   output:size(2)+math.ceil(geometry.hKernel/2)-1,
-			   math.ceil(geometry.wKernel/2),
-			   output:size(3)+math.ceil(geometry.wKernel/2)-1):copy(output)
-   else
-      outputWithBorder = torch.Tensor(gt:size()):fill(init_value)
-      outputWithBorder:sub(math.ceil(geometry.hKernel/2),
-			   output:size(1)+math.ceil(geometry.hKernel/2)-1,
-			   math.ceil(geometry.wKernel/2),
-			   output:size(2)+math.ceil(geometry.wKernel/2)-1):copy(output)
-   end
-   image.display{outputWithBorder, gt}
+function displayKernels(geometry, model)
+   local weight = model.modules[1].modules[1].modules[1].weight
+   image.display{image=weight, padding=2, zoom=2}
 end
 
 geometry, model = loadModel(opt.input_model, true)
+displayKernels(geometry, model)
 
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
 local image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
@@ -72,7 +59,6 @@ local input = {image1, image2}
 image.display(input)
 
 t = torch.Timer()
-print(geometry)
 input = prepareInput(geometry, input[1], input[2])
 local output = model:forward(input)
 print(t:time())
@@ -81,19 +67,12 @@ output = processOutput(geometry, output)
 local output2 = torch.Tensor(2, output.x:size(1), output.x:size(2)):zero()
 
 if opt.post_process_winsize ~= 1 then
-   output2 = postProcessImage({output.y, output.x}, opt.post_process_winsize)
+   output2 = postProcessImage(output.full, opt.post_process_winsize)
 else
-   output2[1] = output.y
-   output2[2] = output.x
+   output2 = output.full
 end
 
-local gt2 = gt:sub(1,2,
-		   math.ceil(geometry.hKernel/2),
-		   output.x:size(1)+math.ceil(geometry.hKernel/2)-1,
-		   math.ceil(geometry.wKernel/2),
-		   output.x:size(2)+math.ceil(geometry.wKernel/2)-1)
-
-local diff = (output2 - gt2):abs()
+local diff = (output2 - gt):abs()
 diff = diff[1]+diff[2]
 local nGood = 0
 local nNear = 0
@@ -113,9 +92,9 @@ print('nGood=' .. nGood .. ' nNear=' .. nNear .. ' nBad=' .. nBad)
 print(100.*nGood/(nGood+nNear+nBad) .. '% accurate, ' .. 100.*(nGood+nNear)/(nGood+nNear+nBad) .. '% almost accurate')
 
 local inity, initx = centered2onebased(geometry, 0, 0)
-displayResult(geometry, output2[1], gt[1], inity)
-displayResult(geometry, output2[2], gt[2], initx)
+image.display{output2[1], gt[1]}
+image.display{output2[2], gt[2]}
 print("--")
 local hsv = flow2hsv(geometry, output2)
 local gthsv = flow2hsv(geometry, gt)
-displayResult(geometry, hsv, gthsv)
+image.display{hsv, gthsv}

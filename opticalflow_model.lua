@@ -150,12 +150,12 @@ function loadModel(filename, full_output)
 end
 
 function postProcessImage(input, winsize)
-   local output = torch.Tensor(2, input:size(1), input:size(2)):zero()
+   local output = torch.Tensor(2, input[1]:size(1), input[1]:size(2)):zero()
    local winsizeh1 = math.ceil(winsize/2)-1
    local winsizeh2 = math.floor(winsize/2)
    local win = torch.Tensor(2,winsize,winsize)
-   for i = 1+winsizeh1,output2:size(2)-winsizeh2 do
-      for j = 1+winsizeh1,output2:size(3)-winsizeh2 do
+   for i = 1+winsizeh1,output:size(2)-winsizeh2 do
+      for j = 1+winsizeh1,output:size(3)-winsizeh2 do
 	 win[1] = (input[1]:sub(i-winsizeh1,i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
 	 win[2] = (input[2]:sub(i-winsizeh1,i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
 	 local win2 = win:reshape(2, winsize*winsize)
