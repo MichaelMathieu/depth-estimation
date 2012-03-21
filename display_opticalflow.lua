@@ -31,10 +31,12 @@ openmp.setDefaultNumThreads(opt.nThreads)
 
 function displayKernels(geometry, model)
    local weight = model.modules[1].modules[1].modules[1].weight
-   image.display{image=weight, padding=2, zoom=2}
+   image.display{image=weight, padding=2, zoom=8}
+   local weight2 = model.modules[1].modules[1].modules[3].weight
+   image.display{image=weight2, padding=2, zoom=8}
 end
 
-geometry, model = loadModel(opt.input_model, true)
+geometry, model = loadModel(opt.input_model, true, 'two_layers')
 displayKernels(geometry, model)
 
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)

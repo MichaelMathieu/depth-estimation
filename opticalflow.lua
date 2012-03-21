@@ -20,6 +20,8 @@ op:option{'-nf', '--n-features', action='store', dest='n_features',
           default=10, help='Number of features in the first layer'}
 op:option{'-ks', '--kernel-size', action='store', dest='kernel_size',
 	  default=16, help='Kernel size'}
+op:option{'-k1s', '--kernel1-size', action='store', dest='kernel1_size',
+	  default=16, help='Kernel 1 size, is ns == two_layers'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
 op:option{'-ns', '-network-structure', action='store', dest='network_structure',
@@ -58,6 +60,7 @@ opt.nThreads = tonumber(opt.nThreads)
 
 opt.n_features = tonumber(opt.n_features)
 opt.kernel_size = tonumber(opt.kernel_size)
+opt.kernel1_size = tonumber(opt.kernel1_size)
 opt.win_size = tonumber(opt.win_size)
 opt.layer_two_size = tonumber(opt.layer_two_size)
 
@@ -81,6 +84,12 @@ geometry.wPatch2 = opt.win_size + opt.kernel_size - 1
 geometry.hPatch2 = opt.win_size + opt.kernel_size - 1
 geometry.wKernel = opt.kernel_size
 geometry.hKernel = opt.kernel_size
+if opt.network_structure == 'two_layers' then
+   geometry.wKernel1 = opt.kernel1_size
+   geometry.hKernel1 = opt.kernel1_size
+   geometry.wKernel2 = geometry.wKernel - geometry.wKernel1 + 1
+   geometry.hKernel2 = geometry.hKernel - geometry.hKernel1 + 1
+end
 geometry.maxw = geometry.wPatch2 - geometry.wKernel + 1
 geometry.maxh = geometry.hPatch2 - geometry.hKernel + 1
 geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
