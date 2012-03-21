@@ -22,6 +22,8 @@ op:option{'-ks', '--kernel-size', action='store', dest='kernel_size',
 	  default=16, help='Kernel size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
+op:option{'-ns', '-network-structure', action='store', dest='network_structure',
+	  default='one_layer', help='Network structure (one_layer | two_layers)'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -35,6 +37,8 @@ op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', def
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
 	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
+op:option{'-d', '--qeight-decay', action='store', dest='weight_decay',
+	  default=0, help='Weight decay'}
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 	  default='./data', help='Root dataset directory'}
@@ -56,6 +60,7 @@ opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
 opt.learning_rate = tonumber(opt.learning_rate)
+opt.weight_decay = tonumber(opt.weight_decay)
 
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
@@ -77,7 +82,7 @@ geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
 geometry.soft_targets = opt.soft_targets
-geometry.features = 'one_layer'
+geometry.features = opt.network_structure
 
 local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
 
@@ -162,7 +167,7 @@ for iEpoch = 1,opt.n_epochs do
 		    end
 
       config = {learningRate = opt.learning_rate,
-		weightDecay = 0,
+		weightDecay = opt.weight_decay,
 		momentum = 0,
 		learningRateDecay = 5e-7}
       optim.sgd(feval, parameters, config)
