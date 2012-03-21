@@ -24,6 +24,8 @@ op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
 op:option{'-ns', '-network-structure', action='store', dest='network_structure',
 	  default='one_layer', help='Network structure (one_layer | two_layers)'}
+op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', default=8,
+	  help='Second (hidden) layer size, if ns == two_layers'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -57,6 +59,7 @@ opt.nThreads = tonumber(opt.nThreads)
 opt.n_features = tonumber(opt.n_features)
 opt.kernel_size = tonumber(opt.kernel_size)
 opt.win_size = tonumber(opt.win_size)
+opt.layer_two_size = tonumber(opt.layer_two_size)
 
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
@@ -86,6 +89,7 @@ geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
 geometry.soft_targets = opt.soft_targets
 geometry.features = opt.network_structure
+geometry.layerTwoSize = opt.layer_two_size
 
 local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
 
