@@ -33,6 +33,8 @@ op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
+op:option{'-rd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
+          default=5e-7, help='Learning rate decay'}
 op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
@@ -60,6 +62,7 @@ opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
 opt.learning_rate = tonumber(opt.learning_rate)
+opt.learning_rate_decay = tonumber(opt.learning_rate_decay)
 opt.weight_decay = tonumber(opt.weight_decay)
 
 opt.first_image = tonumber(opt.first_image)
@@ -169,7 +172,7 @@ for iEpoch = 1,opt.n_epochs do
       config = {learningRate = opt.learning_rate,
 		weightDecay = opt.weight_decay,
 		momentum = 0,
-		learningRateDecay = 5e-7}
+		learningRateDecay = opt.learning_rate_decay}
       optim.sgd(feval, parameters, config)
    end
       

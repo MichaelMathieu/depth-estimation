@@ -36,8 +36,8 @@ function getModel(geometry, full_image)
    elseif geometry.features == 'two_layers' then
       features:add(nn.SpatialConvolution(geometry.nChannelsIn, 8, 5, 5))
       features:add(nn.Tanh())
-      features:add(nn.SpatialConvolution(8, geometry.nFeatures,
-					 geometry.wKernel-5+1, geometry.hKernel-5+1))
+      features:add(nn.SpatialConvolutionMap(nn.tables.random(8, geometry.nFeatures, 4),
+					    geometry.wKernel-5+1, geometry.hKernel-5+1))
       features:add(nn.Tanh())
    else
       assert(false)
