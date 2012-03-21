@@ -37,7 +37,7 @@ op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', def
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
 	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
-op:option{'-d', '--qeight-decay', action='store', dest='weight_decay',
+op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
