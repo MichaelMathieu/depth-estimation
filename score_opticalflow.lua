@@ -27,9 +27,10 @@ function evalOpticalflow(output, gt)
    local meanDst = 0.0
    local meanDst2 = 0.0
    local d = 0.0
+   local n = 0
 
-   for i = 1,output:size(2) do
-      for j = 1,output:size(3) do
+   for i = 18,output:size(2)-17 do
+      for j = 18,output:size(3)-17 do
 	 local y, x = onebased2centered(geometry, output[1][i][j], output[2][i][j])
 	 local ygt, xgt = onebased2centered(geometry, gt[1][i][j], gt[2][i][j])
 	 y = y-ygt
@@ -39,10 +40,10 @@ function evalOpticalflow(output, gt)
 
 	 meanDst = meanDst + math.sqrt(n2)
 	 meanDst2 = meanDst2 + n2
+	 n = n + 1
       end
    end
 
-   local n = output:size(2)*output:size(3)
    d = math.sqrt(d/n)
    meanDst = meanDst / n
    meanDst2 = meanDst2 / n

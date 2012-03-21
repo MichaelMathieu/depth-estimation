@@ -70,22 +70,22 @@ function getOpticalFlowFast(geometry, image1, image2)
 end
 --]]
 
-function getOpticalFlow(geometry, image1, image2)
+function getOpticalFlow(geometry, image1, image2, hkernel, wkernel)
    local halfmaxh = math.ceil(geometry.maxh/2)-1
    local halfmaxw = math.ceil(geometry.maxw/2)-1
-   local halfhKernel = math.ceil(geometry.hKernel/2)-1
-   local halfwKernel = math.ceil(geometry.wKernel/2)-1
+   local halfhKernel = math.ceil(hkernel/2)-1
+   local halfwKernel = math.ceil(wkernel/2)-1
    of = torch.Tensor(geometry.maxh, geometry.maxw, image1:size(2), image1:size(3)):fill(-1)
-   for i = 1, image1:size(2) - geometry.hKernel - geometry.maxh + 2 do
-      xlua.progress(i, image1:size(2) - geometry.hKernel - geometry.maxh + 2)
-      for j = 1, image1:size(3) - geometry.wKernel - geometry.maxw + 2 do
+   for i = 1, image1:size(2) - hkernel - geometry.maxh + 2 do
+      xlua.progress(i, image1:size(2) - hkernel - geometry.maxh + 2)
+      for j = 1, image1:size(3) - wkernel - geometry.maxw + 2 do
 	 local win = image1:sub(1, image1:size(1),
-				i+halfmaxh, i+halfmaxh+geometry.hKernel-1,
-				j+halfmaxw, j+halfmaxw+geometry.wKernel-1)
+				i+halfmaxh, i+halfmaxh+hkernel-1,
+				j+halfmaxw, j+halfmaxw+wkernel-1)
 	 local tomul = image2:sub(1, image2:size(1),
-				  i, i+geometry.maxh+geometry.hKernel-2,
-				  j, j+geometry.maxw+geometry.wKernel-2)
-	 local unfolded = tomul:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
+				  i, i+geometry.maxh+hkernel-2,
+				  j, j+geometry.maxw+wkernel-2)
+	 local unfolded = tomul:unfold(2, hkernel, 1):unfold(3, wkernel, 1)
 	 local norm2win = win:dot(win)
 	 for k = 1, geometry.maxh do
 	    for l = 1, geometry.maxw do
@@ -111,7 +111,8 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    end
    local flowdir = dirbasename .. 'flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxh .. 'x' ..geometry.maxw .. 'x'
-   flowdir = flowdir .. geometry.hKernel .. 'x' ..geometry.wKernel .. '/' .. delta
+   --flowdir = flowdir .. geometry.hKernel .. 'x' ..geometry.wKernel .. '/' .. delta
+   flowdir = flowdir .. 16 .. 'x' .. 16 .. '/' .. delta
    os.execute('mkdir -p ' .. flowdir)
    local flowfilename = flowdir .. '/' .. imagebasename .. '.png'
    local flow = nil
@@ -130,7 +131,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
 	    return nil
 	 end
       local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
-      local yflow, xflow = getOpticalFlow(geometry, previmage, im)
+      local yflow, xflow = getOpticalFlow(geometry, previmage, im, 16, 16)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow/255)
       flow[2]:copy(xflow/255)
