@@ -77,6 +77,7 @@ geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
 geometry.soft_targets = opt.soft_targets
+geometry.features = 'one_layer'
 
 local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
 
@@ -119,7 +120,6 @@ for iEpoch = 1,opt.n_epochs do
       local targetCrit, target = prepareTarget(geometry, sample[2])
       
       local output = model:forward(input):squeeze()
-
       local outputp = processOutput(geometry, output)
       if outputp.index == target then
 	 nGood = nGood + 1
@@ -151,8 +151,8 @@ for iEpoch = 1,opt.n_epochs do
 		       local df_do = criterion:backward(output, targetCrit)
 		       model:backward(input, df_do)
 		       
-		       output = processOutput(geometry, output)
-		       if output.index == target then
+		       local outputp = processOutput(geometry, output)
+		       if outputp.index == target then
 			  nGood = nGood + 1
 		       else
 			  nBad = nBad + 1

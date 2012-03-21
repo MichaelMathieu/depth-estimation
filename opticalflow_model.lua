@@ -28,22 +28,27 @@ end
 function getModel(geometry, full_image)
    local model = nn.Sequential()
    local parallel = nn.ParallelTable()
-   local parallelElem1 = nn.Sequential()
-   local parallelElem2 = nn.Sequential()
-   local conv = nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-				      geometry.wKernel, geometry.hKernel)
-   parallelElem1:add(conv)
-   parallelElem1:add(nn.Tanh())
+   local features = nn.Sequential()
+   if geometry.features == 'one_layer' then
+      features:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
+					 geometry.wKernel, geometry.hKernel))
+      features:add(nn.Tanh())
+   elseif geometry.features == 'two_layers' then
+      features:add(nn.SpatialConvolution(geometry.nChannelsIn, 8, 5, 5))
+      features:add(nn.Tanh())
+      features:add(nn.SpatialConvolution(8, geometry.nFeatures,
+					 geometry.wKernel-5+1, geometry.hKernel-5+1))
+      features:add(nn.Tanh())
+   else
+      assert(false)
+   end
    
-   parallelElem2:add(conv)
-   parallelElem2:add(nn.Tanh())
-   
-   parallel:add(parallelElem1)
-   parallel:add(parallelElem2)
+   parallel:add(features)
+   parallel:add(features:clone('weight', 'bias', 'gradWeight', 'gradBias'))
    model:add(parallel)
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-
+   
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
 			   geometry.hImg - geometry.hPatch2 + 1,
