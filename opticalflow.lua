@@ -106,13 +106,20 @@ geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
 geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
-geometry.soft_targets = opt.soft_targets
+geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.features = opt.network_structure
 geometry.layerTwoSize = opt.layer_two_size
 geometry.layerTwoConnections = opt.layer_two_connections
 geometry.L2Pooling = opt.l2_pooling
 
-local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
+local learning = {}
+learning.rate = opt.learning_rate
+learning.rate_decay = opt.learning_rate_decay
+learning.weight_decay = opt.weight_decay
+learning.sampling_method = opt.sampling_method
+
+local summary = describeModel(geometry, learning, opt.num_input_images,
+			      opt.first_image, opt.delta)
 
 local model = getModel(geometry, false)
 local parameters, gradParameters = model:getParameters()
@@ -131,16 +138,16 @@ local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
 				     opt.first_image, opt.delta)
 print('Generating training set...')
 local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
-					  opt.sampling_method)
+					  learning.sampling_method)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
-					 opt.sampling_method)
+					 learning.sampling_method)
 
-saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
-	  opt.first_image, opt.delta, 0, opt.learning_rate, opt.sampling_method)
+saveModel('model_of_', geometry, learning, parameters, opt.num_input_images,
+	  opt.first_image, opt.delta, 0)
 
 for iEpoch = 1,opt.n_epochs do
-   print('Epoch ' .. iEpoch)
+   print('Epoch ' .. iEpoch .. ' over ' .. opt.n_epochs)
    print(summary)
 
    local nGood = 0
@@ -200,17 +207,17 @@ for iEpoch = 1,opt.n_epochs do
 		       return err, gradParameters
 		    end
 
-      config = {learningRate = opt.learning_rate,
-		weightDecay = opt.weight_decay,
+      config = {learningRate = learning.rate,
+		weightDecay = learning.weight_decay,
 		momentum = 0,
-		learningRateDecay = opt.learning_rate_decay}
+		learningRateDecay = learning.rate_decay}
       optim.sgd(feval, parameters, config)
    end
       
-   meanErr = meanErr / (testData:size())
+   meanErr = meanErr / (trainData:size())
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
-   saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
-	     opt.first_image, opt.delta, iEpoch, opt.learning_rate, opt.sampling_method)
+   saveModel('model_of_', geometry, learning, parameters, opt.num_input_images,
+	     opt.first_image, opt.delta, iEpoch)
 
 end

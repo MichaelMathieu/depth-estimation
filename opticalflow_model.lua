@@ -151,30 +151,61 @@ function prepareTarget(geometry, target)
    end
 end
 
-function describeModel(geometry, nImgs, first_image, delta)
+function describeModel(geometry, learning, nImgs, first_image, delta)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
-   local kernel = 'kernel=(' .. geometry.hKernel .. 'x' .. geometry.wKernel .. ')'
+   local kernel
+   if geometry.network_type == 'one_layer' then
+      kernel = 'kernel=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
+      kernel = kernel .. 'x' .. geometry.wKernel .. geometry.nFeatures .. ')'
+   else
+      kernel = 'kernels=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel1
+      kernel = kernel .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. ', '
+      kernel = kernel .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
+      kernel = kernel .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
+      if geometry.L2Pooling then kernel = kernel .. ' l2)' else kernel = kernel .. ')' end
+   end
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
-   local features = 'nFeatures=' .. geometry.nFeatures
-   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. features
+   local targets = ''
+   local sampling = ''
+   if geometry.soft_targets then targets = '_softTargets' end
+   if learning.sampling_method ~= 'uniform_position' then
+      sampling = '_' .. learning.sampling_method
+   end
+   local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
+   learning_ = learning_ .. ') weight decay=' .. learning.weight_decay .. targets .. sampling
+   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
    return summary
 end
 
-function saveModel(basefilename, geometry, parameters, nFeatures, nImgs, first_image, delta,
-		   nEpochs, learningRate, sampling_method)
+function saveModel(basefilename, geometry, learning, parameters, nImgs, first_image, delta,
+		   nEpochs)
    local modelsdirbase = 'models'
-   local modeldir = modelsdirbase .. '/' .. geometry.hImg .. 'x' .. geometry.wImg .. '/'
-   modeldir = modeldir .. geometry.maxh .. 'x' .. geometry.maxw .. 'x' .. geometry.hKernel
-   modeldir = modeldir .. 'x' .. geometry.wKernel .. '/' .. nFeatures
-   os.execute('mkdir -p ' .. modeldir)
+   local modeldir = modelsdirbase .. '/'
+   if geometry.network_type == 'one_layer' then
+      modeldir = geometry.nChannelsIn .. 'x' .. geometry.hKernel
+      modeldir = modeldir .. 'x' .. geometry.wKernel .. geometry.nFeatures
+   else
+      modeldir = geometry.nChannelsIn .. 'x' .. geometry.hKernel1
+      modeldir = modeldir .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. '_'
+      modeldir = modeldir .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
+      modeldir = modeldir .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
+      if geometry.L2Pooling then modeldir = modeldir .. '_l2' end
+   end
    
-   local st, sampling
-   if geometry.soft_targets then st = 'st' else st = 'ht' end
-   if sampling_method == 'uniform_position' then sampling = 'unipos' else sampling = 'uniflow' end
-   local images = 'imgs_'..first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
-   local train_params = '_r_' .. learningRate .. '_' .. sampling .. '_' .. st
-   torch.save(modeldir .. '/' .. basefilename .. train_params .. '_' .. images..'_e'..nEpochs,
+   local targets = ''
+   local sampling = ''
+   if geometry.soft_targets then targets = ' softTargets' end
+   if learning.sampling_method ~= 'uniform_position' then
+      sampling = ' ' ..learning.sampling_method
+   end
+   local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay .. '_wd'
+   train_params = train_params .. learning.weight_decay .. sampling .. targets
+   modeldir = modeldir .. '/' .. train_params
+   local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
+   modeldir = modeldir .. '/' .. images
+   os.execute('mkdir -p ' .. modeldir)
+   torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs,
 	      {parameters, geometry})
 end
 
