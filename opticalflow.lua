@@ -19,13 +19,9 @@ op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 op:option{'-nf', '--n-features', action='store', dest='n_features',
           default=10, help='Number of features in the first layer'}
 op:option{'-k1s', '--kernel1-size', action='store', dest='kernel1_size',
-<<<<<<< HEAD
-	  default=5, help='Kernel 1 size, is ns == two_layers'}
-=======
-	  default=16, help='Kernel 1 size, is ns == two_layers'}
+	  default=5, help='Kernel 1 size, if ns == two_layers'}
 op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
 	  default=16, help='Kernel 2 size'}
->>>>>>> 35c76a1cbde6c81a6525478189f746e19bc2c5b0
 op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
 op:option{'-ns', '-network-structure', action='store', dest='network_structure',
