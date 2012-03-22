@@ -183,7 +183,7 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
    local modelsdirbase = 'models'
    local modeldir = modelsdirbase .. '/'
    if geometry.network_type == 'one_layer' then
-      modeldir = geometry.nChannelsIn .. 'x' .. geometry.hKernel
+      modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
       modeldir = modeldir .. 'x' .. geometry.wKernel .. geometry.nFeatures
    else
       modeldir = geometry.nChannelsIn .. 'x' .. geometry.hKernel1
