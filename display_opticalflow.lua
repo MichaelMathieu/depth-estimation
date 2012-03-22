@@ -32,11 +32,13 @@ openmp.setDefaultNumThreads(opt.nThreads)
 function displayKernels(geometry, model)
    local weight = model.modules[1].modules[1].modules[1].weight
    image.display{image=weight, padding=2, zoom=8}
-   local weight2 = model.modules[1].modules[1].modules[3].weight
-   image.display{image=weight2, padding=2, zoom=8}
+   if geometry.features == 'two_layers' then
+      local weight2 = model.modules[1].modules[1].modules[3].weight
+      image.display{image=weight2, padding=2, zoom=4}
+   end
 end
 
-geometry, model = loadModel(opt.input_model, true, 'two_layers')
+geometry, model = loadModel(opt.input_model, true)
 displayKernels(geometry, model)
 
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
@@ -71,3 +73,4 @@ print("--")
 local hsv = flow2hsv(geometry, output2)
 local gthsv = flow2hsv(geometry, gt)
 image.display{hsv, gthsv}
+image.display{hsv - gthsv}

@@ -55,9 +55,9 @@ function getModel(geometry, full_image)
 	    features:add(nn.Reshape(2, geometry.nFeatures,
 				    geometry.hImg - geometry.hPatch2 + 1,
 				    geometry.wImg - geometry.wPatch2 + 1))
-	    features:add(nn.Reshape(2, geometry.nFeatures,
-				    geometry.hImg - geometry.hKernel + 1,
-				    geometry.wImg - geometry.wKernel + 1))
+	    features2:add(nn.Reshape(2, geometry.nFeatures,
+				     geometry.hImg - geometry.hKernel + 1,
+				     geometry.wImg - geometry.wKernel + 1))
 	 else
 	    features:add(nn.Reshape(2, geometry.nFeatures, 1, 1))
 	    features2:add(nn.Reshape(2, geometry.nFeatures,
@@ -79,7 +79,6 @@ function getModel(geometry, full_image)
    model:add(parallel)
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-   
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
 			   geometry.hImg - geometry.hPatch2 + 1,
@@ -87,14 +86,13 @@ function getModel(geometry, full_image)
    else
       model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
-   
    if not geometry.soft_targets then
       model:add(nn.Minus())
       local spatial = nn.SpatialClassifier()
       spatial:add(nn.LogSoftMax())
       model:add(spatial)
    end
-
+   
    return model
 end
 
@@ -125,8 +123,12 @@ function processOutput(geometry, output)
       ret.full[2][1+hoffset][1+woffset] = ret.x
    else
       ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
-      ret.full:sub(1,1,1+hoffset,ret.y:size(1)+hoffset,1+woffset,ret.y:size(2)+woffset):copy(ret.y)
-      ret.full:sub(2,2,1+hoffset,ret.x:size(1)+hoffset,1+woffset,ret.x:size(2)+woffset):copy(ret.x)
+      ret.full:sub(1, 1,
+		   1 + hoffset, ret.y:size(1) + hoffset,
+		   1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
+      ret.full:sub(2, 2,
+		   1 + hoffset, ret.x:size(1) + hoffset,
+		   1 + woffset, ret.x:size(2) + woffset):copy(ret.x)
    end
    return ret
 end
