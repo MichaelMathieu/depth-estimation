@@ -84,6 +84,8 @@ geometry.wPatch2 = opt.win_size + opt.kernel_size - 1
 geometry.hPatch2 = opt.win_size + opt.kernel_size - 1
 geometry.wKernel = opt.kernel_size
 geometry.hKernel = opt.kernel_size
+geometry.wKernelGT = 16
+geometry.hKernelGT = 16
 if opt.network_structure == 'two_layers' then
    geometry.wKernel1 = opt.kernel1_size
    geometry.hKernel1 = opt.kernel1_size

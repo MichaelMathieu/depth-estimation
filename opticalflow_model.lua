@@ -34,14 +34,15 @@ function getModel(geometry, full_image)
 					 geometry.wKernel, geometry.hKernel))
       features:add(nn.Tanh())
    elseif geometry.features == 'two_layers' then
-      local fst_wsize = math.floor(geometry.wKernel/2)
       features:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
 					 geometry.wKernel1, geometry.hKernel1))
       features:add(nn.Tanh())
-      features:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
-							     geometry.nFeatures,
-							     geometry.layerTwoSize/2),
-					    geometry.wKernel2, geometry.hKernel2))
+      --features:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+	--						     geometry.nFeatures,
+	--						     geometry.layerTwoSize/2),
+	--				    geometry.wKernel2, geometry.hKernel2))
+      features:add(nn.SpatialConvolution(geometry.layerTwoSize, geometry.nFeatures,
+					 geometry.wKernel2, geometry.hKernel2))
       features:add(nn.Tanh())
    else
       assert(false)
