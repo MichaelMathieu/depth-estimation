@@ -70,7 +70,6 @@ function getModel(geometry, full_image)
 	 features:add(nn.Sqrt())
 	 features2:add(nn.Sqrt())
       end
->>>>>>> 35c76a1cbde6c81a6525478189f746e19bc2c5b0
    else
       assert(false)
    end
