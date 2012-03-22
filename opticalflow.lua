@@ -18,16 +18,20 @@ op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 -- network
 op:option{'-nf', '--n-features', action='store', dest='n_features',
           default=10, help='Number of features in the first layer'}
-op:option{'-ks', '--kernel-size', action='store', dest='kernel_size',
-	  default=16, help='Kernel size'}
 op:option{'-k1s', '--kernel1-size', action='store', dest='kernel1_size',
 	  default=16, help='Kernel 1 size, is ns == two_layers'}
+op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
+	  default=16, help='Kernel 2 size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
 op:option{'-ns', '-network-structure', action='store', dest='network_structure',
 	  default='one_layer', help='Network structure (one_layer | two_layers)'}
 op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', default=8,
 	  help='Second (hidden) layer size, if ns == two_layers'}
+op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_connections',
+	  default=4, help='Number of connectons between layers 1 and 2'}
+op:option{'-l2', '--l2-pooling', action='store', dest='l2_pooling', default=false,
+	  help='L2 pooling'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -59,10 +63,11 @@ opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 
 opt.n_features = tonumber(opt.n_features)
-opt.kernel_size = tonumber(opt.kernel_size)
+opt.kernel2_size = tonumber(opt.kernel2_size)
 opt.kernel1_size = tonumber(opt.kernel1_size)
 opt.win_size = tonumber(opt.win_size)
 opt.layer_two_size = tonumber(opt.layer_two_size)
+opt.layer_two_connections = tonumber(opt.layer_two_connections)
 
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
@@ -80,27 +85,32 @@ openmp.setDefaultNumThreads(opt.nThreads)
 local geometry = {}
 geometry.wImg = 320
 geometry.hImg = 180
-geometry.wPatch2 = opt.win_size + opt.kernel_size - 1
-geometry.hPatch2 = opt.win_size + opt.kernel_size - 1
-geometry.wKernel = opt.kernel_size
-geometry.hKernel = opt.kernel_size
+geometry.maxw = opt.win_size
+geometry.maxh = opt.win_size
 geometry.wKernelGT = 16
 geometry.hKernelGT = 16
 if opt.network_structure == 'two_layers' then
    geometry.wKernel1 = opt.kernel1_size
    geometry.hKernel1 = opt.kernel1_size
-   geometry.wKernel2 = geometry.wKernel - geometry.wKernel1 + 1
-   geometry.hKernel2 = geometry.hKernel - geometry.hKernel1 + 1
+   geometry.wKernel2 = opt.kernel2_size
+   geometry.hKernel2 = opt.kernel2_size
+   geometry.wKernel = geometry.wKernel1 + geometry.wKernel2 - 1
+   geometry.hKernel = geometry.hKernel1 + geometry.hKernel2 - 1
+elseif opt.network_structure == 'one_layer' then
+   geometry.wKernel = opt.wKernel1_size
+   geometry.hKernel = opt.hKernel1_size
 end
-geometry.maxw = geometry.wPatch2 - geometry.wKernel + 1
-geometry.maxh = geometry.hPatch2 - geometry.hKernel + 1
-geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
-geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
+geometry.wPatch1 = geometry.wKernel
+geometry.hPatch1 = geometry.hKernel
+geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
+geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
 geometry.soft_targets = opt.soft_targets
 geometry.features = opt.network_structure
 geometry.layerTwoSize = opt.layer_two_size
+geometry.layerTwoConnections = opt.layer_two_connections
+geometry.L2Pooling = opt.l2_pooling
 
 local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
 
@@ -133,8 +143,9 @@ for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch)
    print(summary)
 
-   nGood = 0
-   nBad = 0
+   local nGood = 0
+   local nBad = 0
+   local meanErr = 0.
 
    for t = 1,testData:size() do
       modProgress(t, testData:size(), 100)
@@ -143,6 +154,9 @@ for iEpoch = 1,opt.n_epochs do
       local targetCrit, target = prepareTarget(geometry, sample[2])
       
       local output = model:forward(input):squeeze()
+      local err = criterion:forward(output, targetCrit)
+      
+      meanErr = meanErr + err
       local outputp = processOutput(geometry, output)
       if outputp.index == target then
 	 nGood = nGood + 1
@@ -151,11 +165,12 @@ for iEpoch = 1,opt.n_epochs do
       end
    end
 
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
-
+   meanErr = meanErr / (testData:size())
+   print('test: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
    nGood = 0
    nBad = 0
+   meanErr = 0
    
    for t = 1,trainData:size() do
       modProgress(t, trainData:size(), 100)
@@ -174,6 +189,7 @@ for iEpoch = 1,opt.n_epochs do
 		       local df_do = criterion:backward(output, targetCrit)
 		       model:backward(input, df_do)
 		       
+		       meanErr = meanErr + err
 		       local outputp = processOutput(geometry, output)
 		       if outputp.index == target then
 			  nGood = nGood + 1
@@ -191,7 +207,8 @@ for iEpoch = 1,opt.n_epochs do
       optim.sgd(feval, parameters, config)
    end
       
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
+   meanErr = meanErr / (testData:size())
+   print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
    saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
 	     opt.first_image, opt.delta, iEpoch, opt.learning_rate, opt.sampling_method)
