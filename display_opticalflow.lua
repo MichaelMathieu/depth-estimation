@@ -62,7 +62,7 @@ else
    output2 = output.full
 end
 
-nGood, nNear, nBad = evalOpticalflow(output2, gt)
+nGood, nNear, nBad = evalOpticalflow(geometry, output2, gt)
 print('nGood=' .. nGood .. ' nNear=' .. nNear .. ' nBad=' .. nBad)
 print(100.*nGood/(nGood+nNear+nBad) .. '% accurate, ' .. 100.*(nGood+nNear)/(nGood+nNear+nBad) .. '% almost accurate')
 
