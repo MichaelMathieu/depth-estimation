@@ -6,14 +6,16 @@ function flow2pol(geometry, y, x)
    return ang, norm
 end
 
-function evalOpticalflow(output, gt)
+function evalOpticalflow(geometry, output, gt)
    local diff = (output - gt):abs()
    diff = diff[1]+diff[2]
    local nGood = 0
    local nNear = 0
    local nBad = 0
-   for i = 1,diff:size(1) do
-      for j = 1,diff:size(2) do
+   local hborder = math.ceil((math.max(geometry.hKernelGT, geometry.hKernel)+geometry.maxh)/2)
+   local wborder = math.ceil((math.max(geometry.wKernelGT, geometry.wKernel)+geometry.maxw)/2)
+   for i = hborder+1,diff:size(1)-hborder do
+      for j = wborder+1,diff:size(2)-wborder do
 	 if diff[i][j] == 0 then
 	    nGood = nGood + 1
 	 elseif diff[i][j] == 1 then
@@ -29,8 +31,8 @@ function evalOpticalflow(output, gt)
    local d = 0.0
    local n = 0
 
-   for i = 18,output:size(2)-17 do
-      for j = 18,output:size(3)-17 do
+   for i = hborder+1,output:size(2)-hborder do
+      for j = wborder+1,output:size(3)-wborder do
 	 local y, x = onebased2centered(geometry, output[1][i][j], output[2][i][j])
 	 local ygt, xgt = onebased2centered(geometry, gt[1][i][j], gt[2][i][j])
 	 y = y-ygt
