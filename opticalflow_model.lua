@@ -29,26 +29,54 @@ function getModel(geometry, full_image)
    local model = nn.Sequential()
    local parallel = nn.ParallelTable()
    local features = nn.Sequential()
+   local features2
    if geometry.features == 'one_layer' then
       features:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
 					 geometry.wKernel, geometry.hKernel))
       features:add(nn.Tanh())
    elseif geometry.features == 'two_layers' then
-      local fst_wsize = math.floor(geometry.wKernel/2)
       features:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
 					 geometry.wKernel1, geometry.hKernel1))
       features:add(nn.Tanh())
-      features:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
-							     geometry.nFeatures,
-							     geometry.layerTwoSize),
-					    geometry.wKernel2, geometry.hKernel2))
-      features:add(nn.Tanh())
+      if not geometry.L2Pooling then
+	 features:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+								geometry.nFeatures,
+								geometry.layerTwoConnections),
+					       geometry.wKernel2, geometry.hKernel2))
+	 features2 = features:clone('weight', 'bias', 'gradWeight', 'gradBias')
+      else
+	 features:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+								geometry.nFeatures*2,
+								geometry.layerTwoConnections),
+					       geometry.wKernel2, geometry.hKernel2))
+	 features:add(nn.Square())
+	 features2 = features:clone('weight', 'bias', 'gradWeight', 'gradBias')
+	 if full_image then
+	    features:add(nn.Reshape(2, geometry.nFeatures,
+				    geometry.hImg - geometry.hPatch2 + 1,
+				    geometry.wImg - geometry.wPatch2 + 1))
+	    features:add(nn.Reshape(2, geometry.nFeatures,
+				    geometry.hImg - geometry.hKernel + 1,
+				    geometry.wImg - geometry.wKernel + 1))
+	 else
+	    features:add(nn.Reshape(2, geometry.nFeatures, 1, 1))
+	    features2:add(nn.Reshape(2, geometry.nFeatures,
+				     geometry.maxh, geometry.maxw))
+	 end
+	 features:add(nn.SplitTable(1))
+	 features2:add(nn.SplitTable(1))
+	 features:add(nn.CAddTable())
+	 features2:add(nn.CAddTable())
+	 features:add(nn.Sqrt())
+	 features2:add(nn.Sqrt())
+      end
+>>>>>>> 35c76a1cbde6c81a6525478189f746e19bc2c5b0
    else
       assert(false)
    end
    
    parallel:add(features)
-   parallel:add(features:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   parallel:add(features2)
    model:add(parallel)
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
