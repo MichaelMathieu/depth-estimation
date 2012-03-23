@@ -28,54 +28,69 @@ end
 function getModel(geometry, full_image)
    local model = nn.Sequential()
    local parallel = nn.ParallelTable()
-   local features = nn.Sequential()
+   local features1 = nn.Sequential()
    local features2
    if geometry.features == 'one_layer' then
-      features:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-					 geometry.wKernel, geometry.hKernel))
-      features:add(nn.Tanh())
+      features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
+					  geometry.wKernel, geometry.hKernel))
+      --features1:add(nn.Tanh())
+      features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
    elseif geometry.features == 'two_layers' then
-      features:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
-					 geometry.wKernel1, geometry.hKernel1))
-      features:add(nn.Tanh())
+      features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
+					  geometry.wKernel1, geometry.hKernel1))
+      features1:add(nn.Tanh())
       if not geometry.L2Pooling then
-	 features:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
-								geometry.nFeatures,
-								geometry.layerTwoConnections),
-					       geometry.wKernel2, geometry.hKernel2))
-	 features2 = features:clone('weight', 'bias', 'gradWeight', 'gradBias')
+	 features1:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+								 geometry.nFeatures,
+								 geometry.layerTwoConnections),
+						geometry.wKernel2, geometry.hKernel2))
+	 features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
       else
-	 features:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
-								geometry.nFeatures*2,
-								geometry.layerTwoConnections),
-					       geometry.wKernel2, geometry.hKernel2))
-	 features:add(nn.Square())
-	 features2 = features:clone('weight', 'bias', 'gradWeight', 'gradBias')
+	 features1:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+								 geometry.nFeatures*2,
+								 geometry.layerTwoConnections),
+						geometry.wKernel2, geometry.hKernel2))
+	 features1:add(nn.Square())
+	 features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
 	 if full_image then
-	    features:add(nn.Reshape(2, geometry.nFeatures,
+	    features1:add(nn.Reshape(2, geometry.nFeatures,
 				    geometry.hImg - geometry.hPatch2 + 1,
 				    geometry.wImg - geometry.wPatch2 + 1))
 	    features2:add(nn.Reshape(2, geometry.nFeatures,
 				     geometry.hImg - geometry.hKernel + 1,
 				     geometry.wImg - geometry.wKernel + 1))
 	 else
-	    features:add(nn.Reshape(2, geometry.nFeatures, 1, 1))
+	    features1:add(nn.Reshape(2, geometry.nFeatures, 1, 1))
 	    features2:add(nn.Reshape(2, geometry.nFeatures,
 				     geometry.maxh, geometry.maxw))
 	 end
-	 features:add(nn.SplitTable(1))
+	 features1:add(nn.SplitTable(1))
 	 features2:add(nn.SplitTable(1))
-	 features:add(nn.CAddTable())
+	 features1:add(nn.CAddTable())
 	 features2:add(nn.CAddTable())
-	 features:add(nn.Sqrt())
+	 features1:add(nn.Sqrt())
 	 features2:add(nn.Sqrt())
       end
    else
       assert(false)
    end
    
-   parallel:add(features)
-   parallel:add(features2)
+   if geometry.multiscale then
+      assert(geometry.hKernel == geometry.wKernel)
+      local fovea1 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
+				     ratios={1,2}, preProcessors={nn.Identity, nn.Identity},
+				     processors={features1, features1:clone()},
+				     fov=geometry.hKernel, sub=1}
+      local fovea2 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
+				     ratios={1,2}, preProcessors={nn.Identity, nn.Identity},
+				     processors={features2, features2:clone()},
+				     fov=geometry.hKernel, sub=1}
+      parallel:add(fovea1)
+      parallel:add(fovea2)
+   else
+      parallel:add(features1)
+      parallel:add(features2)
+   end
    model:add(parallel)
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
@@ -154,7 +169,7 @@ end
 function describeModel(geometry, learning, nImgs, first_image, delta)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
    local kernel
-   if geometry.network_type == 'one_layer' then
+   if geometry.features == 'one_layer' then
       kernel = 'kernel=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
       kernel = kernel .. 'x' .. geometry.wKernel .. geometry.nFeatures .. ')'
    else
@@ -162,7 +177,9 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
       kernel = kernel .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. ', '
       kernel = kernel .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
       kernel = kernel .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
-      if geometry.L2Pooling then kernel = kernel .. ' l2)' else kernel = kernel .. ')' end
+      if geometry.L2Pooling then kernel = kernel .. ' l2' end
+      if geometry.multiscale then kernel = kernel .. ' multi' end
+      kernel = kernel .. ')'
    end
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
@@ -182,15 +199,16 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
 		   nEpochs)
    local modelsdirbase = 'models'
    local modeldir = modelsdirbase .. '/'
-   if geometry.network_type == 'one_layer' then
+   if geometry.features == 'one_layer' then
       modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
       modeldir = modeldir .. 'x' .. geometry.wKernel .. geometry.nFeatures
    else
-      modeldir = geometry.nChannelsIn .. 'x' .. geometry.hKernel1
+      modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel1
       modeldir = modeldir .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. '_'
       modeldir = modeldir .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
       modeldir = modeldir .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
       if geometry.L2Pooling then modeldir = modeldir .. '_l2' end
+      if geometry.multiscale then modeldir = modeldir .. '_multi' end
    end
    
    local targets = ''

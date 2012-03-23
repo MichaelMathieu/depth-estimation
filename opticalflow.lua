@@ -30,7 +30,7 @@ op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', defa
 	  help='Second (hidden) layer size, if ns == two_layers'}
 op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_connections',
 	  default=4, help='Number of connectons between layers 1 and 2'}
-op:option{'-l2', '--l2-pooling', action='store', dest='l2_pooling', default=false,
+op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
 	  help='L2 pooling'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
@@ -97,8 +97,8 @@ if opt.network_structure == 'two_layers' then
    geometry.wKernel = geometry.wKernel1 + geometry.wKernel2 - 1
    geometry.hKernel = geometry.hKernel1 + geometry.hKernel2 - 1
 elseif opt.network_structure == 'one_layer' then
-   geometry.wKernel = opt.wKernel1_size
-   geometry.hKernel = opt.hKernel1_size
+   geometry.wKernel = opt.kernel1_size
+   geometry.hKernel = opt.kernel1_size
 end
 geometry.wPatch1 = geometry.wKernel
 geometry.hPatch1 = geometry.hKernel
@@ -107,10 +107,11 @@ geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
 geometry.soft_targets = opt.soft_targets --todo should be in learning
-geometry.features = opt.network_structure
+geometry.features = opt.network_structure --todo change that name
 geometry.layerTwoSize = opt.layer_two_size
 geometry.layerTwoConnections = opt.layer_two_connections
 geometry.L2Pooling = opt.l2_pooling
+geometry.multiscale = false
 
 local learning = {}
 learning.rate = opt.learning_rate
