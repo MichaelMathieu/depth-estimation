@@ -223,14 +223,17 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, u
       if use_motion_correction then
          local im, flow, im_rect, H = loadRectifiedImageOpticalFlow(geometry, dirbasename, imagepaths[i],
    					    imagepaths[i-1], delta)
+         table.insert(raw_data.images, im)
+         table.insert(raw_data.flow, flow)   
          table.insert(raw_data.rectified_images, im_rect)
          table.insert(raw_data.H, H)
       else
          local im, flow = loadImageOpticalFlow(geometry, dirbasename, imagepaths[i],
                       imagepaths[i-1], delta)
+         table.insert(raw_data.images, im)
+         table.insert(raw_data.flow, flow)
       end
-      table.insert(raw_data.images, im)
-      table.insert(raw_data.flow, flow)
+      
    end
 
    local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
