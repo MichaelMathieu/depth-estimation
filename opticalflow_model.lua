@@ -98,10 +98,10 @@ end
 
 function getModelFovea(geometry, full_image)
    assert(geometry.hKernel == geometry.wKernel)
+   assert(geometry.hPatch2 == geometry.wPatch2)
    local model = nn.Sequential()
    local parallel = nn.ParallelTable()
    local preproc1 = nn.Sequential()
-   local preproc2 = nn.Sequential()
    local filter = nn.Sequential()
 
    --TODO this should be floor, according to the way the gt is computed. why?
@@ -110,8 +110,8 @@ function getModelFovea(geometry, full_image)
       preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hImg-geometry.maxh+1))
       preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wImg-geometry.maxw+1))
    else
-      preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hPatch2-geometry.maxh+1))
-      preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wPatch2-geometry.maxw+1))
+      preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hKernel))
+      preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wKernel))
    end
 
    if geometry.nLayers == 1 then
@@ -122,30 +122,29 @@ function getModelFovea(geometry, full_image)
       assert(false)
    end
 
-   local preprocs1 = {}
    local filters1 = {}
-   local preprocs2 = {}
    local filters2 = {}
    for i = 1,#geometry.ratios do
-      table.insert(preprocs1, preproc1:clone())
-      table.insert(preprocs2, preproc2:clone())
       local filter_t = filter:clone()
-      table.insert(filters1, filter_t:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+      local seq1 = nn.Sequential()
+      seq1:add(preproc1)
+      seq1:add(filter_t)
+      table.insert(filters1, seq1)
       table.insert(filters2, filter_t:clone('weight', 'bias', 'gradWeight', 'gradBias'))
    end
    local fovea1 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
 				  ratios=geometry.ratios,
-				  preProcessors = preprocs1,
 				  processors = filters1,
 				  fov = geometry.hKernel, sub=1}
+   fovea1.padding = geometry.hPatch2-1
    local fovea2 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
 				  ratios=geometry.ratios,
-				  preProcessors = preprocs2,
 				  processors = filters2,
 				  fov = geometry.hKernel, sub=1}
+   fovea2.padding = geometry.hPatch2-1
    function model:focus(x, y)
-      fovea1:focus(x, y, geometry.hKernel)
-      fovea2:focus(x, y, geometry.hKernel)
+      fovea1:focus(x, y, geometry.hPatch2)
+      fovea2:focus(x, y, geometry.hPatch2)
    end
    
    parallel:add(fovea1)

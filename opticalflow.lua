@@ -163,14 +163,14 @@ for iEpoch = 1,opt.n_epochs do
       modProgress(t, testData:size(), 100)
 
       local input, target, targetCrit
-      if not geometry.multiscale then
-	 local sample = testData[t]
-	 input = prepareInput(geometry, sample[1][1], sample[1][2])
-	 targetCrit, target = prepareTarget(geometry, sample[2])
-      else
+      if geometry.multiscale then
 	 local sample = testData:getElemFovea(t)
 	 input = sample[1][1]
 	 model:focus(sample[1][2][1], sample[1][2][2])
+	 targetCrit, target = prepareTarget(geometry, sample[2])
+      else
+	 local sample = testData[t]
+	 input = prepareInput(geometry, sample[1][1], sample[1][2])
 	 targetCrit, target = prepareTarget(geometry, sample[2])
       end
       
@@ -195,9 +195,16 @@ for iEpoch = 1,opt.n_epochs do
    
    for t = 1,trainData:size() do
       modProgress(t, trainData:size(), 100)
-      local sample = trainData[t]
-      local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local targetCrit, target = prepareTarget(geometry, sample[2])
+      if geometry.multiscale then
+	 local sample = trainData:getElemFovea(t)
+	 input = sample[1][1]
+	 model:focus(sample[1][2][1], sample[1][2][2])
+	 targetCrit, target = prepareTarget(geometry, sample[2])
+      else
+	 local sample = trainData[t]
+	 local input = prepareInput(geometry, sample[1][1], sample[1][2])
+	 local targetCrit, target = prepareTarget(geometry, sample[2])
+      end
       
       local feval = function(x)
 		       if x ~= parameters then
