@@ -32,6 +32,8 @@ op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_con
 	  default=4, help='Number of connectons between layers 1 and 2'}
 op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
 	  help='L2 pooling'}
+op:option{'-ms', '--multiscale', action='store_true', dest='multiscale', default=false,
+	  help='Use multiscale (experimental)'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -113,7 +115,8 @@ geometry.features = opt.network_structure --todo change that name
 geometry.layerTwoSize = opt.layer_two_size
 geometry.layerTwoConnections = opt.layer_two_connections
 geometry.L2Pooling = opt.l2_pooling
-geometry.multiscale = false
+geometry.multiscale = opt.multiscale
+geometry.ratios = {1,2} --todo
 
 local learning = {}
 learning.rate = opt.learning_rate
@@ -124,7 +127,12 @@ learning.sampling_method = opt.sampling_method
 local summary = describeModel(geometry, learning, opt.num_input_images,
 			      opt.first_image, opt.delta)
 
-local model = getModel(geometry, false)
+local model
+if geometry.multiscale then
+   model = getModelFovea(geometry, false)
+else
+   model = getModel(geometry, false)
+end
 local parameters, gradParameters = model:getParameters()
 
 local criterion
@@ -159,9 +167,18 @@ for iEpoch = 1,opt.n_epochs do
 
    for t = 1,testData:size() do
       modProgress(t, testData:size(), 100)
-      local sample = testData[t]
-      local input = prepareInput(geometry, sample[1][1], sample[1][2])
-      local targetCrit, target = prepareTarget(geometry, sample[2])
+
+      local input, target, targetCrit
+      if not geometry.multiscale then
+	 local sample = testData[t]
+	 input = prepareInput(geometry, sample[1][1], sample[1][2])
+	 targetCrit, target = prepareTarget(geometry, sample[2])
+      else
+	 local sample = testData:getElemFovea(t)
+	 input = sample[1][1]
+	 model:focus(sample[1][2][1], sample[1][2][2])
+	 targetCrit, target = prepareTarget(geometry, sample[2])
+      end
       
       local output = model:forward(input):squeeze()
       local err = criterion:forward(output, targetCrit)

@@ -33,7 +33,6 @@ function getModel(geometry, full_image)
    if geometry.features == 'one_layer' then
       features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
 					  geometry.wKernel, geometry.hKernel))
-      --features1:add(nn.Tanh())
       features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
    elseif geometry.features == 'two_layers' then
       features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
@@ -74,25 +73,85 @@ function getModel(geometry, full_image)
    else
       assert(false)
    end
-   
-   if geometry.multiscale then
-      assert(geometry.hKernel == geometry.wKernel)
-      local fovea1 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
-				     ratios={1,2}, preProcessors={nn.Identity, nn.Identity},
-				     processors={features1, features1:clone()},
-				     fov=geometry.hKernel, sub=1}
-      local fovea2 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
-				     ratios={1,2}, preProcessors={nn.Identity, nn.Identity},
-				     processors={features2, features2:clone()},
-				     fov=geometry.hKernel, sub=1}
-      parallel:add(fovea1)
-      parallel:add(fovea2)
-   else
-      parallel:add(features1)
-      parallel:add(features2)
-   end
+
+   parallel:add(features1)
+   parallel:add(features2)
    model:add(parallel)
 
+   model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
+   if full_image then
+      model:add(nn.Reshape(geometry.maxw*geometry.maxh,
+			   geometry.hImg - geometry.hPatch2 + 1,
+			   geometry.wImg - geometry.wPatch2 + 1))
+   else
+      model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
+   end
+   if not geometry.soft_targets then
+      model:add(nn.Minus())
+      local spatial = nn.SpatialClassifier()
+      spatial:add(nn.LogSoftMax())
+      model:add(spatial)
+   end
+   
+   return model
+end
+
+function getModelFovea(geometry, full_image)
+   assert(geometry.hKernel == geometry.wKernel)
+   local model = nn.Sequential()
+   local parallel = nn.ParallelTable()
+   local preproc1 = nn.Sequential()
+   local preproc2 = nn.Sequential()
+   local filter = nn.Sequential()
+
+   --TODO this should be floor, according to the way the gt is computed. why?
+   -- > anyway, this seems to works perfectly (see test_patches.lua)
+   if full_image then
+      preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hImg-geometry.maxh+1))
+      preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wImg-geometry.maxw+1))
+   else
+      preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hPatch2-geometry.maxh+1))
+      preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wPatch2-geometry.maxw+1))
+   end
+
+   if geometry.features == 'one_layer' then
+      filter:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
+				       geometry.wKernel, geometry.hKernel))
+   else
+      print('ERROR: two_layers (or other) + fovea not implemented')
+      assert(false)
+   end
+
+   local preprocs1 = {}
+   local filters1 = {}
+   local preprocs2 = {}
+   local filters2 = {}
+   for i = 1,#geometry.ratios do
+      table.insert(preprocs1, preproc1:clone())
+      table.insert(preprocs2, preproc2:clone())
+      local filter_t = filter:clone()
+      table.insert(filters1, filter_t:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+      table.insert(filters2, filter_t:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   end
+   local fovea1 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
+				  ratios=geometry.ratios,
+				  preProcessors = preprocs1,
+				  processors = filters1,
+				  fov = geometry.hKernel, sub=1}
+   local fovea2 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
+				  ratios=geometry.ratios,
+				  preProcessors = preprocs2,
+				  processors = filters2,
+				  fov = geometry.hKernel, sub=1}
+   function model:focus(x, y)
+      fovea1:focus(x, y, geometry.hKernel)
+      fovea2:focus(x, y, geometry.hKernel)
+   end
+   
+   parallel:add(fovea1)
+   parallel:add(fovea2)
+   
+   model:add(parallel)
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,

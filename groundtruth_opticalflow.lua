@@ -312,13 +312,13 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
    end
    setmetatable(dataset, {__index = function(self, index)
 				       local coords = self.patches[index]
-                   local image1 = self.raw_data.images[coords[1]]
-                   local image2
-                   if use_motion_correction then
-                     image2 = self.raw_data.rectified_images[coords[1]]
-                   else
-                     image2 = self.raw_data.images[coords[2]]
-                   end
+				       local image1 = self.raw_data.images[coords[1]]
+				       local image2
+				       if use_motion_correction then
+					  image2 = self.raw_data.rectified_images[coords[1]]
+				       else
+					  image2 = self.raw_data.images[coords[2]]
+				       end
 				       local patch1 = image1:sub(1, image1:size(1),
 								 coords[3], coords[4],
 								 coords[5], coords[6])
@@ -327,6 +327,11 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
 								 coords[5], coords[6])
 				       return {{patch1, patch2}, self.targets[index]}
 				    end})
+   function dataset:getElemFovea(index)
+      local coords = self.patches[index]
+      return {{{self.raw_data.images[coords[1]], self.raw_data.images[coords[2]]},
+	       {coords[3], coords[4]}}, self.targets[index]}
+   end
 
    if method == 'uniform_flow' then
       local iFlow = 1
