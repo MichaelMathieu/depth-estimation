@@ -184,6 +184,9 @@ for iEpoch = 1,opt.n_epochs do
       else
 	 nBad = nBad + 1
       end
+      if math.mod(t, 50) == 0 then
+	 collectgarbage()
+      end
    end
 
    meanErr = meanErr / (testData:size())
@@ -233,6 +236,9 @@ for iEpoch = 1,opt.n_epochs do
 		momentum = 0,
 		learningRateDecay = learning.rate_decay}
       optim.sgd(feval, parameters, config)
+      if math.mod(t, 50) == 0 then
+	 collectgarbage()
+      end
    end
       
    meanErr = meanErr / (trainData:size())
