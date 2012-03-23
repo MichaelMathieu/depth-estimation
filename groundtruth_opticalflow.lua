@@ -139,7 +139,59 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       image.savePNG(flowfilename, flow)
    end
    flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
+
    return im, flow
+end
+
+function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebasename, delta)
+   local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
+   if not paths.filep(imagepath) then
+      print("Image " .. imagepath .. " not found.")
+      return nil
+   end
+   local im = image.scale(image.loadJPG(imagepath), geometry.wImg, geometry.hImg)
+   if not previmagebasename then
+      return im
+   end
+   local flowdir = dirbasename .. 'flow_rect/' .. geometry.wImg .. 'x' .. geometry.hImg
+   flowdir = flowdir .. '/' .. geometry.maxh .. 'x' ..geometry.maxw .. 'x'
+   flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
+   os.execute('mkdir -p ' .. flowdir)
+   local flowfilename = flowdir .. '/' .. imagebasename .. '.png'
+   local flow = nil
+   if paths.filep(flowfilename) then
+      flow = image.loadPNG(flowfilename)
+      if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
+         flow = nil
+         print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
+      end
+   end
+
+   local previmagepath = dirbasename .. 'images/' .. previmagebasename .. '.jpg'
+   print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
+   if not paths.filep(previmagepath) then
+      print("Image " .. previmagepath .. " not found.")
+      return nil
+   end
+   local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
+   local ptsin = opencv.GoodFeaturesToTrack{image=previmage, count=50}
+   local ptsout = opencv.TrackPyrLK{pair={previmage,im},
+                     points_in=ptsin}
+   local H = lsq_trans_ransac(ptsin, ptsout, geometry.wImg/2, geometry.hImg/2)
+   local inputImg = im:clone()
+   local im_rect = opencv.WarpAffine(inputImg, H)
+
+   if not flow then
+      local yflow, xflow = getOpticalFlow(geometry, previmage, im_rect, 16, 16)
+      flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
+      flow[1]:copy(yflow/255)
+      flow[2]:copy(xflow/255)
+      image.savePNG(flowfilename, flow)
+   end
+   flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
+
+   return im, flow, im_rect, H
+
 end
 
 function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, use_motion_correction)
@@ -168,23 +220,17 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, u
    local im = loadImageOpticalFlow(geometry, dirbasename, imagepaths[1], nil, nil)
    table.insert(raw_data.images, im)
    for i = 2,math.min(#imagepaths, nImgs) do
-      local im, flow = loadImageOpticalFlow(geometry, dirbasename, imagepaths[i],
-					    imagepaths[i-1], delta)
+      if use_motion_correction then
+         local im, flow, im_rect, H = loadRectifiedImageOpticalFlow(geometry, dirbasename, imagepaths[i],
+   					    imagepaths[i-1], delta)
+         table.insert(raw_data.rectified_images, im_rect)
+         table.insert(raw_data.H, H)
+      else
+         local im, flow = loadImageOpticalFlow(geometry, dirbasename, imagepaths[i],
+                      imagepaths[i-1], delta)
+      end
       table.insert(raw_data.images, im)
       table.insert(raw_data.flow, flow)
-   end
-
-   if use_motion_correction then
-      print("Computing motion correction H...")
-      for iImg = 1,#raw_data.images-1 do
-         xlua.progress(iImg, #raw_data.images-1)
-         local ptsin = opencv.GoodFeaturesToTrack{image=raw_data.images[iImg], count=50}
-         local ptsout = opencv.TrackPyrLK{pair={raw_data.images[iImg],raw_data.images[iImg+1]},
-                           points_in=ptsin}
-         raw_data.H[iImg] = lsq_trans_ransac(ptsin, ptsout, geometry.wImg/2, geometry.hImg/2)
-         local inputImg = raw_data.images[iImg+1]:clone()
-         raw_data.rectified_images[iImg] = opencv.WarpAffine(inputImg,raw_data.H[iImg])
-      end
    end
 
    local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
