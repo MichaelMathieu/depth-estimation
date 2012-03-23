@@ -41,7 +41,7 @@ op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
-op:option{'-rd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
+op:option{'-lrd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
           default=5e-7, help='Learning rate decay'}
 op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}

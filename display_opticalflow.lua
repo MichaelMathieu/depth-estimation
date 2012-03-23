@@ -62,9 +62,10 @@ else
    output2 = output.full
 end
 
-nGood, nNear, nBad = evalOpticalflow(geometry, output2, gt)
+nGood, nNear, nBad, d, meanDst, stdDst = evalOpticalflow(geometry, output2, gt)
 print('nGood=' .. nGood .. ' nNear=' .. nNear .. ' nBad=' .. nBad)
 print(100.*nGood/(nGood+nNear+nBad) .. '% accurate, ' .. 100.*(nGood+nNear)/(nGood+nNear+nBad) .. '% almost accurate')
+print('meanDst=' .. meanDst .. ' (std=' .. stdDst .. ')')
 
 local inity, initx = centered2onebased(geometry, 0, 0)
 image.display{output2[1], gt[1]}
