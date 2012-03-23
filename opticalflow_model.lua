@@ -30,11 +30,11 @@ function getModel(geometry, full_image)
    local parallel = nn.ParallelTable()
    local features1 = nn.Sequential()
    local features2
-   if geometry.features == 'one_layer' then
+   if geometry.nLayers == 1 then
       features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
 					  geometry.wKernel, geometry.hKernel))
       features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
-   elseif geometry.features == 'two_layers' then
+   elseif geometry.nLayers == 2 then
       features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
 					  geometry.wKernel1, geometry.hKernel1))
       features1:add(nn.Tanh())
@@ -114,7 +114,7 @@ function getModelFovea(geometry, full_image)
       preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wPatch2-geometry.maxw+1))
    end
 
-   if geometry.features == 'one_layer' then
+   if geometry.nLayers == 1 then
       filter:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
 				       geometry.wKernel, geometry.hKernel))
    else
@@ -228,7 +228,7 @@ end
 function describeModel(geometry, learning, nImgs, first_image, delta)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
    local kernel
-   if geometry.features == 'one_layer' then
+   if geometry.nLayers == 1 then
       kernel = 'kernel=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
       kernel = kernel .. 'x' .. geometry.wKernel .. geometry.nFeatures .. ')'
    else
@@ -258,7 +258,7 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
 		   nEpochs)
    local modelsdirbase = 'models'
    local modeldir = modelsdirbase .. '/'
-   if geometry.features == 'one_layer' then
+   if geometry.nLayers == 1 then
       modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
       modeldir = modeldir .. 'x' .. geometry.wKernel .. geometry.nFeatures
    else

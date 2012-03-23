@@ -24,8 +24,8 @@ op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
 	  default=16, help='Kernel 2 size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
-op:option{'-ns', '-network-structure', action='store', dest='network_structure',
-	  default='one_layer', help='Network structure (one_layer | two_layers)'}
+op:option{'-nl', '-num-layers', action='store', dest='num_layers',
+	  default=2, help='Number of layers in the network (1 or 2)'}
 op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', default=8,
 	  help='Second (hidden) layer size, if ns == two_layers'}
 op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_connections',
@@ -66,13 +66,6 @@ op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correc
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 
-opt.n_features = tonumber(opt.n_features)
-opt.kernel2_size = tonumber(opt.kernel2_size)
-opt.kernel1_size = tonumber(opt.kernel1_size)
-opt.win_size = tonumber(opt.win_size)
-opt.layer_two_size = tonumber(opt.layer_two_size)
-opt.layer_two_connections = tonumber(opt.layer_two_connections)
-
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
@@ -89,31 +82,31 @@ openmp.setDefaultNumThreads(opt.nThreads)
 local geometry = {}
 geometry.wImg = 320
 geometry.hImg = 180
-geometry.maxw = opt.win_size
-geometry.maxh = opt.win_size
+geometry.maxw = tonumber(opt.win_size)
+geometry.maxh = tonumber(opt.win_size)
 geometry.wKernelGT = 16
 geometry.hKernelGT = 16
-if opt.network_structure == 'two_layers' then
-   geometry.wKernel1 = opt.kernel1_size
-   geometry.hKernel1 = opt.kernel1_size
-   geometry.wKernel2 = opt.kernel2_size
-   geometry.hKernel2 = opt.kernel2_size
+geometry.nLayers = tonumber(opt.num_layers)
+if geometry.nLayers == 1 then
+   geometry.wKernel = tonumber(opt.kernel1_size)
+   geometry.hKernel = tonumber(opt.kernel1_size)
+elseif geometry.nLayers == 2 then
+   geometry.wKernel1 = tonumber(opt.kernel1_size)
+   geometry.hKernel1 = tonumber(opt.kernel1_size)
+   geometry.wKernel2 = tonumber(opt.kernel2_size)
+   geometry.hKernel2 = tonumber(opt.kernel2_size)
    geometry.wKernel = geometry.wKernel1 + geometry.wKernel2 - 1
    geometry.hKernel = geometry.hKernel1 + geometry.hKernel2 - 1
-elseif opt.network_structure == 'one_layer' then
-   geometry.wKernel = opt.kernel1_size
-   geometry.hKernel = opt.kernel1_size
+else
+   assert(false)
 end
-geometry.wPatch1 = geometry.wKernel
-geometry.hPatch1 = geometry.hKernel
 geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
 geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.nChannelsIn = 3
-geometry.nFeatures = opt.n_features
+geometry.nFeatures = tonumber(opt.n_features)
+geometry.layerTwoSize = tonumber(opt.layer_two_size)
+geometry.layerTwoConnections = tonumber(opt.layer_two_connections)
 geometry.soft_targets = opt.soft_targets --todo should be in learning
-geometry.features = opt.network_structure --todo change that name
-geometry.layerTwoSize = opt.layer_two_size
-geometry.layerTwoConnections = opt.layer_two_connections
 geometry.L2Pooling = opt.l2_pooling
 geometry.multiscale = opt.multiscale
 geometry.ratios = {1,2} --todo
