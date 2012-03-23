@@ -5,6 +5,7 @@ require 'image'
 require 'nnx'
 require 'opticalflow_model'
 require 'groundtruth_opticalflow'
+require 'score_opticalflow'
 
 torch.manualSeed(1)
 
@@ -23,6 +24,8 @@ op:option{'-d', '--delta', action='store', dest='delta', default=2,
 	  help='Delta between two consecutive frames'}
 op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
+op:option{'-o', '--output-video', action='store', dest='output_video', default='video.mp4',
+	  help='Output video'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -50,21 +53,9 @@ for i = 2,#imagenames do
 					    imagenames[i-1], opt.delta)
 end
 
-function flow2hsv(geometry, flow)
-   local todisplay = torch.Tensor(3, flow:size(2), flow:size(3))
-   for i = 1,flow:size(2) do
-      for j = 1,flow:size(3) do
-	 local y, x = onebased2centered(geometry, flow[1][i][j], flow[2][i][j])
-	 local ang = math.atan2(y, x)
-	 local norm = math.sqrt(x*x+y*y)
-	 todisplay[1][i][j] = ang/(math.pi*2.0)
-	 todisplay[2][i][j] = 1.0
-	 todisplay[3][i][j] = norm/math.max(geometry.maxh/2, geometry.maxw/2)
-      end
-   end
-   return image.hsl2rgb(todisplay)
-end
+local scores = {}
 
+os.execute('mkdir -p dump_tmp && rm dump_tmp/*.png')
 for i = 2,#images do
    local input = prepareInput(geometry, images[i-1], images[i])
    local output = model:forward(input)
@@ -74,17 +65,24 @@ for i = 2,#images do
    else
       output = output.full
    end
-
-
-   
    local im = flow2hsv(geometry, output)
-   local gt = flow2hsv(geometry, gt[i-1])
+   local gthsv = flow2hsv(geometry, gt[i-1])
+
+   nGood, nNear, nBad, d, meanDst, stdDst = evalOpticalflow(output, gt[i-1])
+   table.insert(scores, {nGood, nNear, nBad, d, meanDst, stdDst})
+   print{nGood, nNear, nBad, d, meanDst, stdDst}
+   
    local im2 = torch.Tensor(im:size(1), 2*im:size(2), 2*im:size(3))
    im2:sub(1,im2:size(1),            1, im:size(2),            1, im:size(3)):copy(images[i-1])
    im2:sub(1,im2:size(1),            1, im:size(2), im:size(3)+1,im2:size(3)):copy(images[i])
    im2:sub(1,im2:size(1), im:size(2)+1,im2:size(2),            1, im:size(3)):copy(im)  
-   im2:sub(1,im2:size(1), im:size(2)+1,im2:size(2), im:size(3)+1,im2:size(3)):copy(gt)
-   image.save(string.format('dump/%09d.png', i-1), im2)
+   im2:sub(1,im2:size(1), im:size(2)+1,im2:size(2), im:size(3)+1,im2:size(3)):copy(gthsv)
+   image.save(string.format('dump_tmp/%09d.png', i-1), im2)
    --a = image.display{image=flow2hsv(geometry, output.full), win=a, min=0, max=1}
    --a = image.display{image=output.full, win=a, min=1, max=17}
 end
+os.execute('cd dump_tmp && ffmpeg -sameq -r 10 -i %09d.png ' .. opt.output_video)
+
+torch.save('last_scores', scores)
+
+print(scores)

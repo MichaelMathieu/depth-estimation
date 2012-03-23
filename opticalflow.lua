@@ -18,10 +18,20 @@ op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 -- network
 op:option{'-nf', '--n-features', action='store', dest='n_features',
           default=10, help='Number of features in the first layer'}
-op:option{'-ks', '--kernel-size', action='store', dest='kernel_size',
-	  default=16, help='Kernel size'}
+op:option{'-k1s', '--kernel1-size', action='store', dest='kernel1_size',
+	  default=5, help='Kernel 1 size, if ns == two_layers'}
+op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
+	  default=16, help='Kernel 2 size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
+op:option{'-ns', '-network-structure', action='store', dest='network_structure',
+	  default='one_layer', help='Network structure (one_layer | two_layers)'}
+op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', default=8,
+	  help='Second (hidden) layer size, if ns == two_layers'}
+op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_connections',
+	  default=4, help='Number of connectons between layers 1 and 2'}
+op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
+	  help='L2 pooling'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -31,10 +41,14 @@ op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
+op:option{'-rd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
+          default=5e-7, help='Learning rate decay'}
 op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
 	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
+op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
+	  default=0, help='Weight decay'}
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 	  default='./data', help='Root dataset directory'}
@@ -51,13 +65,18 @@ opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 
 opt.n_features = tonumber(opt.n_features)
-opt.kernel_size = tonumber(opt.kernel_size)
+opt.kernel2_size = tonumber(opt.kernel2_size)
+opt.kernel1_size = tonumber(opt.kernel1_size)
 opt.win_size = tonumber(opt.win_size)
+opt.layer_two_size = tonumber(opt.layer_two_size)
+opt.layer_two_connections = tonumber(opt.layer_two_connections)
 
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
 opt.learning_rate = tonumber(opt.learning_rate)
+opt.learning_rate_decay = tonumber(opt.learning_rate_decay)
+opt.weight_decay = tonumber(opt.weight_decay)
 
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
@@ -68,19 +87,42 @@ openmp.setDefaultNumThreads(opt.nThreads)
 local geometry = {}
 geometry.wImg = 320
 geometry.hImg = 180
-geometry.wPatch2 = opt.win_size + opt.kernel_size - 1
-geometry.hPatch2 = opt.win_size + opt.kernel_size - 1
-geometry.wKernel = opt.kernel_size
-geometry.hKernel = opt.kernel_size
-geometry.maxw = geometry.wPatch2 - geometry.wKernel + 1
-geometry.maxh = geometry.hPatch2 - geometry.hKernel + 1
-geometry.wPatch1 = geometry.wPatch2 - geometry.maxw + 1
-geometry.hPatch1 = geometry.hPatch2 - geometry.maxh + 1
+geometry.maxw = opt.win_size
+geometry.maxh = opt.win_size
+geometry.wKernelGT = 16
+geometry.hKernelGT = 16
+if opt.network_structure == 'two_layers' then
+   geometry.wKernel1 = opt.kernel1_size
+   geometry.hKernel1 = opt.kernel1_size
+   geometry.wKernel2 = opt.kernel2_size
+   geometry.hKernel2 = opt.kernel2_size
+   geometry.wKernel = geometry.wKernel1 + geometry.wKernel2 - 1
+   geometry.hKernel = geometry.hKernel1 + geometry.hKernel2 - 1
+elseif opt.network_structure == 'one_layer' then
+   geometry.wKernel = opt.kernel1_size
+   geometry.hKernel = opt.kernel1_size
+end
+geometry.wPatch1 = geometry.wKernel
+geometry.hPatch1 = geometry.hKernel
+geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
+geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.nChannelsIn = 3
 geometry.nFeatures = opt.n_features
-geometry.soft_targets = opt.soft_targets
+geometry.soft_targets = opt.soft_targets --todo should be in learning
+geometry.features = opt.network_structure --todo change that name
+geometry.layerTwoSize = opt.layer_two_size
+geometry.layerTwoConnections = opt.layer_two_connections
+geometry.L2Pooling = opt.l2_pooling
+geometry.multiscale = false
 
-local summary = describeModel(geometry, opt.num_input_images, opt.first_image, opt.delta)
+local learning = {}
+learning.rate = opt.learning_rate
+learning.rate_decay = opt.learning_rate_decay
+learning.weight_decay = opt.weight_decay
+learning.sampling_method = opt.sampling_method
+
+local summary = describeModel(geometry, learning, opt.num_input_images,
+			      opt.first_image, opt.delta)
 
 local model = getModel(geometry, false)
 local parameters, gradParameters = model:getParameters()
@@ -99,20 +141,21 @@ local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
 				     opt.first_image, opt.delta, opt.motion_correction)
 print('Generating training set...')
 local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
-					  opt.sampling_method, opt.motion_correction)
+					  learning.sampling_method, opt.motion_correction)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
-					 opt.sampling_method, opt.motion_correction)
+					 learning.sampling_method, opt.motion_correction)
 
-saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
-	  opt.first_image, opt.delta, 0, opt.learning_rate, opt.sampling_method)
+saveModel('model_of_', geometry, learning, parameters, opt.num_input_images,
+	  opt.first_image, opt.delta, 0)
 
 for iEpoch = 1,opt.n_epochs do
-   print('Epoch ' .. iEpoch)
+   print('Epoch ' .. iEpoch .. ' over ' .. opt.n_epochs)
    print(summary)
 
-   nGood = 0
-   nBad = 0
+   local nGood = 0
+   local nBad = 0
+   local meanErr = 0.
 
    for t = 1,testData:size() do
       modProgress(t, testData:size(), 100)
@@ -121,7 +164,9 @@ for iEpoch = 1,opt.n_epochs do
       local targetCrit, target = prepareTarget(geometry, sample[2])
       
       local output = model:forward(input):squeeze()
-
+      local err = criterion:forward(output, targetCrit)
+      
+      meanErr = meanErr + err
       local outputp = processOutput(geometry, output)
       if outputp.index == target then
 	 nGood = nGood + 1
@@ -130,11 +175,12 @@ for iEpoch = 1,opt.n_epochs do
       end
    end
 
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
-
+   meanErr = meanErr / (testData:size())
+   print('test: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
    nGood = 0
    nBad = 0
+   meanErr = 0
    
    for t = 1,trainData:size() do
       modProgress(t, trainData:size(), 100)
@@ -153,8 +199,9 @@ for iEpoch = 1,opt.n_epochs do
 		       local df_do = criterion:backward(output, targetCrit)
 		       model:backward(input, df_do)
 		       
-		       output = processOutput(geometry, output)
-		       if output.index == target then
+		       meanErr = meanErr + err
+		       local outputp = processOutput(geometry, output)
+		       if outputp.index == target then
 			  nGood = nGood + 1
 		       else
 			  nBad = nBad + 1
@@ -163,16 +210,17 @@ for iEpoch = 1,opt.n_epochs do
 		       return err, gradParameters
 		    end
 
-      config = {learningRate = opt.learning_rate,
-		weightDecay = 0,
+      config = {learningRate = learning.rate,
+		weightDecay = learning.weight_decay,
 		momentum = 0,
-		learningRateDecay = 5e-7}
+		learningRateDecay = learning.rate_decay}
       optim.sgd(feval, parameters, config)
    end
       
-   print('nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%)')
+   meanErr = meanErr / (trainData:size())
+   print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
-   saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
-	     opt.first_image, opt.delta, iEpoch, opt.learning_rate, opt.sampling_method)
+   saveModel('model_of_', geometry, learning, parameters, opt.num_input_images,
+	     opt.first_image, opt.delta, iEpoch)
 
 end

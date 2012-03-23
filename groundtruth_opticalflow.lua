@@ -75,24 +75,24 @@ end
 function getOpticalFlow(geometry, image1, image2)
    local halfmaxh = math.ceil(geometry.maxh/2)-1
    local halfmaxw = math.ceil(geometry.maxw/2)-1
-   local halfhKernel = math.ceil(geometry.hKernel/2)-1
-   local halfwKernel = math.ceil(geometry.wKernel/2)-1
+   local halfhKernel = math.ceil(geometry.hKernelGT/2)-1
+   local halfwKernel = math.ceil(geometry.wKernelGT/2)-1
    of = torch.Tensor(geometry.maxh, geometry.maxw, image1:size(2), image1:size(3)):fill(-1)
-   for i = 1, image1:size(2) - geometry.hKernel - geometry.maxh + 2 do
-      xlua.progress(i, image1:size(2) - geometry.hKernel - geometry.maxh + 2)
-      for j = 1, image1:size(3) - geometry.wKernel - geometry.maxw + 2 do
+   for i = 1, image1:size(2) - geometry.hKernelGT - geometry.maxh + 2 do
+      xlua.progress(i, image1:size(2) - geometry.hKernelGT - geometry.maxh + 2)
+      for j = 1, image1:size(3) - geometry.wKernelGT - geometry.maxw + 2 do
 	 local win = image1:sub(1, image1:size(1),
-				i+halfmaxh, i+halfmaxh+geometry.hKernel-1,
-				j+halfmaxw, j+halfmaxw+geometry.wKernel-1)
+				i+halfmaxh, i+halfmaxh+geometry.hKernelGT-1,
+				j+halfmaxw, j+halfmaxw+geometry.wKernelGT-1)
 	 local tomul = image2:sub(1, image2:size(1),
-				  i, i+geometry.maxh+geometry.hKernel-2,
-				  j, j+geometry.maxw+geometry.wKernel-2)
-	 local unfolded = tomul:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
+				  i, i+geometry.maxh+geometry.hKernelGT-2,
+				  j, j+geometry.maxw+geometry.wKernelGT-2)
+	 local unfolded = tomul:unfold(2, geometry.hKernelGT, 1):unfold(3, geometry.wKernelGT,1)
 	 local norm2win = win:dot(win)
 	 for k = 1, geometry.maxh do
 	    for l = 1, geometry.maxw do
 	       local win2 = unfolded:select(2,k):select(2,l)
-	       of[k][l][i+halfmaxh+halfhKernel][j+halfmaxw+halfwKernel] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
+	       of[k][l][i+halfmaxh+halfgeometry.hKernelGT][j+halfmaxw+halfgeometry.wKernelGT] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
 	    end
 	 end
       end
@@ -113,7 +113,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    end
    local flowdir = dirbasename .. 'flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxh .. 'x' ..geometry.maxw .. 'x'
-   flowdir = flowdir .. geometry.hKernel .. 'x' ..geometry.wKernel .. '/' .. delta
+   flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
    os.execute('mkdir -p ' .. flowdir)
    local flowfilename = flowdir .. '/' .. imagebasename .. '.png'
    local flow = nil
@@ -132,7 +132,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
 	    return nil
 	 end
       local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
-      local yflow, xflow = getOpticalFlow(geometry, previmage, im)
+      local yflow, xflow = getOpticalFlow(geometry, previmage, im, 16, 16)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow/255)
       flow[2]:copy(xflow/255)
@@ -324,8 +324,8 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
       while iSample <= nSamples do
          modProgress(iSample, nSamples, 100)
          local iImg = randInt(2, #raw_data.images+1)
-         local yPatch = randInt(1, geometry.hImg-geometry.hPatch2-1)
-         local xPatch = randInt(1, geometry.wImg-geometry.wPatch2-1)
+         local yPatch = randInt(1, geometry.hImg-geometry.maxh-geometry.hKernelGT)
+         local xPatch = randInt(1, geometry.wImg-geometry.maxw-geometry.wKernelGT)
          local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
          local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
 
@@ -346,7 +346,6 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
          else
             iSample = iSample+1
          end
-
       end
    else
       assert(false)

@@ -28,22 +28,72 @@ end
 function getModel(geometry, full_image)
    local model = nn.Sequential()
    local parallel = nn.ParallelTable()
-   local parallelElem1 = nn.Sequential()
-   local parallelElem2 = nn.Sequential()
-   local conv = nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-				      geometry.wKernel, geometry.hKernel)
-   parallelElem1:add(conv)
-   parallelElem1:add(nn.Tanh())
+   local features1 = nn.Sequential()
+   local features2
+   if geometry.features == 'one_layer' then
+      features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
+					  geometry.wKernel, geometry.hKernel))
+      --features1:add(nn.Tanh())
+      features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
+   elseif geometry.features == 'two_layers' then
+      features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
+					  geometry.wKernel1, geometry.hKernel1))
+      features1:add(nn.Tanh())
+      if not geometry.L2Pooling then
+	 features1:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+								 geometry.nFeatures,
+								 geometry.layerTwoConnections),
+						geometry.wKernel2, geometry.hKernel2))
+	 features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
+      else
+	 features1:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+								 geometry.nFeatures*2,
+								 geometry.layerTwoConnections),
+						geometry.wKernel2, geometry.hKernel2))
+	 features1:add(nn.Square())
+	 features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
+	 if full_image then
+	    features1:add(nn.Reshape(2, geometry.nFeatures,
+				    geometry.hImg - geometry.hPatch2 + 1,
+				    geometry.wImg - geometry.wPatch2 + 1))
+	    features2:add(nn.Reshape(2, geometry.nFeatures,
+				     geometry.hImg - geometry.hKernel + 1,
+				     geometry.wImg - geometry.wKernel + 1))
+	 else
+	    features1:add(nn.Reshape(2, geometry.nFeatures, 1, 1))
+	    features2:add(nn.Reshape(2, geometry.nFeatures,
+				     geometry.maxh, geometry.maxw))
+	 end
+	 features1:add(nn.SplitTable(1))
+	 features2:add(nn.SplitTable(1))
+	 features1:add(nn.CAddTable())
+	 features2:add(nn.CAddTable())
+	 features1:add(nn.Sqrt())
+	 features2:add(nn.Sqrt())
+      end
+   else
+      assert(false)
+   end
    
-   parallelElem2:add(conv)
-   parallelElem2:add(nn.Tanh())
-   
-   parallel:add(parallelElem1)
-   parallel:add(parallelElem2)
+   if geometry.multiscale then
+      assert(geometry.hKernel == geometry.wKernel)
+      local fovea1 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
+				     ratios={1,2}, preProcessors={nn.Identity, nn.Identity},
+				     processors={features1, features1:clone()},
+				     fov=geometry.hKernel, sub=1}
+      local fovea2 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
+				     ratios={1,2}, preProcessors={nn.Identity, nn.Identity},
+				     processors={features2, features2:clone()},
+				     fov=geometry.hKernel, sub=1}
+      parallel:add(fovea1)
+      parallel:add(fovea2)
+   else
+      parallel:add(features1)
+      parallel:add(features2)
+   end
    model:add(parallel)
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
 			   geometry.hImg - geometry.hPatch2 + 1,
@@ -51,14 +101,13 @@ function getModel(geometry, full_image)
    else
       model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
-   
    if not geometry.soft_targets then
       model:add(nn.Minus())
       local spatial = nn.SpatialClassifier()
       spatial:add(nn.LogSoftMax())
       model:add(spatial)
    end
-
+   
    return model
 end
 
@@ -89,8 +138,12 @@ function processOutput(geometry, output)
       ret.full[2][1+hoffset][1+woffset] = ret.x
    else
       ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
-      ret.full:sub(1,1,1+hoffset,ret.y:size(1)+hoffset,1+woffset,ret.y:size(2)+woffset):copy(ret.y)
-      ret.full:sub(2,2,1+hoffset,ret.x:size(1)+hoffset,1+woffset,ret.x:size(2)+woffset):copy(ret.x)
+      ret.full:sub(1, 1,
+		   1 + hoffset, ret.y:size(1) + hoffset,
+		   1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
+      ret.full:sub(2, 2,
+		   1 + hoffset, ret.x:size(1) + hoffset,
+		   1 + woffset, ret.x:size(2) + woffset):copy(ret.x)
    end
    return ret
 end
@@ -113,30 +166,64 @@ function prepareTarget(geometry, target)
    end
 end
 
-function describeModel(geometry, nImgs, first_image, delta)
+function describeModel(geometry, learning, nImgs, first_image, delta)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
-   local kernel = 'kernel=(' .. geometry.hKernel .. 'x' .. geometry.wKernel .. ')'
+   local kernel
+   if geometry.features == 'one_layer' then
+      kernel = 'kernel=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
+      kernel = kernel .. 'x' .. geometry.wKernel .. geometry.nFeatures .. ')'
+   else
+      kernel = 'kernels=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel1
+      kernel = kernel .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. ', '
+      kernel = kernel .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
+      kernel = kernel .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
+      if geometry.L2Pooling then kernel = kernel .. ' l2' end
+      if geometry.multiscale then kernel = kernel .. ' multi' end
+      kernel = kernel .. ')'
+   end
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
-   local features = 'nFeatures=' .. geometry.nFeatures
-   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. features
+   local targets = ''
+   local sampling = ''
+   if geometry.soft_targets then targets = '_softTargets' end
+   if learning.sampling_method ~= 'uniform_position' then
+      sampling = '_' .. learning.sampling_method
+   end
+   local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
+   learning_ = learning_ .. ') weight decay=' .. learning.weight_decay .. targets .. sampling
+   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
    return summary
 end
 
-function saveModel(basefilename, geometry, parameters, nFeatures, nImgs, first_image, delta,
-		   nEpochs, learningRate, sampling_method)
+function saveModel(basefilename, geometry, learning, parameters, nImgs, first_image, delta,
+		   nEpochs)
    local modelsdirbase = 'models'
-   local modeldir = modelsdirbase .. '/' .. geometry.hImg .. 'x' .. geometry.wImg .. '/'
-   modeldir = modeldir .. geometry.maxh .. 'x' .. geometry.maxw .. 'x' .. geometry.hKernel
-   modeldir = modeldir .. 'x' .. geometry.wKernel .. '/' .. nFeatures
-   os.execute('mkdir -p ' .. modeldir)
+   local modeldir = modelsdirbase .. '/'
+   if geometry.features == 'one_layer' then
+      modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
+      modeldir = modeldir .. 'x' .. geometry.wKernel .. geometry.nFeatures
+   else
+      modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel1
+      modeldir = modeldir .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. '_'
+      modeldir = modeldir .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
+      modeldir = modeldir .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
+      if geometry.L2Pooling then modeldir = modeldir .. '_l2' end
+      if geometry.multiscale then modeldir = modeldir .. '_multi' end
+   end
    
-   local st, sampling
-   if geometry.soft_targets then st = 'st' else st = 'ht' end
-   if sampling_method == 'uniform_position' then sampling = 'unipos' else sampling = 'uniflow' end
-   local images = 'imgs_'..first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
-   local train_params = '_r_' .. learningRate .. '_' .. sampling .. '_' .. st
-   torch.save(modeldir .. '/' .. basefilename .. train_params .. '_' .. images..'_e'..nEpochs,
+   local targets = ''
+   local sampling = ''
+   if geometry.soft_targets then targets = ' softTargets' end
+   if learning.sampling_method ~= 'uniform_position' then
+      sampling = ' ' ..learning.sampling_method
+   end
+   local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay .. '_wd'
+   train_params = train_params .. learning.weight_decay .. sampling .. targets
+   modeldir = modeldir .. '/' .. train_params
+   local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
+   modeldir = modeldir .. '/' .. images
+   os.execute('mkdir -p ' .. modeldir)
+   torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs,
 	      {parameters, geometry})
 end
 

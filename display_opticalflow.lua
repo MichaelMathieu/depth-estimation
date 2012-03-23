@@ -6,6 +6,7 @@ require 'nnx'
 require 'opticalflow_model'
 require 'groundtruth_opticalflow'
 require 'openmp'
+require 'score_opticalflow'
 
 torch.manualSeed(1)
 
@@ -28,24 +29,13 @@ opt.post_process_winsize = tonumber(opt.post_process_winsize)
 
 openmp.setDefaultNumThreads(opt.nThreads)
 
-function flow2hsv(geometry, flow)
-   local todisplay = torch.Tensor(3, flow:size(2), flow:size(3))
-   for i = 1,flow:size(2) do
-      for j = 1,flow:size(3) do
-	 local y, x = onebased2centered(geometry, flow[1][i][j], flow[2][i][j])
-	 local ang = math.atan2(y, x)
-	 local norm = math.sqrt(x*x+y*y)
-	 todisplay[1][i][j] = ang/(math.pi*2.0)
-	 todisplay[2][i][j] = 1.0
-	 todisplay[3][i][j] = norm/(geometry.maxh/2+geometry.maxw/2)
-      end
-   end
-   return image.hsl2rgb(todisplay)
-end
-
 function displayKernels(geometry, model)
    local weight = model.modules[1].modules[1].modules[1].weight
-   image.display{image=weight, padding=2, zoom=2}
+   image.display{image=weight, padding=2, zoom=8}
+   if geometry.features == 'two_layers' then
+      local weight2 = model.modules[1].modules[1].modules[3].weight
+      image.display{image=weight2, padding=2, zoom=4}
+   end
 end
 
 geometry, model = loadModel(opt.input_model, true)
@@ -72,22 +62,7 @@ else
    output2 = output.full
 end
 
-local diff = (output2 - gt):abs()
-diff = diff[1]+diff[2]
-local nGood = 0
-local nNear = 0
-local nBad = 0
-for i = 1,diff:size(1) do
-   for j = 1,diff:size(2) do
-      if diff[i][j] == 0 then
-	 nGood = nGood + 1
-      elseif diff[i][j] == 1 then
-	 nNear = nNear + 1
-      else
-	 nBad = nBad + 1
-      end
-   end
-end
+nGood, nNear, nBad = evalOpticalflow(geometry, output2, gt)
 print('nGood=' .. nGood .. ' nNear=' .. nNear .. ' nBad=' .. nBad)
 print(100.*nGood/(nGood+nNear+nBad) .. '% accurate, ' .. 100.*(nGood+nNear)/(nGood+nNear+nBad) .. '% almost accurate')
 
@@ -98,3 +73,4 @@ print("--")
 local hsv = flow2hsv(geometry, output2)
 local gthsv = flow2hsv(geometry, gt)
 image.display{hsv, gthsv}
+image.display{hsv - gthsv}
