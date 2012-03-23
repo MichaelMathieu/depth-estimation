@@ -44,6 +44,8 @@ op:option{'-d', '--delta', action='store', dest='delta', default=2,
 	  help='Delta between two consecutive frames'}
 op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
+op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correction', default=false,
+     help='Eliminate panning, tilting and rotation camera movements'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -94,13 +96,13 @@ end
 
 print('Loading images...')
 local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
-				     opt.first_image, opt.delta)
+				     opt.first_image, opt.delta, opt.motion_correction)
 print('Generating training set...')
 local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
-					  opt.sampling_method)
+					  opt.sampling_method, opt.motion_correction)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
-					 opt.sampling_method)
+					 opt.sampling_method, opt.motion_correction)
 
 saveModel('model_of_', geometry, parameters, opt.n_features, opt.num_input_images,
 	  opt.first_image, opt.delta, 0, opt.learning_rate, opt.sampling_method)

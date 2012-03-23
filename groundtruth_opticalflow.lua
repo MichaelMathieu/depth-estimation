@@ -4,7 +4,9 @@ require 'xlua'
 require 'common'
 require 'image'
 require 'common'
+require 'opencv'
 require 'opticalflow_model'
+require 'motion_correction'
 
 function findMax(geometry, of)
    local maxs, imax = of:reshape(of:size(1)*of:size(2), of:size(3),of:size(4)):max(1)
@@ -140,12 +142,14 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    return im, flow
 end
 
-function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
+function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, use_motion_correction)
    local imagesdir = dirbasename .. 'images'
    local findIm = 'cd ' .. imagesdir .. ' && ls -LB'
    raw_data = {}
    raw_data.images = {}
    raw_data.flow = {}
+   raw_data.rectified_images = {}
+   raw_data.H = {}
    local imagepaths_raw = {}
    local flowpaths = {}
    for line in io.popen(findIm):lines() do
@@ -170,6 +174,19 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
       table.insert(raw_data.flow, flow)
    end
 
+   if use_motion_correction then
+      print("Computing motion correction H...")
+      for iImg = 1,#raw_data.images-1 do
+         xlua.progress(iImg, #raw_data.images-1)
+         local ptsin = opencv.GoodFeaturesToTrack{image=raw_data.images[iImg], count=50}
+         local ptsout = opencv.TrackPyrLK{pair={raw_data.images[iImg],raw_data.images[iImg+1]},
+                           points_in=ptsin}
+         raw_data.H[iImg] = lsq_trans_ransac(ptsin, ptsout, geometry.wImg/2, geometry.hImg/2)
+         local inputImg = raw_data.images[iImg+1]:clone()
+         raw_data.rectified_images[iImg] = opencv.WarpAffine(inputImg,raw_data.H[iImg])
+      end
+   end
+
    local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
    local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
    raw_data.histogram = {}
@@ -190,7 +207,53 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
    return raw_data
 end
 
-function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
+function check_borders(index, xPatch, yPatch, geometry)
+   local im_index = index-1
+   
+   local wpt = torch.Tensor(2)
+   local chpt = torch.Tensor(2)
+   local invH = torch.inverse(raw_data.H[im_index]:sub(1,2,1,2))
+
+   local w_imgs = geometry.wImg
+   local h_imgs = geometry.hImg
+   local wPatch = geometry.wPatch2
+   local hPatch = geometry.hPatch2
+
+   local x = xPatch + wPatch/2
+   local y = yPatch + hPatch/2
+
+   for i=0,1 do
+      for j=0,1 do
+         wpt[1] = x - w_imgs/2 + wPatch*(i-0.5) - raw_data.H[im_index][1][3]
+         wpt[2] = y - h_imgs/2 + hPatch*(j-0.5) - raw_data.H[im_index][2][3]
+         
+         chpt[1] = invH[1]:dot(wpt) + w_imgs/2
+         if chpt[1]<1 or chpt[1]>w_imgs then
+            -- print('')
+            -- print('oulier!')
+            -- print('xPatch ' .. xPatch .. ' yPatch ' .. yPatch)
+            -- print('x ' .. x .. ' y ' .. y)
+            -- print('wpt.x ' .. wpt[1] .. ' wpt.y ' .. wpt[2])
+            -- print('chpt.x ' .. chpt[1] .. ' chpt.y ' .. chpt[2])
+            return false
+         end
+
+         chpt[2] = invH[2]:dot(wpt) + h_imgs/2
+         if chpt[2]<1 or chpt[2]>h_imgs then
+            -- print('')
+            -- print('oulier!')
+            -- print('xPatch ' .. xPatch .. ' yPatch ' .. yPatch)
+            -- print('x ' .. x .. ' y ' .. y)
+            -- print('wpt.x ' .. wpt[1] .. ' wpt.y ' .. wpt[2])
+            -- print('chpt.x ' .. chpt[1] .. ' chpt.y ' .. chpt[2])
+            return false
+         end
+      end
+   end
+   return true
+end
+
+function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motion_correction)
    local dataset = {}
    dataset.raw_data = raw_data
    dataset.patches = torch.Tensor(nSamples, 6)
@@ -200,8 +263,13 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
    end
    setmetatable(dataset, {__index = function(self, index)
 				       local coords = self.patches[index]
-				       local image1 = self.raw_data.images[coords[1]]
-				       local image2 = self.raw_data.images[coords[2]]
+                   local image1 = self.raw_data.images[coords[1]]
+                   local image2
+                   if use_motion_correction then
+                     image2 = self.raw_data.rectified_images[coords[1]]
+                   else
+                     image2 = self.raw_data.images[coords[2]]
+                   end
 				       local patch1 = image1:sub(1, image1:size(1),
 								 coords[3], coords[4],
 								 coords[5], coords[6])
@@ -216,51 +284,69 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
       local iSample = 1
       local thres_n_candidates = (geometry.hImg-geometry.hPatch2)*(geometry.wImg-geometry.wPatch2) * #raw_data.flow / 20
       while iSample <= nSamples do
-	 modProgress(iSample, nSamples, 100)
-	 local yFlow, xFlow = x2yx(geometry, iFlow)
-	 local candidates = raw_data.histogram[yFlow][xFlow]
-	 if #candidates > thres_n_candidates then
-	    local iCandidate = randInt(1, #candidates+1)
-	    local iImg = candidates[iCandidate][1]
-	    local yPatch = candidates[iCandidate][2]
-	    local xPatch = candidates[iCandidate][3]
-	    
-	    dataset.patches[iSample][1] = iImg-1
-	    dataset.patches[iSample][2] = iImg
-	    dataset.patches[iSample][3] = yPatch
-	    dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
-	    dataset.patches[iSample][5] = xPatch
-	    dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+         modProgress(iSample, nSamples, 100)
+         local yFlow, xFlow = x2yx(geometry, iFlow)
+         local candidates = raw_data.histogram[yFlow][xFlow]
+         if #candidates > thres_n_candidates then
+            local iCandidate = randInt(1, #candidates+1)
+            local iImg = candidates[iCandidate][1]
+            local yPatch = candidates[iCandidate][2]
+            local xPatch = candidates[iCandidate][3]
 
-	    dataset.targets[iSample][1] = yFlow
-	    dataset.targets[iSample][2] = xFlow
-	    iSample = iSample + 1
-	 end
-	 iFlow = iFlow + 1
-	 if iFlow > geometry.maxh*geometry.maxw then
-	    iFlow = 1
-	 end
+            dataset.patches[iSample][1] = iImg-1
+            dataset.patches[iSample][2] = iImg
+            dataset.patches[iSample][3] = yPatch
+            dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
+            dataset.patches[iSample][5] = xPatch
+            dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+
+            dataset.targets[iSample][1] = yFlow
+            dataset.targets[iSample][2] = xFlow
+
+            if use_motion_correction then
+               if check_borders(iImg, xPatch, yPatch, geometry) then
+                  iSample = iSample+1
+               end
+            else
+               iSample = iSample+1
+            end
+            
+         end
+         iFlow = iFlow + 1
+         if iFlow > geometry.maxh*geometry.maxw then
+            iFlow = 1
+         end
       end
    elseif method == 'uniform_position' then
       local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
       local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
-      for iSample = 1,nSamples do
-	 modProgress(iSample, nSamples, 100)
-	 local iImg = randInt(2, #raw_data.images+1)
-	 local yPatch = randInt(1, geometry.hImg-geometry.hPatch2-1)
-	 local xPatch = randInt(1, geometry.wImg-geometry.wPatch2-1)
-	 local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
-	 local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
+      local iSample = 1
+      while iSample <= nSamples do
+         modProgress(iSample, nSamples, 100)
+         local iImg = randInt(2, #raw_data.images+1)
+         local yPatch = randInt(1, geometry.hImg-geometry.hPatch2-1)
+         local xPatch = randInt(1, geometry.wImg-geometry.wPatch2-1)
+         local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
+         local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
 
-	 dataset.patches[iSample][1] = iImg-1
-	 dataset.patches[iSample][2] = iImg
-	 dataset.patches[iSample][3] = yPatch
-	 dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
-	 dataset.patches[iSample][5] = xPatch
-	 dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+         dataset.patches[iSample][1] = iImg-1
+         dataset.patches[iSample][2] = iImg
+         dataset.patches[iSample][3] = yPatch
+         dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
+         dataset.patches[iSample][5] = xPatch
+         dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
 
-	 dataset.targets[iSample][1] = yFlow
-	 dataset.targets[iSample][2] = xFlow
+         dataset.targets[iSample][1] = yFlow
+         dataset.targets[iSample][2] = xFlow
+
+         if use_motion_correction then
+            if check_borders(iImg, xPatch, yPatch, geometry) then
+               iSample = iSample+1
+            end
+         else
+            iSample = iSample+1
+         end
+
       end
    else
       assert(false)
