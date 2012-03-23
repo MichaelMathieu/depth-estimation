@@ -143,7 +143,8 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    return im, flow
 end
 
-function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebasename, delta)
+function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
+				       previmagebasename, delta)
    local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
    if not paths.filep(imagepath) then
       print("Image " .. imagepath .. " not found.")
@@ -168,7 +169,6 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename, pre
    end
 
    local previmagepath = dirbasename .. 'images/' .. previmagebasename .. '.jpg'
-   print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
    if not paths.filep(previmagepath) then
       print("Image " .. previmagepath .. " not found.")
       return nil
@@ -182,6 +182,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename, pre
    local im_rect = opencv.WarpAffine(inputImg, H)
 
    if not flow then
+      print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
       local yflow, xflow = getOpticalFlow(geometry, previmage, im_rect, 16, 16)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow/255)
