@@ -92,7 +92,7 @@ function getOpticalFlow(geometry, image1, image2)
 	 for k = 1, geometry.maxh do
 	    for l = 1, geometry.maxw do
 	       local win2 = unfolded:select(2,k):select(2,l)
-	       of[k][l][i+halfmaxh+halfgeometry.hKernelGT][j+halfmaxw+halfgeometry.wKernelGT] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
+	       of[k][l][i+halfmaxh+halfhKernel][j+halfmaxw+halfwKernel] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
 	    end
 	 end
       end
