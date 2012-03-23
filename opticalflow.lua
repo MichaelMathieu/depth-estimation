@@ -60,8 +60,8 @@ op:option{'-d', '--delta', action='store', dest='delta', default=2,
 	  help='Delta between two consecutive frames'}
 op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
-op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correction', default=false,
-     help='Eliminate panning, tilting and rotation camera movements'}
+op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correction',
+	  default=false, help='Eliminate panning, tilting and rotation camera movements'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -109,6 +109,7 @@ geometry.layerTwoConnections = tonumber(opt.layer_two_connections)
 geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.L2Pooling = opt.l2_pooling
 geometry.multiscale = opt.multiscale
+geometry.motion_correction = opt.motion_correction
 geometry.ratios = {1,2} --todo
 
 local learning = {}

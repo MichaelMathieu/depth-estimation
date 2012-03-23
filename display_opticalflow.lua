@@ -42,9 +42,15 @@ geometry, model = loadModel(opt.input_model, true)
 displayKernels(geometry, model)
 
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
-local image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
-local image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
-				       opt.input_image1, delta)
+if geometry.motion_correction then
+   local image1 = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
+   local _,gt,image2,_ = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image2,
+						       opt.input_image1, delta)
+else
+   local image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
+   local image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
+					  opt.input_image1, delta)
+end
 local input = {image1, image2}
 image.display(input)
 
