@@ -153,11 +153,12 @@ function getModelFovea(geometry, full_image)
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
-			   geometry.hImg - geometry.hPatch2 + 1,
-			   geometry.wImg - geometry.wPatch2 + 1))
+			   geometry.hImg - geometry.maxh + 1,
+			   geometry.wImg - geometry.maxw + 1))
    else
       model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
+
    if not geometry.soft_targets then
       model:add(nn.Minus())
       local spatial = nn.SpatialClassifier()
@@ -265,7 +266,7 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
    local modeldir = modelsdirbase .. '/'
    if geometry.nLayers == 1 then
       modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
-      modeldir = modeldir .. 'x' .. geometry.wKernel .. geometry.nFeatures
+      modeldir = modeldir .. 'x' .. geometry.wKernel .. 'x' .. geometry.nFeatures
    else
       modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel1
       modeldir = modeldir .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. '_'
@@ -299,7 +300,12 @@ end
 function loadModel(filename, full_output)
    local loaded = torch.load(filename)
    local geometry = loaded[2]
-   local model = getModel(geometry, full_output)
+   local model
+   if geometry.multiscale then
+      model = getModelFovea(geometry, full_output)
+   else
+      model = getModel(geometry, full_output)
+   end
    local parameters = model:getParameters()
    parameters:copy(loaded[1])
    return geometry, model

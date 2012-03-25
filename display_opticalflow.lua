@@ -30,11 +30,18 @@ opt.post_process_winsize = tonumber(opt.post_process_winsize)
 openmp.setDefaultNumThreads(opt.nThreads)
 
 function displayKernels(geometry, model)
-   local weight = model.modules[1].modules[1].modules[1].weight
-   image.display{image=weight, padding=2, zoom=8}
-   if geometry.features == 'two_layers' then
-      local weight2 = model.modules[1].modules[1].modules[3].weight
-      image.display{image=weight2, padding=2, zoom=4}
+   if geometry.multiscale then
+      for i = 1,#geometry.ratios do
+	 local weight = model.modules[1].modules[2].processors[i].modules[1].weight
+	 image.display{image=weight, padding=2, zoom=8}
+      end
+   else
+      local weight = model.modules[1].modules[1].modules[1].weight
+      image.display{image=weight, padding=2, zoom=8}
+      if geometry.features == 'two_layers' then
+	 local weight2 = model.modules[1].modules[1].modules[3].weight
+	 image.display{image=weight2, padding=2, zoom=4}
+      end
    end
 end
 
@@ -42,20 +49,24 @@ geometry, model = loadModel(opt.input_model, true)
 displayKernels(geometry, model)
 
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
+local image1, image2, gt
 if geometry.motion_correction then
-   local image1 = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
-   local _,gt,image2,_ = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image2,
+   image1 = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
+   _,gt,image2,_ = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image2,
 						       opt.input_image1, delta)
 else
-   local image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
-   local image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
+   image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
+   image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
 					  opt.input_image1, delta)
 end
 local input = {image1, image2}
 image.display(input)
 
 t = torch.Timer()
-input = prepareInput(geometry, input[1], input[2])
+if not geometry.multiscale then
+   input = prepareInput(geometry, input[1], input[2])
+end
+
 local output = model:forward(input)
 print(t:time())
 output = processOutput(geometry, output)
