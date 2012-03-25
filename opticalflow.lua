@@ -32,8 +32,8 @@ op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_con
 	  default=4, help='Number of connectons between layers 1 and 2'}
 op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
 	  help='L2 pooling'}
-op:option{'-ms', '--multiscale', action='store_true', dest='multiscale', default=false,
-	  help='Use multiscale (experimental)'}
+op:option{'-ms', '--multiscale', action='store', dest='multiscale', default=1,
+	  help='Number of scales used (1 disables multiscale)'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -65,6 +65,8 @@ op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correc
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
+
+opt.multiscale = tonumber(opt.multiscale)
 
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
@@ -108,9 +110,14 @@ geometry.layerTwoSize = tonumber(opt.layer_two_size)
 geometry.layerTwoConnections = tonumber(opt.layer_two_connections)
 geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.L2Pooling = opt.l2_pooling
-geometry.multiscale = opt.multiscale
+if opt.multiscale == 1 then
+   geometry.multiscale = false
+else
+   geometry.multiscale = true
+   geometry.ratios = {}
+   for i = 1,opt.multiscale do table.insert(geometry.ratios, math.pow(2, i-1)) end
+end
 geometry.motion_correction = opt.motion_correction
-geometry.ratios = {1} --todo
 
 local learning = {}
 learning.rate = opt.learning_rate
