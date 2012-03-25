@@ -97,8 +97,6 @@ function getModel(geometry, full_image)
 end
 
 function getModelFovea(geometry, full_image)
-   assert(geometry.hKernel == geometry.wKernel)
-   assert(geometry.hPatch2 == geometry.wPatch2)
    local model = nn.Sequential()
    local parallel = nn.ParallelTable()
    local preproc1 = nn.Sequential()
@@ -106,17 +104,19 @@ function getModelFovea(geometry, full_image)
 
    --TODO this should be floor, according to the way the gt is computed. why?
    -- > anyway, this seems to works perfectly (see test_patches.lua)
-   if full_image then
-      preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hImg-geometry.maxh+1))
-      preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wImg-geometry.maxw+1))
-   else
-      preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hKernel))
-      preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wKernel))
-   end
+   preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hImg-geometry.maxh+1))
+   preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wImg-geometry.maxw+1))
 
    if geometry.nLayers == 1 then
+
       filter:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-				       geometry.wKernel, geometry.hKernel))
+      				       geometry.wKernel, geometry.hKernel))
+      --[[
+      filter:add(nn.SpatialPadding(-(math.ceil(geometry.wKernel/2)-1),
+				   -(math.ceil(geometry.hKernel/2)-1),
+				   -math.floor(geometry.wKernel/2),
+				   -math.floor(geometry.hKernel/2)))
+      --]]
    else
       print('ERROR: two_layers (or other) + fovea not implemented')
       assert(false)
@@ -126,31 +126,30 @@ function getModelFovea(geometry, full_image)
    local filters2 = {}
    for i = 1,#geometry.ratios do
       local filter_t = filter:clone()
-      local seq1 = nn.Sequential()
-      seq1:add(preproc1)
-      seq1:add(filter_t)
-      table.insert(filters1, seq1)
+      table.insert(filters1, filter_t)
       table.insert(filters2, filter_t:clone('weight', 'bias', 'gradWeight', 'gradBias'))
    end
-   local fovea1 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
-				  ratios=geometry.ratios,
-				  processors = filters1,
-				  fov = geometry.hKernel, sub=1}
-   fovea1.padding = geometry.hPatch2-1
-   local fovea2 = nn.SpatialFovea{nInputPlane = geometry.nChannelsIn,
-				  ratios=geometry.ratios,
-				  processors = filters2,
-				  fov = geometry.hKernel, sub=1}
-   fovea2.padding = geometry.hPatch2-1
+   local fovea1 = nn.SpatialPyramid(geometry.ratios, filters1,
+				    geometry.wKernel, geometry.hKernel, 1, 1)
+   local fovea2 = nn.SpatialPyramid(geometry.ratios, filters2,
+				    geometry.wKernel, geometry.hKernel, 1, 1)
    function model:focus(x, y)
-      fovea1:focus(x, y, geometry.hPatch2)
-      fovea2:focus(x, y, geometry.hPatch2)
+      fovea1:focus(x + math.ceil(geometry.wKernel/2)-1,
+		   y + math.ceil(geometry.hKernel/2)-1,
+		   1, 1)
+      fovea2:focus(x + math.ceil(geometry.wPatch2/2)-1,
+		   y + math.ceil(geometry.hPatch2/2)-1,
+		   geometry.maxw, geometry.maxh)
    end
    
-   parallel:add(fovea1)
+   local seq1 = nn.Sequential()
+   seq1:add(preproc1)
+   seq1:add(fovea1)
+   parallel:add(seq1)
    parallel:add(fovea2)
    
    model:add(parallel)
+
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
@@ -165,7 +164,7 @@ function getModelFovea(geometry, full_image)
       spatial:add(nn.LogSoftMax())
       model:add(spatial)
    end
-   
+
    return model
 end
 

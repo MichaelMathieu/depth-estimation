@@ -110,7 +110,7 @@ geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.L2Pooling = opt.l2_pooling
 geometry.multiscale = opt.multiscale
 geometry.motion_correction = opt.motion_correction
-geometry.ratios = {1,2} --todo
+geometry.ratios = {1} --todo
 
 local learning = {}
 learning.rate = opt.learning_rate
@@ -166,19 +166,20 @@ for iEpoch = 1,opt.n_epochs do
       if geometry.multiscale then
 	 local sample = testData:getElemFovea(t)
 	 input = sample[1][1]
-	 model:focus(sample[1][2][1], sample[1][2][2])
+	 model:focus(sample[1][2][2], sample[1][2][1])
 	 targetCrit, target = prepareTarget(geometry, sample[2])
       else
 	 local sample = testData[t]
 	 input = prepareInput(geometry, sample[1][1], sample[1][2])
 	 targetCrit, target = prepareTarget(geometry, sample[2])
       end
-      
+
       local output = model:forward(input):squeeze()
       local err = criterion:forward(output, targetCrit)
       
       meanErr = meanErr + err
       local outputp = processOutput(geometry, output)
+      --print(outputp.index .. ' ' .. target)
       if outputp.index == target then
 	 nGood = nGood + 1
       else
@@ -198,15 +199,17 @@ for iEpoch = 1,opt.n_epochs do
    
    for t = 1,trainData:size() do
       modProgress(t, trainData:size(), 100)
+
+      local input, target, targetCrit
       if geometry.multiscale then
 	 local sample = trainData:getElemFovea(t)
 	 input = sample[1][1]
-	 model:focus(sample[1][2][1], sample[1][2][2])
+	 model:focus(sample[1][2][2], sample[1][2][1])
 	 targetCrit, target = prepareTarget(geometry, sample[2])
       else
 	 local sample = trainData[t]
-	 local input = prepareInput(geometry, sample[1][1], sample[1][2])
-	 local targetCrit, target = prepareTarget(geometry, sample[2])
+	 input = prepareInput(geometry, sample[1][1], sample[1][2])
+	 targetCrit, target = prepareTarget(geometry, sample[2])
       end
       
       local feval = function(x)

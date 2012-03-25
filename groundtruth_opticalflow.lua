@@ -195,7 +195,8 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
 end
 
-function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, use_motion_correction)
+function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta,
+			     use_motion_correction)
    local imagesdir = dirbasename .. 'images'
    local findIm = 'cd ' .. imagesdir .. ' && ls -LB'
    raw_data = {}
@@ -222,8 +223,9 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, u
    table.insert(raw_data.images, im)
    for i = 2,math.min(#imagepaths, nImgs) do
       if use_motion_correction then
-         local im, flow, im_rect, H = loadRectifiedImageOpticalFlow(geometry, dirbasename, imagepaths[i],
-   					    imagepaths[i-1], delta)
+         local im, flow, im_rect, H = loadRectifiedImageOpticalFlow(geometry, dirbasename,
+								    imagepaths[i],
+								    imagepaths[i-1], delta)
          table.insert(raw_data.images, im)
          table.insert(raw_data.flow, flow)   
          table.insert(raw_data.rectified_images, im_rect)
@@ -331,7 +333,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
    function dataset:getElemFovea(index)
       local coords = self.patches[index]
       return {{{self.raw_data.images[coords[1]], self.raw_data.images[coords[2]]},
-	       {coords[3], coords[4]}}, self.targets[index]}
+	       {coords[3], coords[5]}}, self.targets[index]}
    end
 
    if method == 'uniform_flow' then
