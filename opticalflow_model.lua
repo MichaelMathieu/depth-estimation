@@ -238,6 +238,13 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
       if geometry.multiscale then kernel = kernel .. ' multi' end
       kernel = kernel .. ')'
    end
+   if geometry.multiscale then
+      kernel = kernel .. 'x{' .. geometry.ratios[1]
+      for i = 2,#geometry.ratios do
+	 kernel = kernel .. ',' .. geometry.ratios[i]
+      end
+      kernel = kernel .. '}'
+   end
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
    local targets = ''
@@ -265,7 +272,12 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
       modeldir = modeldir .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
       modeldir = modeldir .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
       if geometry.L2Pooling then modeldir = modeldir .. '_l2' end
-      if geometry.multiscale then modeldir = modeldir .. '_multi' end
+   end
+   if geometry.multiscale then
+      modeldir = modeldir .. '_multi'
+      for i = 1,#geometry.ratios do
+	 modeldir = modeldir .. '-' .. geometry.ratios[i]
+      end
    end
    
    local targets = ''
