@@ -108,17 +108,22 @@ function getModelFovea(geometry, full_image)
    preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wImg-geometry.maxw+1))
 
    if geometry.nLayers == 1 then
-
       filter:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
       				       geometry.wKernel, geometry.hKernel))
-      --[[
-      filter:add(nn.SpatialPadding(-(math.ceil(geometry.wKernel/2)-1),
-				   -(math.ceil(geometry.hKernel/2)-1),
-				   -math.floor(geometry.wKernel/2),
-				   -math.floor(geometry.hKernel/2)))
-      --]]
+   elseif geometry.nLayers == 2 then
+      filter:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
+				       geometry.wKernel1, geometry.hKernel1))
+      filter:add(nn.Tanh())
+      if geometry.L2Pooling then
+	 print("Error : L2-pooling not implemented with multiscale")
+	 assert(false)
+      else
+	 filter:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
+							      geometry.nFeatures,
+							      geometry.layerTwoConnections),
+					     geometry.wKernel2, geometry.hKernel2))
+      end
    else
-      print('ERROR: two_layers (or other) + fovea not implemented')
       assert(false)
    end
 
