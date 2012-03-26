@@ -185,17 +185,14 @@ for iEpoch = 1,opt.n_epochs do
       local err = criterion:forward(output, targetCrit)
       
       meanErr = meanErr + err
-      local outputp = processOutput(geometry, output)
-      --print(outputp.index .. ' ' .. target)
+      local outputp = processOutput(geometry, output, false)
       if outputp.index == target then
 	 nGood = nGood + 1
       else
 	 nBad = nBad + 1
       end
-      if math.mod(t, 50) == 0 then
-	 collectgarbage()
-      end
    end
+   collectgarbage()
 
    meanErr = meanErr / (testData:size())
    print('test: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
@@ -231,13 +228,12 @@ for iEpoch = 1,opt.n_epochs do
 		       model:backward(input, df_do)
 		       
 		       meanErr = meanErr + err
-		       local outputp = processOutput(geometry, output)
+		       local outputp = processOutput(geometry, output, false)
 		       if outputp.index == target then
 			  nGood = nGood + 1
 		       else
 			  nBad = nBad + 1
 		       end
-
 		       return err, gradParameters
 		    end
 
@@ -246,10 +242,8 @@ for iEpoch = 1,opt.n_epochs do
 		momentum = 0,
 		learningRateDecay = learning.rate_decay}
       optim.sgd(feval, parameters, config)
-      if math.mod(t, 50) == 0 then
-	 collectgarbage()
-      end
    end
+   collectgarbage()
       
    meanErr = meanErr / (trainData:size())
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)

@@ -184,7 +184,7 @@ function prepareInput(geometry, patch1, patch2)
    return ret
 end
 
-function processOutput(geometry, output)
+function processOutput(geometry, output, process_full)
    local ret = {}
    if geometry.soft_targets then
       _, ret.index = output:min(1)
@@ -195,18 +195,21 @@ function processOutput(geometry, output)
    ret.y, ret.x = x2yx(geometry, ret.index)
    local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
    local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
-   if type(ret.y) == 'number' then
-      ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
-      ret.full[1][1+hoffset][1+hoffset] = ret.y
-      ret.full[2][1+hoffset][1+woffset] = ret.x
-   else
-      ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
-      ret.full:sub(1, 1,
-		   1 + hoffset, ret.y:size(1) + hoffset,
-		   1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
-      ret.full:sub(2, 2,
-		   1 + hoffset, ret.x:size(1) + hoffset,
-		   1 + woffset, ret.x:size(2) + woffset):copy(ret.x)
+   process_full = process_full or (type(ret.y) ~= 'number')
+   if process_full then
+      if type(ret.y) == 'number' then
+	 ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
+	 ret.full[1][1+hoffset][1+hoffset] = ret.y
+	 ret.full[2][1+hoffset][1+woffset] = ret.x
+      else
+	 ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
+	 ret.full:sub(1, 1,
+		      1 + hoffset, ret.y:size(1) + hoffset,
+		      1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
+	 ret.full:sub(2, 2,
+		      1 + hoffset, ret.x:size(1) + hoffset,
+		      1 + woffset, ret.x:size(2) + woffset):copy(ret.x)
+      end
    end
    return ret
 end
