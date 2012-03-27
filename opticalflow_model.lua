@@ -206,10 +206,14 @@ function processOutput(geometry, output, process_full)
    if process_full then
       if type(ret.y) == 'number' then
 	 ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
+	 ret.full[1]:fill(math.ceil(geometry.maxh/2))
+	 ret.full[2]:fill(math.ceil(geometry.maxw/2))
 	 ret.full[1][1+hoffset][1+hoffset] = ret.y
 	 ret.full[2][1+hoffset][1+woffset] = ret.x
       else
 	 ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
+	 ret.full[1]:fill(math.ceil(geometry.maxh/2))
+	 ret.full[2]:fill(math.ceil(geometry.maxw/2))
 	 ret.full:sub(1, 1,
 		      1 + hoffset, ret.y:size(1) + hoffset,
 		      1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
