@@ -25,52 +25,39 @@ function findMax(geometry, of)
    return ymax,xmax
 end
 
---[[
 function getOpticalFlowFast(geometry, image1, image2)
-   local halfmaxh = math.ceil(geometry.maxh/2)-1
-   local halfmaxw = math.ceil(geometry.maxw/2)-1
-   local halfhKernel = math.ceil(geometry.hKernel/2)-1
-   local halfwKernel = math.ceil(geometry.wKernel/2)-1
-   local matching = nn.SpatialMatching(geometry.maxh, geometry.maxw, true)
-   local unfolded1 = image1:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
-   unfolded1:resize(unfolded1:size(1), unfolded1:size(2), unfolded1:size(3),
-		    unfolded1:size(4)*unfolded1:size(5))
-   local input1 = Torch.tensor(unfolded1:size(1)*unfolded1:size(4),
-			       unfolded1:size(2), unfolded1:size(3))
-   for i = 1,unfolded1:size(2) do
-      for j = 1,unfolded1:size(3) do
-	 for k = 1,unfolded1:size(1) do
-	    input1:sub(select(2,i):select(2,j) = unfolded1:
-   local unfolded2 = image2:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
-   unfolded2:resize(unfolded2:size(1), unfolded2:size(2), unfolded2:size(3),
-		    unfolded2:size(4)*unfolded2:size(5))
-   local input2 = Torch.tensor(unfolded2:size(1)*unfolded2:size(4),
-			       unfolded2:size(2), unfolded2:size(3))
+   local maxh = geometry.maxh
+   local maxw = geometry.maxw
+   local nfeats = geometry.hKernelGT*geometry.wKernelGT*image1:size(1)
+   local input = prepareInput(geometry, image1, image2)
 
-   of = torch.Tensor(geometry.maxh, geometry.maxw, image1:size(2), image1:size(3)):fill(-1)
-   for i = 1, image1:size(2) - geometry.hKernel - geometry.maxh + 2 do
-      xlua.progress(i, image1:size(2) - geometry.hKernel - geometry.maxh + 2)
-      for j = 1, image1:size(3) - geometry.wKernel - geometry.maxw + 2 do
-	 local win = image1:sub(1, image1:size(1),
-				i+halfmaxh, i+halfmaxh+geometry.hKernel-1,
-				j+halfmaxw, j+halfmaxw+geometry.wKernel-1)
-	 local tomul = image2:sub(1, image2:size(1),
-				  i, i+geometry.maxh+geometry.hKernel-2,
-				  j, j+geometry.maxw+geometry.wKernel-2)
-	 local unfolded = tomul:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
-	 local norm2win = win:dot(win)
-	 for k = 1, geometry.maxh do
-	    for l = 1, geometry.maxw do
-	       local win2 = unfolded:select(2,k):select(2,l)
-	       of[k][l][i+halfmaxh+halfhKernel][j+halfmaxw+halfwKernel] = win:dot(win2)/(math.sqrt(norm2win*win2:dot(win2)))
-	    end
-	 end
+   local input1 = input[1]:unfold(2, geometry.hKernelGT, 1):unfold(3, geometry.wKernelGT, 1)
+   local h1 = input1:size(2)
+   local w1 = input1:size(3)
+   local input1b = torch.Tensor(nfeats, h1, w1)
+   for i = 1,h1 do
+      for j = 1,w1 do
+	 input1b:select(2,i):select(2,j):copy(input1:select(2,i):select(2,j):reshape(nfeats))
       end
    end
-   --'of' contains now the expected result of the newtork
-   return findMax(geometry, of)
+   
+   local input2 = input[2]:unfold(2, geometry.hKernelGT, 1):unfold(3, geometry.wKernelGT, 1)
+   local h2 = input2:size(2)
+   local w2 = input2:size(3)
+   local input2b = torch.Tensor(nfeats, h2, w2)
+   for i = 1,h2 do
+      for j = 1,w2 do
+	 input2b:select(2,i):select(2,j):copy(input2:select(2,i):select(2,j):reshape(nfeats))
+      end
+   end
+   
+   local net = nn.SpatialMatching(maxh, maxw, false)
+   local output = net:forward({input1b, input2b})
+   output = -output
+   output = output:reshape(maxh*maxw, output:size(3), output:size(4))
+   local output2 = processOutput(geometry, output, true)
+   return x2yx(geometry, output2.full)
 end
---]]
 
 function getOpticalFlow(geometry, image1, image2)
    local halfmaxh = math.ceil(geometry.maxh/2)-1
@@ -132,7 +119,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
 	    return nil
 	 end
       local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
-      local yflow, xflow = getOpticalFlow(geometry, previmage, im, 16, 16)
+      local yflow, xflow = getOpticalFlowFast(geometry, previmage, im, 16, 16)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow/255)
       flow[2]:copy(xflow/255)
