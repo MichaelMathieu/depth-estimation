@@ -26,58 +26,30 @@ function onebased2centered(geometry, y, x)
 end
 
 function getModel(geometry, full_image)
-   local model = nn.Sequential()
-   local parallel = nn.ParallelTable()
-   local features1 = nn.Sequential()
-   local features2
-   if geometry.nLayers == 1 then
-      features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-					  geometry.wKernel, geometry.hKernel))
-      features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
-   elseif geometry.nLayers == 2 then
-      features1:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
-					  geometry.wKernel1, geometry.hKernel1))
-      features1:add(nn.Tanh())
-      if not geometry.L2Pooling then
-	 features1:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
-								 geometry.nFeatures,
-								 geometry.layerTwoConnections),
-						geometry.wKernel2, geometry.hKernel2))
-	 features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
+
+   local filter = nn.Sequential()
+   for i = 1,#geometry.layers do
+      if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
+	 filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
+					  geometry.layers[i][2], geometry.layers[i][3]))
       else
-	 features1:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
-								 geometry.nFeatures*2,
-								 geometry.layerTwoConnections),
-						geometry.wKernel2, geometry.hKernel2))
-	 features1:add(nn.Square())
-	 features2 = features1:clone('weight', 'bias', 'gradWeight', 'gradBias')
-	 if full_image then
-	    features1:add(nn.Reshape(2, geometry.nFeatures,
-				    geometry.hImg - geometry.hPatch2 + 1,
-				    geometry.wImg - geometry.wPatch2 + 1))
-	    features2:add(nn.Reshape(2, geometry.nFeatures,
-				     geometry.hImg - geometry.hKernel + 1,
-				     geometry.wImg - geometry.wKernel + 1))
-	 else
-	    features1:add(nn.Reshape(2, geometry.nFeatures, 1, 1))
-	    features2:add(nn.Reshape(2, geometry.nFeatures,
-				     geometry.maxh, geometry.maxw))
-	 end
-	 features1:add(nn.SplitTable(1))
-	 features2:add(nn.SplitTable(1))
-	 features1:add(nn.CAddTable())
-	 features2:add(nn.CAddTable())
-	 features1:add(nn.Sqrt())
-	 features2:add(nn.Sqrt())
+	 filter:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layers[i-1][4],
+							      geometry.layers[i][4],
+							      geometry.layers[i][1]),
+					     geometry.layers[i][2], geometry.layers[i][3]))
       end
-   else
-      assert(false)
+      if i ~= #geometry.layers then
+	 filter:add(nn.Tanh())
+      end
    end
+   assert(not geometry.L2Pooling)
 
-   parallel:add(features1)
-   parallel:add(features2)
+   local parallel = nn.ParallelTable()
+   parallel:add(filter)
+   parallel:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+
+   local model = nn.Sequential()
    model:add(parallel)
-
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
@@ -86,6 +58,7 @@ function getModel(geometry, full_image)
    else
       model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
+
    if not geometry.soft_targets then
       model:add(nn.Minus())
       local spatial = nn.SpatialClassifier()
