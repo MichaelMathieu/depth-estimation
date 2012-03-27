@@ -32,8 +32,8 @@ op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_con
 	  default=4, help='Number of connectons between layers 1 and 2'}
 op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
 	  help='L2 pooling'}
-op:option{'-ms', '--multiscale', action='store', dest='multiscale', default=1,
-	  help='Number of scales used (1 disables multiscale)'}
+op:option{'-ms', '--multiscale', action='store', dest='multiscale', default=0,
+	  help='Number of scales used (0 disables multiscale)'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -88,34 +88,36 @@ geometry.maxw = tonumber(opt.win_size)
 geometry.maxh = tonumber(opt.win_size)
 geometry.wKernelGT = 16
 geometry.hKernelGT = 16
-geometry.nLayers = tonumber(opt.num_layers)
-if geometry.nLayers == 1 then
+geometry.layers = {}
+if tonumber(opt.num_layers) == 1 then
+   geometry.layers[1] = {3, tonumber(opt.kernel1_size), tonumber(opt.kernel1_size),
+			 tonumber(opt.n_features)}
    geometry.wKernel = tonumber(opt.kernel1_size)
    geometry.hKernel = tonumber(opt.kernel1_size)
-elseif geometry.nLayers == 2 then
-   geometry.wKernel1 = tonumber(opt.kernel1_size)
-   geometry.hKernel1 = tonumber(opt.kernel1_size)
-   geometry.wKernel2 = tonumber(opt.kernel2_size)
-   geometry.hKernel2 = tonumber(opt.kernel2_size)
-   geometry.wKernel = geometry.wKernel1 + geometry.wKernel2 - 1
-   geometry.hKernel = geometry.hKernel1 + geometry.hKernel2 - 1
+elseif tonumber(opt.num_layers) == 2 then
+   geometry.layers[1] = {3, tonumber(opt.kernel1_size), tonumber(opt.kernel1_size),
+			 tonumber(opt.layer_two_size)}
+   geometry.layers[2] = {tonumber(opt.layer_two_connections), tonumber(opt.kernel2_size),
+			 tonumber(opt.kernel2_size), tonumber(opt.n_features)}
+   geometry.wKernel = tonumber(opt.kernel1_size) + tonumber(opt.kernel2_size) - 1
+   geometry.hKernel = tonumber(opt.kernel1_size) + tonumber(opt.kernel2_size) - 1
 else
    assert(false)
 end
 geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
 geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
-geometry.nChannelsIn = 3
-geometry.nFeatures = tonumber(opt.n_features)
-geometry.layerTwoSize = tonumber(opt.layer_two_size)
-geometry.layerTwoConnections = tonumber(opt.layer_two_connections)
 geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.L2Pooling = opt.l2_pooling
-if opt.multiscale == 1 then
+if opt.multiscale == 0 then
    geometry.multiscale = false
+   geometry.maxwMS = geometry.maxw
+   geometry.maxhMS = geometry.maxh
 else
    geometry.multiscale = true
    geometry.ratios = {}
    for i = 1,opt.multiscale do table.insert(geometry.ratios, math.pow(2, i-1)) end
+   geometry.maxwMS = geometry.maxw * geometry.ratios[#geometry.ratios]
+   geometry.maxhMS = geometry.maxh * geometry.ratios[#geometry.ratios]
 end
 geometry.motion_correction = opt.motion_correction
 
@@ -128,9 +130,10 @@ learning.sampling_method = opt.sampling_method
 local summary = describeModel(geometry, learning, opt.num_input_images,
 			      opt.first_image, opt.delta)
 
-local model
+--local model
 if geometry.multiscale then
-   model = getModelFovea(geometry, false)
+   --model = getModelFovea(geometry, false)
+   model = getModelMultiscale(geometry, false)
 else
    model = getModel(geometry, false)
 end

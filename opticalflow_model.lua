@@ -174,6 +174,112 @@ function getModelFovea(geometry, full_image)
    return model
 end
 
+function getModelMultiscale(geometry, full_image)
+   local rmax = geometry.ratios[#geometry.ratios]
+   for i = 1,#geometry.ratios do
+      local k = rmax - geometry.ratios[i]
+      assert(math.mod(geometry.maxh * k, 2) == 0)
+      assert(math.mod(geometry.maxw * k, 2) == 0)
+   end
+   local nChannelsIn = geometry.layers[1][1]
+   
+   local filter = nn.Sequential()
+   for i = 1,#geometry.layers do
+      --todo this is wrong (random...)
+      filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
+				       geometry.layers[i][2], geometry.layers[i][3]))
+      if i ~= #geometry.layers then
+	 filter:add(nn.Tanh())
+      end
+   end
+   assert(not geometry.L2Pooling)
+
+   -- TODO check again
+   local filter1 = nn.Sequential()
+   filter1:add(nn.Narrow(1, 1, nChannelsIn))
+   filter1:add(nn.SpatialZeroPadding(-math.ceil( geometry.maxw/2)+1,
+				     -math.floor(geometry.maxw/2),
+				     -math.ceil( geometry.maxh/2)+1,
+  				     -math.floor(geometry.maxh/2)))
+   filter1:add(filter)
+   local filter2 = nn.Sequential()
+   filter2:add(nn.Narrow(1, nChannelsIn+1, nChannelsIn))
+   filter2:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+
+   local matcher_filters = nn.ConcatTable()
+   matcher_filters:add(filter1)
+   matcher_filters:add(filter2)
+
+   local matcher = nn.Sequential()
+   matcher:add(matcher_filters)
+   matcher:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
+   if full_image then
+      -- todo we definetly need a better reshape module
+      matcher:add(nn.Reshape(geometry.maxw*geometry.maxh,
+			     geometry.hImg - geometry.hPatch2 + 1,
+			     geometry.wImg - geometry.wPatch2 + 1))
+   else
+      matcher:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
+   end
+   
+   local matchers = {}
+   for i = 1,#geometry.ratios do
+      matchers[i] = matcher:clone()
+   end
+   --print(matcher)
+   local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
+				     geometry.wPatch2, geometry.hPatch2, 1, 1)
+
+   local model = nn.Sequential()
+   model:add(nn.JoinTable(1))
+   model:add(pyramid)
+
+   local postprocessors = nn.ParallelTable()
+   if full_image then
+      for i = 1,#geometry.ratios do
+	 --postprocessors:add(nn.Reshape(geometry.maxh, geometry.maxw,
+	--			       geometry.hImg - geometry.hPatch2 + 1,
+	--			       geometry.wImg - geometry.wPatch2 + 1))
+	 --postprocessors:add(nn.Identity())
+	 assert(false)--bias
+      end
+   else
+      for i = 1,#geometry.ratios do
+	 local seq = nn.Sequential()
+	 seq:add(nn.Reshape(1, geometry.maxh, geometry.maxw))
+	 seq:add(nn.SpatialUpSampling(geometry.ratios[i], geometry.ratios[i]))
+	 local k = rmax - geometry.ratios[i]
+	 local wPad = geometry.maxw*k/2
+	 local hPad = geometry.maxh*k/2
+	 seq:add(nn.SpatialZeroPadding(wPad, wPad, hPad, hPad))
+	 seq:add(nn.Reshape(geometry.maxhMS * geometry.maxwMS))
+	 seq:add(nn.Add(geometry.maxhMS*geometry.maxwMS, true))
+	 seq:add(nn.Reshape(geometry.maxhMS * geometry.maxwMS, 1, 1))
+	 postprocessors:add(seq)
+      end
+   end
+
+   model:add(postprocessors)
+   model:add(nn.CAddTable())
+
+   if not geometry.soft_targets then
+      model:add(nn.Minus())
+      local spatial = nn.SpatialClassifier()
+      spatial:add(nn.LogSoftMax())
+      model:add(spatial)
+   end
+
+   if not full_image then
+      function model:focus(x, y)
+	 pyramid:focus(x + math.ceil(geometry.wPatch2/2)-1,
+		       y + math.ceil(geometry.hPatch2/2)-1,
+		       1, 1)
+      end
+   end
+   
+   return model
+end
+
 function prepareInput(geometry, patch1, patch2)
    assert(patch1:size(2)==patch2:size(2) and patch1:size(3) == patch2:size(3))
    ret = {}
@@ -215,8 +321,12 @@ function processOutput(geometry, output, process_full)
 end
 
 function prepareTarget(geometry, target)
-   local itarget = yx2x(geometry, target[1], target[2])
+   local targetx = target[1] + math.ceil(geometry.maxhMS/2)
+   local targety = target[1] + math.ceil(geometry.maxhMS/2)
+   local itarget = (targety-1) * geometry.maxwMS + targetx
+   --local itarget = yx2x(geometry, target[1], target[2])
    if geometry.soft_targets then
+      assert(false) -- soft target not up-to-date with the centered optical flow
       local ret = torch.Tensor(geometry.maxh*geometry.maxw):zero()
       local sigma2 = 1
       local normer = 1.0 / math.sqrt(sigma2 * 2.0 * math.pi)
@@ -234,7 +344,8 @@ end
 
 function describeModel(geometry, learning, nImgs, first_image, delta)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
-   local kernel
+   local kernel = ''
+   --[[
    if geometry.nLayers == 1 then
       kernel = 'kernel=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
       kernel = kernel .. 'x' .. geometry.wKernel .. geometry.nFeatures .. ')'
@@ -247,6 +358,7 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
       if geometry.multiscale then kernel = kernel .. ' multi' end
       kernel = kernel .. ')'
    end
+   --]]
    if geometry.multiscale then
       kernel = kernel .. 'x{' .. geometry.ratios[1]
       for i = 2,#geometry.ratios do
@@ -271,7 +383,8 @@ end
 function saveModel(basefilename, geometry, learning, parameters, nImgs, first_image, delta,
 		   nEpochs)
    local modelsdirbase = 'models'
-   local modeldir = modelsdirbase .. '/'
+   local modeldir = modelsdirbase .. '/tmp'
+   --[[
    if geometry.nLayers == 1 then
       modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
       modeldir = modeldir .. 'x' .. geometry.wKernel .. 'x' .. geometry.nFeatures
@@ -282,6 +395,7 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
       modeldir = modeldir .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
       if geometry.L2Pooling then modeldir = modeldir .. '_l2' end
    end
+   --]]
    if geometry.multiscale then
       modeldir = modeldir .. '_multi'
       for i = 1,#geometry.ratios do

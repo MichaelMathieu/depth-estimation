@@ -139,6 +139,9 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       image.savePNG(flowfilename, flow)
    end
    flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
+   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
+   flow[1] = flow[1] - yoffset
+   flow[2] = flow[2] - xoffset
 
    return im, flow
 end
@@ -190,6 +193,9 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
       image.savePNG(flowfilename, flow)
    end
    flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
+   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
+   flow[1] = flow[1] - yoffset
+   flow[2] = flow[2] - xoffset
 
    return im, flow, im_rect, H
 
@@ -238,7 +244,7 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta,
       end
       
    end
-
+   --[[
    local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
    local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
    raw_data.histogram = {}
@@ -251,11 +257,11 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta,
    for iImg = 1,#raw_data.flow do
       for i = 1,geometry.hImg-geometry.hPatch2 do
 	 for j = 1,geometry.wImg-geometry.wPatch2 do
-	    table.insert(raw_data.histogram[raw_data.flow[iImg][1][i+hoffset][j+woffset]][raw_data.flow[iImg][2][i+hoffset][j+woffset]], {iImg+1, i, j})
+	    table.insert(raw_data.histogram[raw_data.flow[iImg][1][i+hoffset][j+woffset] ][raw_data.flow[iImg][2][i+hoffset][j+woffset] ], {iImg+1, i, j})
 	 end
       end
    end
-
+   --]]
    return raw_data
 end
 
