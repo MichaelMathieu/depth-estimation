@@ -224,7 +224,6 @@ for iEpoch = 1,opt.n_epochs do
 			  parameters:copy(x)
 		       end
 		       gradParameters:zero()
-		       
 		       local output = model:forward(input):squeeze()
 		       local err = criterion:forward(output, targetCrit)
 		       local df_do = criterion:backward(output, targetCrit)

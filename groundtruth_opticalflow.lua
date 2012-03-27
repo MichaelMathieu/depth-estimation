@@ -56,7 +56,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    output = -output
    output = output:reshape(maxh*maxw, output:size(3), output:size(4))
    local output2 = processOutput(geometry, output, true)
-   return x2yx(geometry, output2.full)
+   return output2.full[1], output2.full[2]
 end
 
 function getOpticalFlow(geometry, image1, image2)
@@ -119,7 +119,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
 	    return nil
 	 end
       local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
-      local yflow, xflow = getOpticalFlowFast(geometry, previmage, im, 16, 16)
+      local yflow, xflow = getOpticalFlowFast(geometry, previmage, im)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow/255)
       flow[2]:copy(xflow/255)
@@ -173,7 +173,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
    if not flow then
       print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
-      local yflow, xflow = getOpticalFlow(geometry, previmage, im_rect, 16, 16)
+      local yflow, xflow = getOpticalFlowFast(geometry, previmage, im_rect, 16, 16)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow/255)
       flow[2]:copy(xflow/255)

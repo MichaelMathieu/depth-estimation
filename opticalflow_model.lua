@@ -226,7 +226,7 @@ function getModelMultiscale(geometry, full_image)
    for i = 1,#geometry.ratios do
       matchers[i] = matcher:clone()
    end
-   --print(matcher)
+
    local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
 				     geometry.wPatch2, geometry.hPatch2, 1, 1)
 
