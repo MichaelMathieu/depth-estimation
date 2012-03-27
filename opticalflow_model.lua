@@ -96,84 +96,6 @@ function getModel(geometry, full_image)
    return model
 end
 
-function getModelFovea(geometry, full_image)
-   local model = nn.Sequential()
-   local parallel = nn.ParallelTable()
-   local preproc1 = nn.Sequential()
-   local filter = nn.Sequential()
-
-   --TODO this should be floor, according to the way the gt is computed. why?
-   -- > anyway, this seems to works perfectly (see test_patches.lua)
-   preproc1:add(nn.Narrow(2, math.ceil(geometry.maxh/2), geometry.hImg-geometry.maxh+1))
-   preproc1:add(nn.Narrow(3, math.ceil(geometry.maxw/2), geometry.wImg-geometry.maxw+1))
-
-   if geometry.nLayers == 1 then
-      filter:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.nFeatures,
-      				       geometry.wKernel, geometry.hKernel))
-   elseif geometry.nLayers == 2 then
-      filter:add(nn.SpatialConvolution(geometry.nChannelsIn, geometry.layerTwoSize,
-				       geometry.wKernel1, geometry.hKernel1))
-      filter:add(nn.Tanh())
-      if geometry.L2Pooling then
-	 print("Error : L2-pooling not implemented with multiscale")
-	 assert(false)
-      else
-	 filter:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layerTwoSize,
-							      geometry.nFeatures,
-							      geometry.layerTwoConnections),
-					     geometry.wKernel2, geometry.hKernel2))
-      end
-   else
-      assert(false)
-   end
-
-   local filters1 = {}
-   local filters2 = {}
-   for i = 1,#geometry.ratios do
-      local filter_t = filter:clone()
-      table.insert(filters1, filter_t)
-      table.insert(filters2, filter_t:clone('weight', 'bias', 'gradWeight', 'gradBias'))
-   end
-   local fovea1 = nn.SpatialPyramid(geometry.ratios, filters1,
-				    geometry.wKernel, geometry.hKernel, 1, 1)
-   local fovea2 = nn.SpatialPyramid(geometry.ratios, filters2,
-				    geometry.wKernel, geometry.hKernel, 1, 1)
-   function model:focus(x, y)
-      fovea1:focus(x + math.ceil(geometry.wKernel/2)-1,
-		   y + math.ceil(geometry.hKernel/2)-1,
-		   1, 1)
-      fovea2:focus(x + math.ceil(geometry.wPatch2/2)-1,
-		   y + math.ceil(geometry.hPatch2/2)-1,
-		   geometry.maxw, geometry.maxh)
-   end
-   
-   local seq1 = nn.Sequential()
-   seq1:add(preproc1)
-   seq1:add(fovea1)
-   parallel:add(seq1)
-   parallel:add(fovea2)
-   
-   model:add(parallel)
-
-   model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-   if full_image then
-      model:add(nn.Reshape(geometry.maxw*geometry.maxh,
-			   geometry.hImg - geometry.maxh + 1,
-			   geometry.wImg - geometry.maxw + 1))
-   else
-      model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
-   end
-
-   if not geometry.soft_targets then
-      model:add(nn.Minus())
-      local spatial = nn.SpatialClassifier()
-      spatial:add(nn.LogSoftMax())
-      model:add(spatial)
-   end
-
-   return model
-end
-
 function getModelMultiscale(geometry, full_image)
    local rmax = geometry.ratios[#geometry.ratios]
    for i = 1,#geometry.ratios do
@@ -185,9 +107,15 @@ function getModelMultiscale(geometry, full_image)
    
    local filter = nn.Sequential()
    for i = 1,#geometry.layers do
-      --todo this is wrong (random...)
-      filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
-				       geometry.layers[i][2], geometry.layers[i][3]))
+      if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
+	 filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
+					  geometry.layers[i][2], geometry.layers[i][3]))
+      else
+	 filter:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layers[i-1][4],
+							      geometry.layers[i][4],
+							      geometry.layers[i][1]),
+					     geometry.layers[i][2], geometry.layers[i][3]))
+      end
       if i ~= #geometry.layers then
 	 filter:add(nn.Tanh())
       end
