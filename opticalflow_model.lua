@@ -344,21 +344,16 @@ end
 
 function describeModel(geometry, learning, nImgs, first_image, delta)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
-   local kernel = ''
-   --[[
-   if geometry.nLayers == 1 then
-      kernel = 'kernel=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
-      kernel = kernel .. 'x' .. geometry.wKernel .. geometry.nFeatures .. ')'
-   else
-      kernel = 'kernels=(' .. geometry.nChannelsIn .. 'x' .. geometry.hKernel1
-      kernel = kernel .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. ', '
-      kernel = kernel .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
-      kernel = kernel .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
-      if geometry.L2Pooling then kernel = kernel .. ' l2' end
-      if geometry.multiscale then kernel = kernel .. ' multi' end
-      kernel = kernel .. ')'
+   local kernel = 'kernel=('
+   for i = 1,#geometry.layers do
+      kernel = kernel .. geometry.layers[i][1] .. 'x' .. geometry.layers[i][2] .. 'x'
+      kernel = kernel .. geometry.layers[i][3] .. 'x' .. geometry.layers[i][4]
+      if i ~= #geometry.layers then
+	 kernel = kernel .. ', '
+      end
    end
-   --]]
+   if geometry.L2Pooling then kernel = kernel .. ' l2' end
+   kernel = kernel .. ')'
    if geometry.multiscale then
       kernel = kernel .. 'x{' .. geometry.ratios[1]
       for i = 2,#geometry.ratios do
@@ -383,26 +378,21 @@ end
 function saveModel(basefilename, geometry, learning, parameters, nImgs, first_image, delta,
 		   nEpochs)
    local modelsdirbase = 'models'
-   local modeldir = modelsdirbase .. '/tmp'
-   --[[
-   if geometry.nLayers == 1 then
-      modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel
-      modeldir = modeldir .. 'x' .. geometry.wKernel .. 'x' .. geometry.nFeatures
-   else
-      modeldir = modeldir .. geometry.nChannelsIn .. 'x' .. geometry.hKernel1
-      modeldir = modeldir .. 'x' .. geometry.wKernel1 .. 'x' .. geometry.layerTwoSize .. '_'
-      modeldir = modeldir .. geometry.layerTwoConnections .. 'x' .. geometry.hKernel2 .. 'x'
-      modeldir = modeldir .. geometry.wKernel2 .. 'x' .. geometry.nFeatures
-      if geometry.L2Pooling then modeldir = modeldir .. '_l2' end
-   end
-   --]]
-   if geometry.multiscale then
-      modeldir = modeldir .. '_multi'
-      for i = 1,#geometry.ratios do
-	 modeldir = modeldir .. '-' .. geometry.ratios[i]
+   local kernel = ''
+   for i = 1,#geometry.layers do
+      kernel = kernel .. geometry.layers[i][1] .. 'x' .. geometry.layers[i][2] .. 'x'
+      kernel = kernel .. geometry.layers[i][3] .. 'x' .. geometry.layers[i][4]
+      if i ~= #geometry.layers then
+	 kernel = kernel .. '_'
       end
    end
-   
+   if geometry.L2Pooling then kernel = kernel .. '_l2' end
+   if geometry.multiscale then
+      for i = 1,#geometry.ratios do
+	 kernel = kernel .. '-' .. geometry.ratios[i]
+      end
+   end
+   local modeldir = modelsdirbase .. '/' .. kernel
    local targets = ''
    local sampling = ''
    if geometry.soft_targets then targets = ' softTargets' end
