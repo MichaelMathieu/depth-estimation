@@ -226,7 +226,7 @@ function processOutput(geometry, output, process_full)
 end
 
 function prepareTarget(geometry, target)
-   local targetx = target[1] + math.ceil(geometry.maxhMS/2)
+   local targetx = target[2] + math.ceil(geometry.maxhMS/2)
    local targety = target[1] + math.ceil(geometry.maxhMS/2)
    local itarget = (targety-1) * geometry.maxwMS + targetx
    --local itarget = yx2x(geometry, target[1], target[2])

@@ -179,9 +179,6 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
       image.savePNG(flowfilename, flow)
    end
    flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
-   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
-   flow[1] = flow[1] - yoffset
-   flow[2] = flow[2] - xoffset
 
    return im, flow, im_rect, H
 
