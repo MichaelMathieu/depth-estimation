@@ -147,10 +147,10 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
    flowdir = flowdir .. '/' .. geometry.maxh .. 'x' ..geometry.maxw .. 'x'
    flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
    os.execute('mkdir -p ' .. flowdir)
-   local flowfilename = flowdir .. '/' .. imagebasename .. '.png'
+   local flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
    local flow = nil
    if paths.filep(flowfilename) then
-      flow = image.loadPNG(flowfilename)
+      flow = torch.load(flowfilename)
       if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
          flow = nil
          print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
@@ -176,7 +176,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow/255)
       flow[2]:copy(xflow/255)
-      image.savePNG(flowfilename, flow)
+      torch.save(flowfilename, flow)
    end
    flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
 
