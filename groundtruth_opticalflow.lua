@@ -104,10 +104,10 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    flowdir = flowdir .. '/' .. geometry.maxh .. 'x' ..geometry.maxw .. 'x'
    flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
    os.execute('mkdir -p ' .. flowdir)
-   local flowfilename = flowdir .. '/' .. imagebasename .. '.png'
+   local flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
    local flow = nil
    if paths.filep(flowfilename) then
-      flow = image.loadPNG(flowfilename)
+      flow = torch.load(flowfilename)
       if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
 	 flow = nil
 	 print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
@@ -122,12 +122,11 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
 	 end
       local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
       local yflow, xflow = getOpticalFlowFast(geometry, previmage, im)
-      flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
-      flow[1]:copy((yflow+128)/255)
-      flow[2]:copy((xflow+128)/255)
-      image.savePNG(flowfilename, flow)
+      flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
+      flow[1]:copy(yflow)
+      flow[2]:copy(xflow)
+      torch.save(flowfilename, flow)
    end
-   flow = (flow:narrow(1, 1, 2)*255-128+0.5):floor()
 
    return im, flow
 end
@@ -173,12 +172,11 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
    if not flow then
       print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
       local yflow, xflow = getOpticalFlowFast(geometry, previmage, im_rect, 16, 16)
-      flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
-      flow[1]:copy(yflow/255)
-      flow[2]:copy(xflow/255)
+      flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
+      flow[1]:copy(yflow)
+      flow[2]:copy(xflow)
       torch.save(flowfilename, flow)
    end
-   flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
 
    return im, flow, im_rect, H
 
