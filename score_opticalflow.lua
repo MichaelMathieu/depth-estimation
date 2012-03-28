@@ -1,6 +1,6 @@
 
 function flow2pol(geometry, y, x)
-   y, x = onebased2centered(geometry, y, x)
+   --y, x = onebased2centered(geometry, y, x)
    local ang = math.atan2(y, x)
    local norm = math.sqrt(x*x+y*y)
    return ang, norm

@@ -34,7 +34,7 @@ function displayKernels(geometry, model)
       for i = 1,#geometry.ratios do
 	 local weight = model.modules[1].modules[2].processors[i].modules[1].weight
 	 image.display{image=weight, padding=2, zoom=8}
-	 if geometry.nLayers > 1 then
+	 if #geometry.layers > 1 then
 	    local weight2 = model.modules[1].modules[2].processors[i].modules[3].weight
 	    image.display{image=weight2, padding=2, zoom=8}
 	 end
@@ -42,7 +42,7 @@ function displayKernels(geometry, model)
    else
       local weight = model.modules[1].modules[1].modules[1].weight
       image.display{image=weight, padding=2, zoom=8}
-      if geometry.nLayers > 1 then
+      if #geometry.layers > 1 then
 	 local weight2 = model.modules[1].modules[1].modules[3].weight
 	 image.display{image=weight2, padding=2, zoom=8}
       end

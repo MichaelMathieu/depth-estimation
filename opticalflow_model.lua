@@ -200,10 +200,13 @@ function processOutput(geometry, output, process_full)
    end
    ret.index = ret.index:squeeze()
    ret.y, ret.x = x2yx(geometry, ret.index)
-   local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
-   local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
+   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
+   ret.y = ret.y - yoffset
+   ret.x = ret.x - xoffset
    process_full = process_full or (type(ret.y) ~= 'number')
    if process_full then
+      local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
+      local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
       if type(ret.y) == 'number' then
 	 ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
 	 ret.full[1]:fill(math.ceil(geometry.maxh/2))

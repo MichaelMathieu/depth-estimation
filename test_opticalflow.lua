@@ -7,6 +7,8 @@ require 'opticalflow_model'
 require 'groundtruth_opticalflow'
 require 'score_opticalflow'
 
+assert(false) -- not up-to-date
+
 torch.manualSeed(1)
 
 op = xlua.OptionParser('%prog [options]')

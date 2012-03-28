@@ -56,8 +56,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    output = -output
    output = output:reshape(maxh*maxw, output:size(3), output:size(4))
    local output2 = processOutput(geometry, output, true)
-   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
-   return output2.full[1]-yoffset, output2.full[2]-xoffset
+   return output2.full[1], output2.full[2]
 end
 
 function getOpticalFlow(geometry, image1, image2)
