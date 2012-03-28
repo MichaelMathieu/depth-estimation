@@ -110,6 +110,7 @@ geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.L2Pooling = opt.l2_pooling
 if opt.multiscale == 0 then
    geometry.multiscale = false
+   geometry.ratios = {1}
    geometry.maxwMS = geometry.maxw
    geometry.maxhMS = geometry.maxh
 else

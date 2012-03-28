@@ -56,7 +56,8 @@ function getOpticalFlowFast(geometry, image1, image2)
    output = -output
    output = output:reshape(maxh*maxw, output:size(3), output:size(4))
    local output2 = processOutput(geometry, output, true)
-   return output2.full[1], output2.full[2]
+   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
+   return output2.full[1]-yoffset, output2.full[2]-xoffset
 end
 
 function getOpticalFlow(geometry, image1, image2)
@@ -85,6 +86,7 @@ function getOpticalFlow(geometry, image1, image2)
       end
    end
    --'of' contains now the expected result of the newtork
+   assert(false)-- output not coherent anymore (it is one-based)
    return findMax(geometry, of)
 end
 
@@ -121,14 +123,11 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
       local yflow, xflow = getOpticalFlowFast(geometry, previmage, im)
       flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
-      flow[1]:copy(yflow/255)
-      flow[2]:copy(xflow/255)
+      flow[1]:copy((yflow+128)/255)
+      flow[2]:copy((xflow+128)/255)
       image.savePNG(flowfilename, flow)
    end
-   flow = (flow:narrow(1, 1, 2)*255+0.5):floor()
-   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
-   flow[1] = flow[1] - yoffset
-   flow[2] = flow[2] - xoffset
+   flow = (flow:narrow(1, 1, 2)*255-128+0.5):floor()
 
    return im, flow
 end
