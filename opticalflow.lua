@@ -185,11 +185,15 @@ for iEpoch = 1,opt.n_epochs do
 	 targetCrit, target = prepareTarget(geometry, sample[2])
       end
 
-      local output = model:forward(input):squeeze()
-      local err = criterion:forward(output, targetCrit)
+      local output = model:forward(input)
+      --print(output:size())
+      --print(targetCrit)
+      local err = criterion:forward(output:squeeze(), targetCrit)
       
       meanErr = meanErr + err
-      local outputp = processOutput(geometry, output, false)
+      local outputp = processOutput(geometry, output:squeeze(), false)
+      --local outputp = processOutput2(geometry, output)
+      --print(outputp)
       if outputp.index == target then
 	 nGood = nGood + 1
       else

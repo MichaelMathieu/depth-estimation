@@ -1,6 +1,8 @@
 require 'torch'
 require 'xlua'
 require 'nnx'
+require 'SmartReshape'
+require 'CascadingAddTable'
 
 function yx2x(geometry, y, x)
    return (y-1) * geometry.maxw + x
@@ -26,7 +28,6 @@ function onebased2centered(geometry, y, x)
 end
 
 function getModel(geometry, full_image)
-
    local filter = nn.Sequential()
    for i = 1,#geometry.layers do
       if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
@@ -70,6 +71,7 @@ function getModel(geometry, full_image)
 end
 
 function getModelMultiscale(geometry, full_image)
+   assert(geometry.ratios[1] == 1)
    local rmax = geometry.ratios[#geometry.ratios]
    for i = 1,#geometry.ratios do
       local k = rmax - geometry.ratios[i]
@@ -115,10 +117,7 @@ function getModelMultiscale(geometry, full_image)
    matcher:add(matcher_filters)
    matcher:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
    if full_image then
-      -- todo we definetly need a better reshape module
-      matcher:add(nn.Reshape(geometry.maxw*geometry.maxh,
-			     geometry.hImg - geometry.hPatch2 + 1,
-			     geometry.wImg - geometry.wPatch2 + 1))
+      matcher:add(nn.SmartReshape(geometry.maxw*geometry.maxh, -3, -4))
    else
       matcher:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
@@ -134,35 +133,47 @@ function getModelMultiscale(geometry, full_image)
    local model = nn.Sequential()
    model:add(nn.JoinTable(1))
    model:add(pyramid)
+   local precascad = nn.ParallelTable()
+   for i = 1,#geometry.ratios do
+      precascad:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
+   end
+   model:add(precascad)
+   model:add(nn.CascadingAddTable(geometry.ratios))
 
    local postprocessors = nn.ParallelTable()
-   if full_image then
-      for i = 1,#geometry.ratios do
-	 --postprocessors:add(nn.Reshape(geometry.maxh, geometry.maxw,
-	--			       geometry.hImg - geometry.hPatch2 + 1,
-	--			       geometry.wImg - geometry.wPatch2 + 1))
-	 --postprocessors:add(nn.Identity())
-	 assert(false)--bias
-      end
-   else
-      for i = 1,#geometry.ratios do
-	 local seq = nn.Sequential()
-	 seq:add(nn.Reshape(1, geometry.maxh, geometry.maxw))
-	 seq:add(nn.SpatialUpSampling(geometry.ratios[i], geometry.ratios[i]))
-	 local k = rmax - geometry.ratios[i]
-	 local wPad = geometry.maxw*k/2
-	 local hPad = geometry.maxh*k/2
-	 seq:add(nn.SpatialZeroPadding(wPad, wPad, hPad, hPad))
-	 seq:add(nn.Reshape(geometry.maxhMS * geometry.maxwMS))
-	 seq:add(nn.Add(geometry.maxhMS*geometry.maxwMS, true))
-	 seq:add(nn.Reshape(geometry.maxhMS * geometry.maxwMS, 1, 1))
-	 postprocessors:add(seq)
-      end
+   postprocessors:add(nn.SmartReshape({-1,-2},-3,-4))
+   for i = 2,#geometry.ratios do
+      local d = math.floor(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]) + 0.5)
+      local remover1 = nn.Sequential()
+      local remover2 = nn.Sequential()
+      local remover3 = nn.Sequential()
+      local remover4 = nn.Sequential()
+      remover1:add(nn.Narrow(1, 1, d))
+      remover2:add(nn.Narrow(1, d+1, geometry.maxh-2*d))
+      remover2:add(nn.Narrow(2, 1, d))
+      remover3:add(nn.Narrow(1, d+1, geometry.maxh-2*d))
+      remover3:add(nn.Narrow(2, geometry.maxw-d+1, d))
+      remover4:add(nn.Narrow(1, geometry.maxh-d+1, d))
+      remover1:add(nn.SmartReshape({-1,-2},-3,-4))
+      remover2:add(nn.SmartReshape({-1,-2},-3,-4))
+      remover3:add(nn.SmartReshape({-1,-2},-3,-4))
+      remover4:add(nn.SmartReshape({-1,-2},-3,-4))
+      local removers = nn.ConcatTable()
+      removers:add(remover1)
+      removers:add(remover2)
+      removers:add(remover3)
+      removers:add(remover4)
+      
+      local middleRemover = nn.Sequential()
+      --middleRemover:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
+      middleRemover:add(removers)
+      middleRemover:add(nn.JoinTable(1))
+      postprocessors:add(middleRemover:clone())
    end
-
+   
    model:add(postprocessors)
-   model:add(nn.CAddTable())
-
+   model:add(nn.JoinTable(1))
+   
    if not geometry.soft_targets then
       model:add(nn.Minus())
       local spatial = nn.SpatialClassifier()
@@ -203,10 +214,18 @@ function processOutput(geometry, output, process_full)
    local yoffset, xoffset = centered2onebased(geometry, 0, 0)
    ret.y = ret.y - yoffset
    ret.x = ret.x - xoffset
-   process_full = process_full or (type(ret.y) ~= 'number')
+   if process_full == nil then
+      process_full = type(ret.y) ~= 'number'
+   end
    if process_full then
-      local hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
-      local woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
+      local hoffset, woffset
+      if output:size(2) == geometry.hImg then
+	 hoffset = 0
+	 woffset = 0
+      else
+	 hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
+	 woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
+      end
       if type(ret.y) == 'number' then
 	 ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
 	 ret.full[1]:fill(math.ceil(geometry.maxh/2))
@@ -228,10 +247,76 @@ function processOutput(geometry, output, process_full)
    return ret
 end
 
+function processOutput2(geometry, output)
+   local ret = {}
+   if not CST_Tx then --todo : cleaner
+      CST_Tx = torch.Tensor(geometry.maxh, geometry.maxw)
+      CST_Ty = torch.Tensor(geometry.maxh, geometry.maxw)
+      for i = 1,geometry.maxh do
+	 for j = 1,geometry.maxw do
+	    CST_Ty[i][j] = i-math.ceil(geometry.maxh/2)
+	    CST_Tx[i][j] = j-math.ceil(geometry.maxw/2)
+	 end
+      end
+   end
+   local normer = 1.0 / (geometry.maxh*geometry.maxw)
+   --local outputr = output:resize(geometry.maxh, geometry.maxw, output:size(2), output:size(3))
+   local outputr = output:resize(geometry.maxh, geometry.maxw):exp()
+   --print(outputr)
+   image.display{image=outputr,zoom=4}
+   ret.y = math.floor(outputr:dot(CST_Ty)*normer+0.5)
+   ret.x = math.floor(outputr:dot(CST_Tx)*normer+0.5)
+   ret.index = yx2x(geometry, ret.y, ret.x)
+   return ret
+end
+
 function prepareTarget(geometry, target)
-   local targetx = target[2] + math.ceil(geometry.maxhMS/2)
-   local targety = target[1] + math.ceil(geometry.maxhMS/2)
-   local itarget = (targety-1) * geometry.maxwMS + targetx
+   local itarget
+   if geometry.multiscale then
+      function isIn(size, x)
+	 return (x >= -math.ceil(size/2)+1) and (x <= math.floor(size/2))
+      end
+      local x = target[2]
+      local y = target[1]
+      local targetx, targety
+      local i = 1
+      while i <= #geometry.ratios do
+	 if (isIn(geometry.maxw*geometry.ratios[i], x) and
+	  isIn(geometry.maxh*geometry.ratios[i], y)) then
+	    --todo floor? ceil? round?
+	    targetx = math.floor(x/geometry.ratios[i]) + math.ceil(geometry.maxw/2)
+	    targety = math.floor(y/geometry.ratios[i]) + math.ceil(geometry.maxh/2)
+	    break
+	 end
+	 i = i + 1
+      end
+      assert(i <= #geometry.ratios)
+      if i == 1 then
+	 itarget = (targety-1) * geometry.maxw + targetx
+      else
+	 -- skip the middle area
+	 local d = math.floor(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]) + 0.5)
+	 if targety <= d then
+	    itarget = (targety-1)*geometry.maxw+targetx
+	 elseif targety > geometry.maxh-d then
+	    itarget = d*geometry.maxw + 2*(geometry.maxh-2*d)*d
+	       + (targety-(geomertry.maxh-d)-1)*geometry.maxw+targetx
+	 elseif targetx <= d then
+	    itarget = d*geometry.maxw + (targety-d-1)*d+targetx
+	 elseif targetx > geometry.maxw-d then
+	    itarget = d*geometry.maxw + (geometry.maxh-2*d)*d
+	       + (targety-d-1)*d + targetx-(geometry.maxw-d)
+	 else
+	    assert(false)
+	 end
+	 itarget = geometry.maxw*geometry.maxh
+	    + (i-2)*(2*d*geometry.maxw + (geometry.maxh-2*d)*d) + itarget
+      end
+   else
+      local targetx = target[2] + math.ceil(geometry.maxw/2)
+      local targety = target[1] + math.ceil(geometry.maxh/2)
+      itarget = (targety-1) * geometry.maxw + targetx
+   end
    --local itarget = yx2x(geometry, target[1], target[2])
    if geometry.soft_targets then
       assert(false) -- soft target not up-to-date with the centered optical flow
@@ -322,7 +407,7 @@ function loadModel(filename, full_output)
    local geometry = loaded[2]
    local model
    if geometry.multiscale then
-      model = getModelFovea(geometry, full_output)
+      model = getModelMultiscale(geometry, full_output)
    else
       model = getModel(geometry, full_output)
    end

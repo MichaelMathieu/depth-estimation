@@ -32,10 +32,11 @@ openmp.setDefaultNumThreads(opt.nThreads)
 function displayKernels(geometry, model)
    if geometry.multiscale then
       for i = 1,#geometry.ratios do
-	 local weight = model.modules[1].modules[2].processors[i].modules[1].weight
+	 local matcher = model.modules[2].unfocused_pipeline.modules[i].modules[3]
+	 local weight = matcher.modules[1].modules[1].modules[3].modules[1].weight
 	 image.display{image=weight, padding=2, zoom=8}
 	 if #geometry.layers > 1 then
-	    local weight2 = model.modules[1].modules[2].processors[i].modules[3].weight
+	    local weight2 = matcher.modules[1].modules[1].modules[3].modules[3].weight
 	    image.display{image=weight2, padding=2, zoom=8}
 	 end
       end
@@ -73,6 +74,7 @@ end
 
 local output = model:forward(input)
 print(t:time())
+outputt = output:clone()
 output = processOutput(geometry, output)
 
 local output2 = torch.Tensor(2, output.x:size(1), output.x:size(2)):zero()
