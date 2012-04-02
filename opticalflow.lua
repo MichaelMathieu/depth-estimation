@@ -187,7 +187,6 @@ for iEpoch = 1,opt.n_epochs do
 
       local output = model:forward(input)
       --print(output:size())
-      --print(targetCrit)
       local err = criterion:forward(output:squeeze(), targetCrit)
       
       meanErr = meanErr + err

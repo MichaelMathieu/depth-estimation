@@ -2,6 +2,7 @@ require 'torch'
 require 'xlua'
 require 'nnx'
 require 'SmartReshape'
+require 'common'
 require 'CascadingAddTable'
 
 function yx2x(geometry, y, x)
@@ -17,6 +18,114 @@ function x2yx(geometry, x)
       local xout = xdbl - yout*geometry.maxw
       return (yout+1.5):floor(), (xout+1.5):floor() --(a+0.5):floor() is a:round()
    end
+end
+
+function yx2xMulti(geometry, y, x)
+   function isIn(size, x)
+      return (x >= -math.ceil(size/2)+1) and (x <= math.floor(size/2))
+   end
+   local targetx, targety
+   local i = 1
+   while i <= #geometry.ratios do
+      if (isIn(geometry.maxw*geometry.ratios[i], x) and
+       isIn(geometry.maxh*geometry.ratios[i], y)) then
+	 --todo this doesn't work it geometry.maxw/geometry.ratios[i] is odd
+	 targetx = math.ceil(x/geometry.ratios[i]) + math.ceil(geometry.maxw/2)
+	 targety = math.ceil(y/geometry.ratios[i]) + math.ceil(geometry.maxh/2)
+	 break
+      end
+      i = i + 1
+   end
+   assert(i <= #geometry.ratios)
+   if i == 1 then
+      itarget = (targety-1) * geometry.maxw + targetx
+   else
+      -- skip the middle area
+      local d = math.floor(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]) + 0.5)
+      if targety <= d then
+	 itarget = (targety-1)*geometry.maxw+targetx
+      elseif targety > geometry.maxh-d then
+	 itarget = d*geometry.maxw + 2*(geometry.maxh-2*d)*d
+	    + (targety-(geometry.maxh-d)-1)*geometry.maxw+targetx
+      elseif targetx <= d then
+	 itarget = d*geometry.maxw + (targety-d-1)*d+targetx
+      elseif targetx > geometry.maxw-d then
+	 itarget = d*geometry.maxw + (geometry.maxh-2*d)*d
+            + (targety-d-1)*d + targetx-(geometry.maxw-d)
+      else
+	 assert(false)
+      end
+      itarget = geometry.maxw*geometry.maxh
+	 + (i-2)*(2*d*geometry.maxw + 2*(geometry.maxh-2*d)*d) + itarget
+   end
+   return itarget
+end
+
+function x2yxMulti(geometry, x)
+   --todo : do a C module to speed up process
+   if type(x) == 'number' then
+      return x2yxMultiNumber(geometry, x)
+   else
+      local retx = torch.Tensor(x:size())
+      local rety = torch.Tensor(x:size())
+      for i = 1,x:size(1) do
+	 for j = 1,x:size(2) do
+	    rety[i][j], retx[i][j] = x2yxMultiNumber(geometry, x[i][j])
+	 end
+      end
+      return rety, retx
+   end
+end
+
+function x2yxMultiNumber(geometry, x)
+   assert(type(x) == 'number')
+   if x <= geometry.maxh*geometry.maxw then
+      -- higher resolution : full patch used
+      local targety = math.floor((x-1)/geometry.maxw)+1
+      local targetx = math.mod(x-1, geometry.maxw)+1
+      return targety - math.ceil(geometry.maxh/2), targetx - math.ceil(geometry.maxw/2)
+   else
+      -- smaller resolution : middle area isn't used
+      x = x - geometry.maxh*geometry.maxw
+      for i = 2,#geometry.ratios do
+	 local d = round(geometry.maxw * (geometry.ratios[i]-geometry.ratios[i-1])
+		       /(2*geometry.ratios[i]))
+	 local len = 2*d*geometry.maxw + 2*(geometry.maxh-2*d)*d
+	 if x <= len then
+	    if x <= d*geometry.maxw then
+	       local targety = math.floor((x-1) / geometry.maxw) + 1
+	       local targetx = math.mod(x-1, geometry.maxw) + 1
+	       return (targety - math.ceil(geometry.maxh/2))*geometry.ratios[i],
+	              (targetx - math.ceil(geometry.maxw/2))*geometry.ratios[i]
+	    end
+	    x = x - d*geometry.maxw
+	    if x <= (geometry.maxh-2*d)*d then
+	       local targety = math.floor((x-1) / d) + 1 + d
+	       local targetx = math.mod(x-1, d) + 1
+	       return (targety - math.ceil(geometry.maxh/2))*geometry.ratios[i],
+	              (targetx - math.ceil(geometry.maxw/2))*geometry.ratios[i]
+	    end
+	    x = x - (geometry.maxh-2*d)*d
+	    if x <= (geometry.maxh-2*d)*d then
+	       local targety = math.floor((x-1) / d) + 1 + d
+	       local targetx = math.mod(x-1, d) + 1 + geometry.maxw-d
+	       return (targety - math.ceil(geometry.maxh/2))*geometry.ratios[i],
+	              (targetx - math.ceil(geometry.maxw/2))*geometry.ratios[i]
+	    end
+	    x = x - (geometry.maxh-2*d)*d
+	    if x <= d*geometry.maxw then
+	       local targety = math.floor((x-1) / geometry.maxw) + 1 + geometry.maxh-d
+	       local targetx = math.mod(x-1, geometry.maxw) + 1
+	       return (targety - math.ceil(geometry.maxh/2))*geometry.ratios[i],
+	              (targetx - math.ceil(geometry.maxw/2))*geometry.ratios[i]
+	    end
+	    assert(false) --this should not happen if the code is correct
+	 else
+	    x = x - len
+	 end
+      end
+   end
+   assert(false) -- this should not happen if geometry is coherent with x
 end
 
 function centered2onebased(geometry, y, x)
@@ -210,10 +319,14 @@ function processOutput(geometry, output, process_full)
       _, ret.index = output:max(1)
    end
    ret.index = ret.index:squeeze()
-   ret.y, ret.x = x2yx(geometry, ret.index)
-   local yoffset, xoffset = centered2onebased(geometry, 0, 0)
-   ret.y = ret.y - yoffset
-   ret.x = ret.x - xoffset
+   if geometry.multiscale then
+      ret.y, ret.x = x2yxMulti(geometry, ret.index)
+   else
+      ret.y, ret.x = x2yx(geometry, ret.index)
+      local yoffset, xoffset = centered2onebased(geometry, 0, 0)
+      ret.y = ret.y - yoffset
+      ret.x = ret.x - xoffset
+   end
    if process_full == nil then
       process_full = type(ret.y) ~= 'number'
    end
@@ -273,45 +386,7 @@ end
 function prepareTarget(geometry, target)
    local itarget
    if geometry.multiscale then
-      function isIn(size, x)
-	 return (x >= -math.ceil(size/2)+1) and (x <= math.floor(size/2))
-      end
-      local x = target[2]
-      local y = target[1]
-      local targetx, targety
-      local i = 1
-      while i <= #geometry.ratios do
-	 if (isIn(geometry.maxw*geometry.ratios[i], x) and
-	  isIn(geometry.maxh*geometry.ratios[i], y)) then
-	    --todo floor? ceil? round?
-	    targetx = math.floor(x/geometry.ratios[i]) + math.ceil(geometry.maxw/2)
-	    targety = math.floor(y/geometry.ratios[i]) + math.ceil(geometry.maxh/2)
-	    break
-	 end
-	 i = i + 1
-      end
-      assert(i <= #geometry.ratios)
-      if i == 1 then
-	 itarget = (targety-1) * geometry.maxw + targetx
-      else
-	 -- skip the middle area
-	 local d = math.floor(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]) + 0.5)
-	 if targety <= d then
-	    itarget = (targety-1)*geometry.maxw+targetx
-	 elseif targety > geometry.maxh-d then
-	    itarget = d*geometry.maxw + 2*(geometry.maxh-2*d)*d
-	       + (targety-(geomertry.maxh-d)-1)*geometry.maxw+targetx
-	 elseif targetx <= d then
-	    itarget = d*geometry.maxw + (targety-d-1)*d+targetx
-	 elseif targetx > geometry.maxw-d then
-	    itarget = d*geometry.maxw + (geometry.maxh-2*d)*d
-	       + (targety-d-1)*d + targetx-(geometry.maxw-d)
-	 else
-	    assert(false)
-	 end
-	 itarget = geometry.maxw*geometry.maxh
-	    + (i-2)*(2*d*geometry.maxw + (geometry.maxh-2*d)*d) + itarget
-      end
+      itarget = yx2xMulti(geometry, target[1], target[2])
    else
       local targetx = target[2] + math.ceil(geometry.maxw/2)
       local targety = target[1] + math.ceil(geometry.maxh/2)
