@@ -84,8 +84,8 @@ openmp.setDefaultNumThreads(opt.nThreads)
 local geometry = {}
 geometry.wImg = 320
 geometry.hImg = 180
-geometry.maxw = tonumber(opt.win_size)
-geometry.maxh = tonumber(opt.win_size)
+geometry.maxwGT = tonumber(opt.win_size)
+geometry.maxhGT = tonumber(opt.win_size)
 geometry.wKernelGT = 16
 geometry.hKernelGT = 16
 geometry.layers = {}
@@ -104,23 +104,26 @@ elseif tonumber(opt.num_layers) == 2 then
 else
    assert(false)
 end
-geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
-geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.L2Pooling = opt.l2_pooling
 if opt.multiscale == 0 then
    geometry.multiscale = false
    geometry.ratios = {1}
-   geometry.maxwMS = geometry.maxw
-   geometry.maxhMS = geometry.maxh
+   geometry.maxw = geometry.maxwGT
+   geometry.maxh = geometry.maxhGT
 else
    geometry.multiscale = true
    geometry.ratios = {}
    for i = 1,opt.multiscale do table.insert(geometry.ratios, math.pow(2, i-1)) end
-   geometry.maxwMS = geometry.maxw * geometry.ratios[#geometry.ratios]
-   geometry.maxhMS = geometry.maxh * geometry.ratios[#geometry.ratios]
+   geometry.maxw = math.ceil(geometry.maxwGT / geometry.ratios[#geometry.ratios])
+   geometry.maxh = math.ceil(geometry.maxhGT / geometry.ratios[#geometry.ratios])
 end
+geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
+geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.motion_correction = opt.motion_correction
+
+assert(geometry.maxwGT >= geometry.maxw)
+assert(geometry.maxhGT >= geometry.maxh)
 
 local learning = {}
 learning.rate = opt.learning_rate

@@ -51,6 +51,10 @@ function displayKernels(geometry, model)
 end
 
 geometry, model = loadModel(opt.input_model, true)
+if not geometry.maxhGT then
+   geometry.maxhGT = geometry.maxh
+   geometry.maxwGT = geometry.maxw
+end
 displayKernels(geometry, model)
 
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)

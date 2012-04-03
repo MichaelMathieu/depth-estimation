@@ -6,16 +6,16 @@ require 'common'
 require 'CascadingAddTable'
 
 function yx2x(geometry, y, x)
-   return (y-1) * geometry.maxw + x
+   return (y-1) * geometry.maxwGT + x
 end
 
 function x2yx(geometry, x)
    if type(x) == 'number' then
-      return (math.floor((x-1)/geometry.maxw)+1), (math.mod(x-1, geometry.maxw)+1)
+      return (math.floor((x-1)/geometry.maxwGT)+1), (math.mod(x-1, geometry.maxwGT)+1)
    else
       local xdbl = torch.DoubleTensor(x:size()):copy(x)-1
-      local yout = (xdbl/geometry.maxw):floor()
-      local xout = xdbl - yout*geometry.maxw
+      local yout = (xdbl/geometry.maxwGT):floor()
+      local xout = xdbl - yout*geometry.maxwGT
       return (yout+1.5):floor(), (xout+1.5):floor() --(a+0.5):floor() is a:round()
    end
 end
@@ -129,11 +129,11 @@ function x2yxMultiNumber(geometry, x)
 end
 
 function centered2onebased(geometry, y, x)
-   return (y+math.ceil(geometry.maxh/2)), (x+math.ceil(geometry.maxw/2))
+   return (y+math.ceil(geometry.maxhGT/2)), (x+math.ceil(geometry.maxwGT/2))
 end
 
 function onebased2centered(geometry, y, x)
-   return (y-math.ceil(geometry.maxh/2)), (x-math.ceil(geometry.maxw/2))
+   return (y-math.ceil(geometry.maxhGT/2)), (x-math.ceil(geometry.maxwGT/2))
 end
 
 function getModel(geometry, full_image)
@@ -341,14 +341,14 @@ function processOutput(geometry, output, process_full)
       end
       if type(ret.y) == 'number' then
 	 ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
-	 ret.full[1]:fill(math.ceil(geometry.maxh/2))
-	 ret.full[2]:fill(math.ceil(geometry.maxw/2))
+	 ret.full[1]:fill(math.ceil(geometry.maxhGT/2))
+	 ret.full[2]:fill(math.ceil(geometry.maxwGT/2))
 	 ret.full[1][1+hoffset][1+hoffset] = ret.y
 	 ret.full[2][1+hoffset][1+woffset] = ret.x
       else
 	 ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
-	 ret.full[1]:fill(math.ceil(geometry.maxh/2))
-	 ret.full[2]:fill(math.ceil(geometry.maxw/2))
+	 ret.full[1]:fill(math.ceil(geometry.maxhGT/2))
+	 ret.full[2]:fill(math.ceil(geometry.maxwGT/2))
 	 ret.full:sub(1, 1,
 		      1 + hoffset, ret.y:size(1) + hoffset,
 		      1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
@@ -388,9 +388,9 @@ function prepareTarget(geometry, target)
    if geometry.multiscale then
       itarget = yx2xMulti(geometry, target[1], target[2])
    else
-      local targetx = target[2] + math.ceil(geometry.maxw/2)
-      local targety = target[1] + math.ceil(geometry.maxh/2)
-      itarget = (targety-1) * geometry.maxw + targetx
+      local targetx = target[2] + math.ceil(geometry.maxwGT/2)
+      local targety = target[1] + math.ceil(geometry.maxhGT/2)
+      itarget = (targety-1) * geometry.maxwGT + targetx
    end
    --local itarget = yx2x(geometry, target[1], target[2])
    if geometry.soft_targets then
