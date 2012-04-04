@@ -330,7 +330,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
       local iSample = 1
       local thres_n_candidates = (geometry.hImg-geometry.hPatch2)*(geometry.wImg-geometry.wPatch2) * #raw_data.flow / 20
       while iSample <= nSamples do
-         modProgress(iSample, nSamples, 100)
+         --modProgress(iSample, nSamples, 100)
          local yFlow, xFlow = x2yx(geometry, iFlow)
          local candidates = raw_data.histogram[yFlow][xFlow]
          if #candidates > thres_n_candidates then
@@ -366,7 +366,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
    elseif method == 'uniform_position' then
       local iSample = 1
       while iSample <= nSamples do
-         modProgress(iSample, nSamples, 100)
+         --modProgress(iSample, nSamples, 100)
          local iImg = randInt(2, #raw_data.images+1)
          local yPatch = randInt(geometry.hKernelGT-geometry.hKernel,
 				geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)

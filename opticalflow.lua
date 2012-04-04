@@ -215,9 +215,9 @@ for iEpoch = 1,opt.n_epochs do
 
    if opt.renew_train_set then
       print('Generating training set...')
-      local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
-						learning.sampling_method,
-						opt.motion_correction)
+      trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
+					  learning.sampling_method,
+					  opt.motion_correction)
    end
    
    for t = 1,trainData:size() do

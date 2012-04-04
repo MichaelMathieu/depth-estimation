@@ -24,12 +24,12 @@ geometry.maxhGT=16
 geometry.maxwGT=16
 geometry.multiscale=true
 geometry.ratios={1,2}
-geometry.maxh=16
-geometry.maxw=16
+geometry.maxh=8
+geometry.maxw=8
 geometry.wPatch2=geometry.maxw+geometry.wKernel-1
 geometry.hPatch2=geometry.maxh+geometry.hKernel-1
 
-torch.manualSeed(1)
+--torch.manualSeed(1)
 
 nSamples = 100
 
