@@ -51,6 +51,8 @@ op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
 	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
 op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
+op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set',
+	  default=false, help='Renew train set at each epoch'}
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 	  default='./data', help='Root dataset directory'}
@@ -210,6 +212,13 @@ for iEpoch = 1,opt.n_epochs do
    nGood = 0
    nBad = 0
    meanErr = 0
+
+   if opt.renew_train_set then
+      print('Generating training set...')
+      local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
+						learning.sampling_method,
+						opt.motion_correction)
+   end
    
    for t = 1,trainData:size() do
       modProgress(t, trainData:size(), 100)

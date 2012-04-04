@@ -3,8 +3,13 @@ require 'image'
 require 'opticalflow_model'
 
 function asserteq(a, b)
-   assert(a:numel() == b:numel())
-   assert((a:eq(b)):sum() == a:numel())
+   assert(type(a) == type(b))
+   if type(a) == 'number' then
+      assert(a == b)
+   else
+      assert(a:numel() == b:numel())
+      assert((a:eq(b)):sum() == a:numel())
+   end
 end
 
 geometry = {}
@@ -50,6 +55,31 @@ for i = 1,#pyramid.modules do
    end
 end
 
+-- test x2yx/yx2x
+local mh = geometry.maxh*geometry.ratios[#geometry.ratios]
+local mw = geometry.maxw*geometry.ratios[#geometry.ratios]
+for i = -math.ceil(mh/2)+1, math.floor(mh/2) do
+   for j = -math.ceil(mw/2)+1, math.floor(mw/2) do
+      y, x = x2yxMulti(geometry, yx2xMulti(geometry, i, j))
+      local tolerance
+      for r = 1,#geometry.ratios do
+	 if math.abs(i) < geometry.maxh*geometry.ratios[r] and
+	    math.abs(j) < geometry.maxw*geometry.ratios[r] then
+	    tolerance = geometry.ratios[r]
+	 end
+      end
+      assert(math.abs(y-i) < tolerance and math.abs(x-j) < tolerance)
+   end
+end
+local maxx = geometry.maxh*geometry.maxw
+for i = 2,#geometry.ratios do
+   maxx = maxx + geometry.maxh * geometry.maxw *
+      (1 - math.pow(geometry.ratios[i-1]/geometry.ratios[i], 2))
+end
+for i = 1,maxx do
+   assert(yx2xMulti(geometry, x2yxMulti(geometry, i)) == i)
+end
+
 for iSample = 1,nSamples do
    xlua.progress(iSample, nSamples)
    local sample = trainData:getElemFovea(iSample)
@@ -59,6 +89,8 @@ for iSample = 1,nSamples do
    model:focus(x, y)
    local targetCrit, target = prepareTarget(geometry, sample[2])
    local output = model:forward(input)
+   assert(output:size(1) == maxx)
+   processed_output = processOutput(geometry, output)
 
    -- check the groundtruth
    local l1x = math.ceil(geometry.wKernelGT/2)-1
@@ -85,9 +117,9 @@ for iSample = 1,nSamples do
       asserteq(center_px[{{1, 3}}], input[1][{{}, y, x}])
       asserteq(center_px[{{4, 6}}], input[2][{{}, y, x}])
 
-      local filter_crop1b= pyramid.modules[i].modules[3].modules[1].modules[1].modules[1].output
-      local filter_crop1 = pyramid.modules[i].modules[3].modules[1].modules[1].modules[2].output
-      local filter_crop2 = pyramid.modules[i].modules[3].modules[1].modules[2].modules[1].output
+      local filter_crop1b=pyramid.modules[i].modules[3].modules[1].modules[1].modules[1].output
+      local filter_crop1 =pyramid.modules[i].modules[3].modules[1].modules[1].modules[2].output
+      local filter_crop2 =pyramid.modules[i].modules[3].modules[1].modules[2].modules[1].output
       --important : since we want the patches to be centered on ceil-1 AFTER the matching,
       -- they have to be centered to floor before. (and the +1 are because of the 1-based)
       asserteq(filter_crop1[{{}, math.floor(filter_crop1:size(2)/2)+1,
@@ -160,5 +192,32 @@ for iSample = 1,nSamples do
       assert(s[cy][cx] == cascad_out[i][cy][cx]:squeeze())
       asserteq(s, cascad_out[i]:squeeze())
    end
+   
+   -- check complex reshaping
+   local reshaper = model.modules[5]
+   asserteq(reshaper.modules[1].output, cascad_out[1])
+   for i = 2,#geometry.ratios do
+      local blockt = cascad_out[i]
+      local liw = round(geometry.maxw*geometry.ratios[i-1]/geometry.ratios[i])
+      local dw = round((geometry.maxw - liw)/2)
+      local lih = round(geometry.maxh*geometry.ratios[i-1]/geometry.ratios[i])
+      local dh = round((geometry.maxh - lih)/2)
+      blockt:narrow(1, dh+1, lih):narrow(2, dw+1, liw):zero()
+      local reshaped = reshaper.modules[i].output
+      local block = torch.Tensor(blockt:size()):zero()
+      local hb = block:size(3)
+      local wb = block:size(4)
+      block:narrow(1, 1, dh):copy(reshaped:narrow(1, 1, dh*geometry.maxw):reshape(dh, geometry.maxw, hb, wb))
+      block:narrow(1, dh+1, lih):narrow(2, 1, dw):copy(reshaped:narrow(1, dh*geometry.maxw+1, lih*dw):reshape(lih, dw, hb, wb))
+      block:narrow(1, dh+1, lih):narrow(2, dw+lih+1, dw):copy(reshaped:narrow(1, dh*geometry.maxw+lih*dw+1, lih*dw):reshape(lih, dw, hb, wb))
+      block:narrow(1, dh+lih+1, dh):copy(reshaped:narrow(1, dh*geometry.maxw+2*lih*dw+1, dh*geometry.maxw):reshape(dh, geometry.maxw, hb, wb))
+      asserteq(block, blockt)
+   end
+
+   -- check argmin
+   local _, m = model.modules[6].output:min(1)
+   asserteq(processed_output.index, m:squeeze())
+   
+   -- check x2yx
    
 end
