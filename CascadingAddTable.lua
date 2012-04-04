@@ -1,3 +1,4 @@
+require 'nnx'
 local CascadingAddTable, parent = torch.class('nn.CascadingAddTable', 'nn.Module')
 
 function CascadingAddTable:__init(ratios)
@@ -79,10 +80,10 @@ function CascadingAddTable:updateOutput(input)
 end
 
 function CascadingAddTable:updateGradInput(input, gradOutput)
-   print('TODO: CascadingAddTable update backprop to include mean')
+   --print('TODO: CascadingAddTable update backprop to include mean')
    for i = 1,#input do
       self.gradInput[i]:resizeAs(input[i])
-      self.gradInput[i]:copy(gradOutput[i])
+      self.gradInput[i]:copy(gradOutput[i] / (#self.ratios-i+1))
    end
    for i = 2,#input do
       self.gradInput[i]:add(self.transformers[i-1]:backward(input[i],self.gradInput[i-1]))
