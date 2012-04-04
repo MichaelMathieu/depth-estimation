@@ -206,13 +206,12 @@ function getModelMultiscale(geometry, full_image)
    end
    assert(not geometry.L2Pooling)
 
-   -- TODO check again
    local filter1 = nn.Sequential()
    filter1:add(nn.Narrow(1, 1, nChannelsIn))
-   filter1:add(nn.SpatialZeroPadding(-math.ceil( geometry.maxw/2)+1,
-				     -math.floor(geometry.maxw/2),
-				     -math.ceil( geometry.maxh/2)+1,
-  				     -math.floor(geometry.maxh/2)))
+   filter1:add(nn.SpatialZeroPadding(-math.floor((geometry.maxw-1)/2),
+				     -math.ceil ((geometry.maxw-1)/2),
+				     -math.floor((geometry.maxh-1)/2),
+				     -math.ceil ((geometry.maxh-1)/2)))
    filter1:add(filter)
    local filter2 = nn.Sequential()
    filter2:add(nn.Narrow(1, nChannelsIn+1, nChannelsIn))
@@ -252,7 +251,7 @@ function getModelMultiscale(geometry, full_image)
    local postprocessors = nn.ParallelTable()
    postprocessors:add(nn.SmartReshape({-1,-2},-3,-4))
    for i = 2,#geometry.ratios do
-      local d = math.floor(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]) + 0.5)
+      local d = round(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]))
       local remover1 = nn.Sequential()
       local remover2 = nn.Sequential()
       local remover3 = nn.Sequential()
@@ -292,9 +291,7 @@ function getModelMultiscale(geometry, full_image)
 
    if not full_image then
       function model:focus(x, y)
-	 pyramid:focus(x + math.ceil(geometry.wPatch2/2)-1,
-		       y + math.ceil(geometry.hPatch2/2)-1,
-		       1, 1)
+	 pyramid:focus(x, y, 1, 1)
       end
    end
    

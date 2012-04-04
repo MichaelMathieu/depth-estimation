@@ -316,10 +316,13 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
 								 coords[5], coords[6])
 				       return {{patch1, patch2}, self.targets[index]}
 				    end})
+
+   local hoffset = math.ceil(geometry.maxhGT/2) + math.ceil(geometry.hKernel/2) - 2
+   local woffset = math.ceil(geometry.maxwGT/2) + math.ceil(geometry.wKernel/2) - 2
    function dataset:getElemFovea(index)
       local coords = self.patches[index]
       return {{{self.raw_data.images[coords[1]], self.raw_data.images[coords[2]]},
-	       {coords[3], coords[5]}}, self.targets[index]}
+	       {coords[3]+hoffset, coords[5]+woffset}}, self.targets[index]}
    end
 
    if method == 'uniform_flow' then
@@ -361,14 +364,14 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
          end
       end
    elseif method == 'uniform_position' then
-      local hoffset = math.ceil(geometry.maxhGT/2) + math.ceil(geometry.hKernel/2) - 2
-      local woffset = math.ceil(geometry.maxwGT/2) + math.ceil(geometry.wKernel/2) - 2
       local iSample = 1
       while iSample <= nSamples do
          modProgress(iSample, nSamples, 100)
          local iImg = randInt(2, #raw_data.images+1)
-         local yPatch = randInt(1, geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
-         local xPatch = randInt(1, geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
+         local yPatch = randInt(geometry.hKernelGT-geometry.hKernel,
+				geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
+         local xPatch = randInt(geometry.wKernelGT-geometry.wKernel,
+				geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
          local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
          local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
 
