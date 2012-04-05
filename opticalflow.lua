@@ -17,27 +17,27 @@ op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
 -- network
 op:option{'-nf', '--n-features', action='store', dest='n_features',
-          default=10, help='Number of features in the first layer'}
+          default=10, help='Number of features used for the matching'}
 op:option{'-k1s', '--kernel1-size', action='store', dest='kernel1_size',
-	  default=5, help='Kernel 1 size, if ns == two_layers'}
+	  default=5, help='Kernel 1 size'}
 op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
 	  default=16, help='Kernel 2 size'}
 op:option{'-k3s', '--kernel3-size', action='store', dest='kernel3_size',
 	  default=16, help='Kernel 3 size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
-	  default=17, help='Window size (maxh)'}
+	  default=17, help='Window size maxw (and maxh)'}
 op:option{'-nl', '-num-layers', action='store', dest='num_layers',
-	  default=2, help='Number of layers in the network (1 or 2)'}
+	  default=2, help='Number of layers in the network (1 2 or 3)'}
 op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', default=8,
-	  help='Second (hidden) layer size, if ns == two_layers'}
+	  help='Second layer size, if nl >= 2'}
 op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_connections',
 	  default=4, help='Number of connectons between layers 1 and 2'}
 op:option{'-s3', '--layer-three-size', action='store', dest='layer_three_size', default=8,
-     help='Third (hidden) layer size, if ns == three_layers'}
+     help='Third layer size, if nl >= 3'}
 op:option{'-s3c', '--layer-three-connections', action='store', dest='layer_three_connections',
      default=4, help='Number of connectons between layers 2 and 3'}
 op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
-	  help='L2 pooling'}
+	  help='L2 pooling (experimental)'}
 op:option{'-ms', '--multiscale', action='store', dest='multiscale', default=0,
 	  help='Number of scales used (0 disables multiscale)'}
 -- learning
@@ -50,13 +50,13 @@ op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
 op:option{'-lrd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
-          default=5e-7, help='Learning rate decay'}
+          default=5e-7, help='Learning rate decay (probably meangingless)'}
 op:option{'-lrd2', '--learning-rate-decay2', action='store', dest='learning_rate_decay2',
           default=0, help='Learning rate decay over the epochs ( rate_i = rate/pow(iEpoch,rateDecay2) )'}
 op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
-	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
+	  help='Enable soft targets (targets are gaussians centered on groundtruth) (experimental)'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
-	  default='uniform_position', help='Sampling method. uniform_position | uniform_flow'}
+	  default='uniform_position', help='Sampling method : uniform_position | uniform_flow'}
 op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set',
@@ -66,7 +66,7 @@ op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 	  default='./data', help='Root dataset directory'}
 op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
 	  help='Index of first image used'}
-op:option{'-d', '--delta', action='store', dest='delta', default=2,
+op:option{'-d', '--delta', action='store', dest='delta', default=1,
 	  help='Delta between two consecutive frames'}
 op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
