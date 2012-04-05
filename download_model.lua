@@ -1,5 +1,4 @@
-require 'torch'
-require 'xlua'
+require 'sys'
 
 function split(str, char)
    local nb, ne
@@ -16,17 +15,50 @@ function split(str, char)
    end
 end
 
-
-function listdir(sshpath, dir)
-   local r = io.popen('ssh ' .. sshpath .. " 'ls " .. dir .. "'")
-   local ret = {}
-   while true do
-      local t = r:read()
-      if t == nil then
+function strip(str, chars)
+   local function nochar(a)
+      for i = 1,#chars do
+	 if a == chars[i] then
+	    return false
+	 end
+      end
+      return true
+   end
+   local i = 1
+   while i <= str:len() do
+      if nochar(str:sub(i,i)) then
 	 break
       end
-      if t:sub(-1) ~= '~' and (t:sub(1) ~= '#' or t:sub(-1) ~= '#') then
-	 table.insert(ret, t)
+      i = i+1
+   end
+   local str2 = str:sub(i)
+   i = str2:len()
+   while i >= 1 do
+      if nochar(str2:sub(i,i)) then
+	 break
+      end
+      i = i-1
+   end
+   return str2:sub(1,i)
+end
+
+function listdir(sshpath, dir)
+   if dir:sub(-1) ~= '/' then
+      dir = dir .. '/'
+   end
+   local r = sys.execute(string.format("ssh %s 'ls -cE %s' | awk '{print $6 \" \" $9}'",
+				       sshpath, dir))
+   local ret = {}
+   local lines = split(r:strip({'\n'}), '\n')
+   for i = 1,#lines do
+      local t = lines[i]:strip({' '})
+      if t ~= '' then
+	 local splited = split(t, ' ')
+	 local date = splited[1]
+	 local name = splited[2]
+	 if #splited == 2 and name:sub(-1) ~= '~' and (name:sub(1) ~= '#' or name:sub(-1) ~= '#') then
+	    table.insert(ret, {name, date})
+	 end
       end
    end
    return ret
@@ -61,47 +93,50 @@ end
 function filterFilters(strs)
    local ret = {}
    for i = 1,#strs do
-      local parsed = parseFilter(strs[i])
+      local parsed = parseFilter(strs[i][1])
       if parsed ~= nil then
-	 table.insert(ret, {strs[i], parsed[1], parsed[2]})
+	 table.insert(ret, {strs[i][1], strs[i][2], parsed})
       end
    end
    return ret
 end
 
 function filterLearnings(strs)
-   local ret = {}
-   for i = 1,#strs do
-      table.insert(ret, {strs[i]})
-   end
-   return ret
+   return strs
 end
 
 function filterImages(strs)
-   local ret = {}
-   for i = 1,#strs do
-      table.insert(ret, {strs[i]})
-   end
-   return ret
+   return strs
 end
 
 function filterEpochs(strs)
    local ret = {}
    for i = 1,#strs do
-      local str = strs[i]
+      local str = strs[i][1]
       if str:sub(1,11) == 'model_of__e' then
 	 local n = tonumber(str:sub(12))
 	 if n ~= nil then
-	    table.insert(ret, {str, n})
+	    table.insert(ret, {str, strs[i][2], n})
 	 end
       end
    end
    return ret
 end
 
-function selectFile(files)
+function isRecent(date1, today)
+   --alright, that doesn't work on bissextile year :P
+   local date1day = tonumber(strip(sys.execute('date -d ' .. date1 .. ' +%j'), {' ', '\n'}))
+   local todayday = tonumber(strip(sys.execute('date -d ' .. today .. ' +%j'), {' ', '\n'}))
+   return math.mod(todayday-date1day, 365) < 2
+end
+
+function selectFile(files, today)
    for i = 1,#files do
-      print('(' .. i .. ') ' .. files[i][1])
+      if isRecent(files[i][2], today) then
+	 print('(' .. i .. ') ' .. files[i][1] .. ' *')
+      else
+	 print('(' .. i .. ') ' .. files[i][1])
+      end
    end
    local i = nil
    while i == nil do
@@ -110,15 +145,15 @@ function selectFile(files)
    return files[i]
 end
 
-function selectEpoch(epochs)
+function selectEpoch(epochs, recent)
    local mini = #epochs+1000
    local maxi = -1
    for i = 1,#epochs do
-      if epochs[i][2] < mini then
-	 mini = epochs[i][2]
+      if epochs[i][3] < mini then
+	 mini = epochs[i][3]
       end
-      if epochs[i][2] > maxi then
-	 maxi = epochs[i][2]
+      if epochs[i][3] > maxi then
+	 maxi = epochs[i][3]
       end
    end
    if maxi == -1 or mini ~= 0 or maxi ~= #epochs-1 then
@@ -136,17 +171,18 @@ end
 
 function prompt(sshpath, basepath)
    local path = basepath
+   local recent = sys.execute('date +%F'):strip({' ', '\n'})
    local filters = filterFilters(listdir(sshpath, path))
-   local filter = selectFile(filters)
+   local filter = selectFile(filters, recent)
    path = path .. '/' .. filter[1]
    local learnings = filterLearnings(listdir(sshpath, path))
-   local learning = selectFile(learnings)
+   local learning = selectFile(learnings, recent)
    path = path .. '/' .. learning[1]
    local images = filterImages(listdir(sshpath, path))
-   local image = selectFile(images)
+   local image = selectFile(images, recent)
    path = path .. '/' .. image[1]
    local epochs = filterEpochs(listdir(sshpath, path))
-   local epoch = selectEpoch(epochs)
+   local epoch = selectEpoch(epochs, recent)
    path = path .. '/' .. epoch[1]
    return path, epoch[1]
 end
