@@ -47,7 +47,7 @@ function get_inliers_number(ptsin, ptsout, sample)
 	local thr = torch.sqrt(5.99*torch.pow(stderr,2))
 	
 	for i=1,npts do
-		if d[i]<thr then inliers = inliers+1 end
+		if d[i]<=thr then inliers = inliers+1 end
 	end
 
 	return inliers

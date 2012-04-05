@@ -195,7 +195,7 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta,
    for line in io.popen(findIm):lines() do
       local linebase,_ = line:gsub('.jpg', '')
       if linebase .. '.jpg' == line then
-	 table.insert(imagepaths_raw, linebase)
+         table.insert(imagepaths_raw, linebase)
       end
    end
    local imagepaths = {}
@@ -308,7 +308,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
 				       else
 					  image2 = self.raw_data.images[coords[2]]
 				       end
-				       local patch1 = image1:sub(1, image1:size(1),
+                   local patch1 = image1:sub(1, image1:size(1),
 								 coords[3], coords[4],
 								 coords[5], coords[6])
 				       local patch2 = image2:sub(1, image2:size(1),
@@ -368,10 +368,10 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
       while iSample <= nSamples do
          --modProgress(iSample, nSamples, 100)
          local iImg = randInt(2, #raw_data.images+1)
-         local yPatch = randInt(geometry.hKernelGT-geometry.hKernel,
-				geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
-         local xPatch = randInt(geometry.wKernelGT-geometry.wKernel,
-				geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
+
+         local yPatch = randInt(1, geometry.hImg-geometry.maxh-geometry.hKernelGT-1)
+         local xPatch = randInt(1, geometry.wImg-geometry.maxw-geometry.wKernelGT-1)
+
          local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
          local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
 
