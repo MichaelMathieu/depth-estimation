@@ -163,10 +163,15 @@ function selectEpoch(epochs, recent)
       print("Missing epochs, can't perform model selection")
       return nil
    end
-   print("Select epoch: " .. mini .. ".." .. maxi)
+   print("Select epoch: " .. mini .. ".." .. maxi .. ' (default = last)')
    local i = nil
    while i == nil do
-      i = tonumber(io.read())
+      i = io.read()
+      if i == '' then
+	 return {'model_of__e' .. maxi, maxi}
+      else
+	 i = tonumber(i)
+      end
    end
    assert(mini <= i and i <= maxi)
    return {'model_of__e' .. i, i}
