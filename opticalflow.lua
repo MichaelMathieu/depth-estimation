@@ -51,6 +51,8 @@ op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
 op:option{'-lrd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
           default=5e-7, help='Learning rate decay'}
+op:option{'-lrd2', '--learning-rate-decay2', action='store', dest='learning_rate_decay2',
+          default=0, help='Learning rate decay over the epochs ( rate_i = rate/pow(iEpoch,rateDecay2) )'}
 op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
 	  help='Enable soft targets (targets are gaussians centered on groundtruth)'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
@@ -145,6 +147,7 @@ assert(geometry.maxhGT >= geometry.maxh)
 local learning = {}
 learning.rate = opt.learning_rate
 learning.rate_decay = opt.learning_rate_decay
+learning.rate_decay2 = opt.learning_rate_decay2
 learning.weight_decay = opt.weight_decay
 learning.sampling_method = opt.sampling_method
 learning.renew_train_set = opt.renew_train_set
@@ -271,7 +274,7 @@ for iEpoch = 1,opt.n_epochs do
 		       return err, gradParameters
 		    end
 
-      config = {learningRate = learning.rate,
+      config = {learningRate = learning.rate / math.pow(iEpoch, learning.rate_decay2),
 		weightDecay = learning.weight_decay,
 		momentum = 0,
 		learningRateDecay = learning.rate_decay}
