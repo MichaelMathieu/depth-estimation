@@ -22,6 +22,8 @@ op:option{'-k1s', '--kernel1-size', action='store', dest='kernel1_size',
 	  default=5, help='Kernel 1 size, if ns == two_layers'}
 op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
 	  default=16, help='Kernel 2 size'}
+op:option{'-k3s', '--kernel3-size', action='store', dest='kernel3_size',
+	  default=16, help='Kernel 3 size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
 	  default=17, help='Window size (maxh)'}
 op:option{'-nl', '-num-layers', action='store', dest='num_layers',
@@ -30,6 +32,10 @@ op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', defa
 	  help='Second (hidden) layer size, if ns == two_layers'}
 op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_connections',
 	  default=4, help='Number of connectons between layers 1 and 2'}
+op:option{'-s3', '--layer-three-size', action='store', dest='layer_three_size', default=8,
+     help='Third (hidden) layer size, if ns == three_layers'}
+op:option{'-s3c', '--layer-three-connections', action='store', dest='layer_three_connections',
+     default=4, help='Number of connectons between layers 2 and 3'}
 op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
 	  help='L2 pooling'}
 op:option{'-ms', '--multiscale', action='store', dest='multiscale', default=0,
@@ -101,6 +107,15 @@ elseif tonumber(opt.num_layers) == 2 then
 			 tonumber(opt.kernel2_size), tonumber(opt.n_features)}
    geometry.wKernel = tonumber(opt.kernel1_size) + tonumber(opt.kernel2_size) - 1
    geometry.hKernel = tonumber(opt.kernel1_size) + tonumber(opt.kernel2_size) - 1
+elseif tonumber(opt.num_layers) == 3 then
+   geometry.layers[1] = {3, tonumber(opt.kernel1_size), tonumber(opt.kernel1_size),
+			 tonumber(opt.layer_two_size)}
+   geometry.layers[2] = {tonumber(opt.layer_two_connections), tonumber(opt.kernel2_size),
+			 tonumber(opt.kernel2_size), tonumber(opt.layer_three_size)}
+   geometry.layers[3] = {tonumber(opt.layer_three_connections), tonumber(opt.kernel3_size),
+			 tonumber(opt.kernel3_size), tonumber(opt.n_features)}
+   geometry.wKernel = tonumber(opt.kernel1_size) + tonumber(opt.kernel2_size) + tonumber(opt.kernel3_size) - 2
+   geometry.hKernel = tonumber(opt.kernel1_size) + tonumber(opt.kernel2_size) + tonumber(opt.kernel3_size) - 2
 else
    assert(false)
 end
