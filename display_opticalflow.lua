@@ -7,6 +7,7 @@ require 'opticalflow_model'
 require 'groundtruth_opticalflow'
 require 'openmp'
 require 'score_opticalflow'
+require 'download_model'
 
 torch.manualSeed(1)
 
@@ -16,12 +17,14 @@ op:option{'-i1', '--input-image1', action='store', dest='input_image1',
 op:option{'-i2', '--input-image2', action='store', dest='input_image2',
 	  help='Second image for the optical flow'}
 op:option{'-i', '--input-model', action='store', dest='input_model',
-	  help='Trained convnet'}
+	  help='Trained convnet, this option isn\'t used if -dldir is used'}
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
 op:option{'-p', '--post-process-win-size', action='store', dest='post_process_winsize',
 	  default=1,
 	  help='Basic output post-processing window size (1 disables post-processing)'}
+op:option{'-dldir', '--download-dir', action='store', dest='download_dir', default=nil,
+	  help='scp command to the models folder (eg. mfm352@access.cims.nyu.edu:/depth-estimation/models)'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -50,6 +53,10 @@ function displayKernels(geometry, model)
 	 image.display{image=weight2, padding=2, zoom=8}
       end
    end
+end
+
+if opt.download_dir ~= nil then
+   opt.input_model = downloadModel(opt.download_dir)
 end
 
 geometry, model = loadModel(opt.input_model, true)
