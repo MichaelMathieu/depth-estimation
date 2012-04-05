@@ -37,6 +37,8 @@ function displayKernels(geometry, model)
 	 image.display{image=weight, padding=2, zoom=8}
 	 if #geometry.layers > 1 then
 	    local weight2 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	    weight2 = weight2:reshape(weight2:size(1)*weight2:size(2), weight2:size(3),
+				      weight2:size(4))
 	    image.display{image=weight2, padding=2, zoom=8}
 	 end
       end

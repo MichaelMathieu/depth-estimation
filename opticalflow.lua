@@ -132,6 +132,7 @@ learning.rate = opt.learning_rate
 learning.rate_decay = opt.learning_rate_decay
 learning.weight_decay = opt.weight_decay
 learning.sampling_method = opt.sampling_method
+learning.renew_train_set = opt.renew_train_set
 
 local summary = describeModel(geometry, learning, opt.num_input_images,
 			      opt.first_image, opt.delta)
@@ -213,7 +214,7 @@ for iEpoch = 1,opt.n_epochs do
    nBad = 0
    meanErr = 0
 
-   if opt.renew_train_set then
+   if learning.renew_train_set then
       print('Generating training set...')
       trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
 					  learning.sampling_method,

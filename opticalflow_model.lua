@@ -435,7 +435,10 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
       sampling = '_' .. learning.sampling_method
    end
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
-   learning_ = learning_ .. ') weight decay=' .. learning.weight_decay .. targets .. sampling
+   learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets .. sampling
+   if learning.renew_train_set then
+      learning_ = learning_ .. ' renewTrainSet'
+   end
    local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
    return summary
 end
@@ -460,12 +463,14 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
    local modeldir = modelsdirbase .. '/' .. kernel
    local targets = ''
    local sampling = ''
-   if geometry.soft_targets then targets = ' softTargets' end
+   local renew = ''
+   if geometry.soft_targets then targets = '_softTargets' end
    if learning.sampling_method ~= 'uniform_position' then
-      sampling = ' ' ..learning.sampling_method
+      sampling = '_' ..learning.sampling_method
    end
+   if learning.renew_train_set then renew = '_renew' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay .. '_wd'
-   train_params = train_params .. learning.weight_decay .. sampling .. targets
+   train_params = train_params .. learning.weight_decay .. sampling .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
    local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
    modeldir = modeldir .. '/' .. images
