@@ -143,7 +143,11 @@ function selectFile(files, today)
    end
    local i = nil
    while i == nil do
-      i = tonumber(io.read())
+      i = io.read()
+      if i == '' and #files == 1 then
+	 i = 1
+      end
+      i = tonumber(i)
    end
    return files[i]
 end

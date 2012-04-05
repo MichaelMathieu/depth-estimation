@@ -435,6 +435,7 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
       sampling = '_' .. learning.sampling_method
    end
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
+   learning_ = learning_ .. ', ' .. learning.rate_decay2
    learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets .. sampling
    if learning.renew_train_set then
       learning_ = learning_ .. ' renewTrainSet'
@@ -469,8 +470,9 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
       sampling = '_' ..learning.sampling_method
    end
    if learning.renew_train_set then renew = '_renew' end
-   local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay .. '_wd'
-   train_params = train_params .. learning.weight_decay .. sampling .. targets .. renew
+   local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
+   train_params = train_params .. '_rd2' .. learning.rate_decay2
+   train_params = train_params .. '_wd' ..learning.weight_decay .. sampling .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
    local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
    modeldir = modeldir .. '/' .. images
