@@ -46,10 +46,13 @@ function listdir(sshpath, dir)
    if dir:sub(-1) ~= '/' then
       dir = dir .. '/'
    end
-   local r = sys.execute(string.format("ssh %s 'ls -cE %s' | awk '{print $6 \" \" $9}'",
-				       sshpath, dir))
+   local r = sys.execute(string.format("ssh %s '[[ `uname` == \"Linux\" ]] && ls -l --time-style +%%F | awk '\\''{print $6 \" \" $7}'\\'' || [[ `uname` == \"SunOS\" ]] && ls -cE %s | awk '\\''{print $6 \" \" $9}'\\'' || echo ERROR `uname`'", sshpath, dir))
    local ret = {}
    local lines = split(r:strip({'\n'}), '\n')
+   if #lines == 1 and split(lines[1], ' ')[1] == 'ERROR' then
+      print('Error : No support for ' .. split(lines[1], ' ')[2])
+      return nil
+   end
    for i = 1,#lines do
       local t = lines[i]:strip({' '})
       if t ~= '' then
