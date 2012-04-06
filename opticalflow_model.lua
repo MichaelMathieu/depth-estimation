@@ -128,10 +128,11 @@ function x2yxMultiNumber(geometry, x)
    assert(false) -- this should not happen if geometry is coherent with x
 end
 
+-- these 2 functions are kinda deprecated and confusing (because maxhGT != maxh)
+-- todo: try not to use them, eventually remove them
 function centered2onebased(geometry, y, x)
    return (y+math.ceil(geometry.maxhGT/2)), (x+math.ceil(geometry.maxwGT/2))
 end
-
 function onebased2centered(geometry, y, x)
    return (y-math.ceil(geometry.maxhGT/2)), (x-math.ceil(geometry.maxwGT/2))
 end
@@ -444,8 +445,8 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    return summary
 end
 
-function saveModel(basefilename, geometry, learning, parameters, nImgs, first_image, delta,
-		   nEpochs)
+function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
+		   first_image, delta, nEpochs)
    local modelsdirbase = 'models'
    local kernel = ''
    for i = 1,#geometry.layers do
@@ -471,27 +472,47 @@ function saveModel(basefilename, geometry, learning, parameters, nImgs, first_im
    end
    if learning.renew_train_set then renew = '_renew' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
-   train_params = train_params .. '_rd2' .. learning.rate_decay2
+   train_params = train_params .. '_rdTwo' .. learning.rate_decay2
    train_params = train_params .. '_wd' ..learning.weight_decay .. sampling .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
    local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
    modeldir = modeldir .. '/' .. images
    os.execute('mkdir -p ' .. modeldir)
-   torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs,
-	      {parameters, geometry})
+
+   local tosave = {}
+   tosave.version = 1
+   if geometry.multiscale then
+      tosave.getModel = getModelMultiscale
+   else
+      tosave.getModel = getModel
+   end
+   tosave.model = model
+   tosave.parameters = parameters
+   tosave.geometry = geometry
+   tosave.learning = learning
+   torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs, tosave)
 end
 
 function loadModel(filename, full_output)
    local loaded = torch.load(filename)
-   local geometry = loaded[2]
-   local model
-   if geometry.multiscale then
-      model = getModelMultiscale(geometry, full_output)
+   local geometry, model
+   if not loaded.version then -- old version
+      geometry = loaded[2]
+      if geometry.multiscale then
+	 model = getModelMultiscale(geometry, full_output)
+      else
+	 model = getModel(geometry, full_output)
+      end
+      local parameters = model:getParameters()
+      parameters:copy(loaded[1])
+   elseif loaded.version == 1 then 
+      geometry = loaded.geometry
+      model = loaded.getModel(geometry, full_output)
+      local parameters = model:getParameters()
+      parameters:copy(loaded.parameters)
    else
-      model = getModel(geometry, full_output)
+      error('loadModel: wrong version')
    end
-   local parameters = model:getParameters()
-   parameters:copy(loaded[1])
    return geometry, model
 end
 

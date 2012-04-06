@@ -183,7 +183,7 @@ print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
 					 learning.sampling_method, opt.motion_correction)
 
-saveModel('model_of_', geometry, learning, parameters, opt.num_input_images,
+saveModel('model_of_', geometry, learning, parameters, model, opt.num_input_images,
 	  opt.first_image, opt.delta, 0)
 
 for iEpoch = 1,opt.n_epochs do
@@ -210,13 +210,10 @@ for iEpoch = 1,opt.n_epochs do
       end
 
       local output = model:forward(input)
-      --print(output:size())
       local err = criterion:forward(output:squeeze(), targetCrit)
       
       meanErr = meanErr + err
       local outputp = processOutput(geometry, output:squeeze(), false)
-      --local outputp = processOutput2(geometry, output)
-      --print(outputp)
       if outputp.index == target then
 	 nGood = nGood + 1
       else
@@ -285,7 +282,7 @@ for iEpoch = 1,opt.n_epochs do
    meanErr = meanErr / (trainData:size())
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
-   saveModel('model_of_', geometry, learning, parameters, opt.num_input_images,
+   saveModel('model_of_', geometry, learning, parameters, model, opt.num_input_images,
 	     opt.first_image, opt.delta, iEpoch)
 
 end
