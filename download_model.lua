@@ -128,9 +128,16 @@ end
 
 function isRecent(date1, today)
    --alright, that doesn't work on bissextile year :P
+   if date1 == today then
+      return ' **'
+   end
    local date1day = tonumber(strip(sys.execute('date -d ' .. date1 .. ' +%j'), {' ', '\n'}))
    local todayday = tonumber(strip(sys.execute('date -d ' .. today .. ' +%j'), {' ', '\n'}))
-   return math.mod(todayday-date1day, 365) < 2
+   if math.mod(todayday-date1day, 365) < 2 then
+      return ' *'
+   else
+      return ''
+   end
 end
 
 function selectFile(files, today)
@@ -139,11 +146,7 @@ function selectFile(files, today)
       return nil
    end
    for i = 1,#files do
-      if isRecent(files[i][2], today) then
-	 print('(' .. i .. ') ' .. files[i][1] .. ' *')
-      else
-	 print('(' .. i .. ') ' .. files[i][1])
-      end
+      print('(' .. i .. ') ' .. files[i][1] .. isRecent(files[i][2], today))
    end
    local i = nil
    while i == nil do
@@ -156,7 +159,7 @@ function selectFile(files, today)
    return files[i]
 end
 
-function selectEpoch(epochs, recent)
+function selectEpoch(epochs, today)
    local mini = #epochs+1000
    local maxi = -1
    for i = 1,#epochs do
@@ -187,21 +190,21 @@ end
 
 function prompt(sshpath, basepath)
    local path = basepath
-   local recent = sys.execute('date +%F'):strip({' ', '\n'})
+   local today = sys.execute('date +%F'):strip({' ', '\n'})
    local filters = filterFilters(listdir(sshpath, path))
-   local filter = selectFile(filters, recent)
+   local filter = selectFile(filters, today)
    if filter == nil then return nil end
    path = path .. '/' .. filter[1]
    local learnings = filterLearnings(listdir(sshpath, path))
-   local learning = selectFile(learnings, recent)
+   local learning = selectFile(learnings, today)
    if learning == nil then return nil end
    path = path .. '/' .. learning[1]
    local images = filterImages(listdir(sshpath, path))
-   local image = selectFile(images, recent)
+   local image = selectFile(images, today)
    if image == nil then return nil end
    path = path .. '/' .. image[1]
    local epochs = filterEpochs(listdir(sshpath, path))
-   local epoch = selectEpoch(epochs, recent)
+   local epoch = selectEpoch(epochs, today)
    if epoch == nil then return nil end
    path = path .. '/' .. epoch[1]
    return path, epoch[1]

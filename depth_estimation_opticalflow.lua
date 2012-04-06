@@ -40,8 +40,9 @@ if opt.download_dir ~= nil then
    end
 end
 
-local loaded = loadModel(opt.input_model, true)
+local loaded = loadModel(opt.input_model, true, true)
 local model = loaded.model
+local filter = locaded.filter
 local geometry = loaded.geometry
 
 local output_window

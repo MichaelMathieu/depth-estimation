@@ -137,7 +137,8 @@ function onebased2centered(geometry, y, x)
    return (y-math.ceil(geometry.maxhGT/2)), (x-math.ceil(geometry.maxwGT/2))
 end
 
-function getModel(geometry, full_image)
+function getFilter(geometry)
+   assert(not geometry.L2Pooling)
    local filter = nn.Sequential()
    for i = 1,#geometry.layers do
       if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
@@ -153,14 +154,21 @@ function getModel(geometry, full_image)
 	 filter:add(nn.Tanh())
       end
    end
-   assert(not geometry.L2Pooling)
+   return filter
+end
 
-   local parallel = nn.ParallelTable()
-   parallel:add(filter)
-   parallel:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
-
+function getModel(geometry, full_image, prefiltered)
+   if prefiltered == nil then prefiltered = false end
    local model = nn.Sequential()
-   model:add(parallel)
+
+   if not prefiltered then
+      local filter = getFilter(geometry)
+      local parallel = nn.ParallelTable()
+      parallel:add(filter)
+      parallel:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+      model:add(parallel)
+   end
+
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
@@ -180,7 +188,10 @@ function getModel(geometry, full_image)
    return model
 end
 
-function getModelMultiscale(geometry, full_image)
+function getModelMultiscale(geometry, full_image, prefiltered)
+   if prefiltered == true then
+      error('getModelMultiscale: prefiltered not implemented yet')
+   end
    assert(geometry.ratios[1] == 1)
    local rmax = geometry.ratios[#geometry.ratios]
    for i = 1,#geometry.ratios do
@@ -190,22 +201,7 @@ function getModelMultiscale(geometry, full_image)
    end
    local nChannelsIn = geometry.layers[1][1]
    
-   local filter = nn.Sequential()
-   for i = 1,#geometry.layers do
-      if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
-	 filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
-					  geometry.layers[i][2], geometry.layers[i][3]))
-      else
-	 filter:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layers[i-1][4],
-							      geometry.layers[i][4],
-							      geometry.layers[i][1]),
-					     geometry.layers[i][2], geometry.layers[i][3]))
-      end
-      if i ~= #geometry.layers then
-	 filter:add(nn.Tanh())
-      end
-   end
-   assert(not geometry.L2Pooling)
+   local filter = getFilter(geometry)
 
    local filter1 = nn.Sequential()
    filter1:add(nn.Narrow(1, 1, nChannelsIn))
@@ -520,7 +516,7 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 1
+   tosave.version = 2
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
@@ -531,10 +527,11 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    tosave.geometry = geometry
    tosave.learning = learning
    tosave.getKernels = getKernels
+   tosave.getFilter = getFilter
    torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs, tosave)
 end
 
-function loadModel(filename, full_output)
+function loadModel(filename, full_output, prefilter)
    local loaded = torch.load(filename)
    local ret = {}
    if not loaded.version then -- old version
@@ -578,12 +575,21 @@ function loadModel(filename, full_output)
       end
       local parameters = ret.model:getParameters()
       parameters:copy(loaded[1])
-   elseif loaded.version == 1 then 
+   elseif loaded.version >= 1 then 
       ret.geometry = loaded.geometry
       ret.model = loaded.getModel(ret.geometry, full_output)
       ret.getKernel = loaded.getKernels
-      local parameters = ret.model:getParameters()
-      parameters:copy(loaded.parameters)
+      if prefilter == true then
+	 if loaded.version < 2 then
+	    error("loadModel: prefilter didn't exist before version 2")
+	 end
+	 ret.filter = loaded.getFilter(geometry)
+	 local parameters = ret.filters:getParameters()
+	 parameters:copy(loaded.parameters)
+      else
+	 local parameters = ret.model:getParameters()
+	 parameters:copy(loaded.parameters)
+      end
    else
       error('loadModel: wrong version')
    end
