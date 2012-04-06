@@ -11,11 +11,14 @@ geometry.hKernelGT=16
 geometry.wKernelGT=16
 geometry.maxh=16
 geometry.maxw=16
+geometry.maxhGT=16
+geometry.maxwGT=16
 geometry.maxhMS = geometry.maxh
 geometry.maxwMS = geometry.maxw
 geometry.wPatch2=geometry.maxw+geometry.wKernel-1
 geometry.hPatch2=geometry.maxh+geometry.hKernel-1
 geometry.nChannelsIn=3
+geometry.motion_correction = true
 
 nSamples = 1000
 
@@ -24,13 +27,9 @@ nSamples = 1000
 torch.manualSeed(1)
 
 raw_data = loadDataOpticalFlow(geometry, 'data/', 2, '000000012', 1)
---yflow, xflow = getOpticalFlowFast(geometry, raw_data.images[1], raw_data.images[2])
---raw_data.flow[1] = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(12)
---raw_data.flow[1][1]:copy(yflow)
---raw_data.flow[1][2]:copy(xflow)
-image.display(raw_data.flow[1])
-
 trainData = generateDataOpticalFlow(geometry, raw_data, nSamples, 'uniform_position')
+
+image.display(raw_data.flow[1])
 
 nGood = 0
 nBad = 0
