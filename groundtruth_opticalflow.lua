@@ -219,7 +219,7 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
       iLine = iLine + delta
    end
 
-   if use_motion_correction then
+   if geometry.motion_correction then
       raw_data.rectified_images = {}
       raw_data.H = {}
 
@@ -230,7 +230,7 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
    local im = loadImageOpticalFlow(geometry, dirbasename, imagepaths[1], nil, nil)
    table.insert(raw_data.images, im)
    for i = 2,math.min(#imagepaths, nImgs) do
-      if use_motion_correction then
+      if geometry.motion_correction then
          local im, flow, im_rect = loadRectifiedImageOpticalFlow(geometry, dirbasename,
 								    imagepaths[i],
 								    imagepaths[i-1], delta)
