@@ -408,6 +408,37 @@ function prepareTarget(geometry, target)
    end
 end
 
+function getKernels(geometry, model)
+   local kernels = {}
+   if geometry.multiscale then
+      for i = 1,#geometry.ratios do
+	 local matcher = model.modules[2].unfocused_pipeline.modules[i].modules[3]
+	 local weight = matcher.modules[1].modules[1].modules[3].modules[1].weight
+	 table.insert(kernel, weight)
+	 if #geometry.layers > 1 then
+	    local weight2 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	    if weight2:nDimension() > 3 then --what that happens *only* sometimes??
+	       weight2 = weight2:reshape(weight2:size(1)*weight2:size(2), weight2:size(3),
+					 weight2:size(4))
+	    end
+	    table.insert(kernel, weight2)
+	 end
+      end
+   else
+      local weight = model.modules[1].modules[1].modules[1].weight
+      table.insert(kernel, weight)
+      if #geometry.layers > 1 then
+	 local weight2 = model.modules[1].modules[1].modules[3].weight
+	 if weight2:nDimension() > 3 then --what that happens *only* sometimes??
+	    weight2 = weight2:reshape(weight2:size(1)*weight2:size(2), weight2:size(3),
+				      weight2:size(4))
+	 end
+	 table.insert(kernel, weight2)
+      end
+   end
+   return kernels
+end
+
 function describeModel(geometry, learning, nImgs, first_image, delta)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
    local kernel = 'kernel=('
@@ -490,30 +521,32 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    tosave.parameters = parameters
    tosave.geometry = geometry
    tosave.learning = learning
+   tosave.getKernels = getKernels
    torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs, tosave)
 end
 
 function loadModel(filename, full_output)
    local loaded = torch.load(filename)
-   local geometry, model
+   local ret = {}
    if not loaded.version then -- old version
-      geometry = loaded[2]
-      if geometry.multiscale then
-	 model = getModelMultiscale(geometry, full_output)
+      ret.geometry = loaded[2]
+      if ret.geometry.multiscale then
+	 ret.model = getModelMultiscale(ret.geometry, full_output)
       else
-	 model = getModel(geometry, full_output)
+	 ret.model = getModel(ret.geometry, full_output)
       end
-      local parameters = model:getParameters()
+      local parameters = ret.model:getParameters()
       parameters:copy(loaded[1])
    elseif loaded.version == 1 then 
-      geometry = loaded.geometry
-      model = loaded.getModel(geometry, full_output)
-      local parameters = model:getParameters()
+      ret.geometry = loaded.geometry
+      ret.model = loaded.getModel(ret.geometry, full_output)
+      ret.getKernel = loaded.getKernels
+      local parameters = ret.model:getParameters()
       parameters:copy(loaded.parameters)
    else
       error('loadModel: wrong version')
    end
-   return geometry, model
+   return ret
 end
 
 function postProcessImage(input, winsize)
