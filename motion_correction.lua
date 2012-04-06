@@ -77,7 +77,7 @@ function calculate_samples_number(ptsin, ptsout, s)
 	while (N > sample_count) do
 		sample = get_random_sample(ptsin, ptsout, s)
 		inliers = math.max(get_inliers_number(ptsin, ptsout, sample), 1)
-		err = 1 - inliers/npts
+		
 		N = math.log(1-p)/math.log(1-math.pow(1-err, s))
 		sample_count = sample_count+1
 	end
