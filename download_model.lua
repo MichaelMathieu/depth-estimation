@@ -134,6 +134,10 @@ function isRecent(date1, today)
 end
 
 function selectFile(files, today)
+   if #files == 0 then
+      print('No files in specified directory')
+      return nil
+   end
    for i = 1,#files do
       if isRecent(files[i][2], today) then
 	 print('(' .. i .. ') ' .. files[i][1] .. ' *')
@@ -186,15 +190,19 @@ function prompt(sshpath, basepath)
    local recent = sys.execute('date +%F'):strip({' ', '\n'})
    local filters = filterFilters(listdir(sshpath, path))
    local filter = selectFile(filters, recent)
+   if filter == nil then return nil end
    path = path .. '/' .. filter[1]
    local learnings = filterLearnings(listdir(sshpath, path))
    local learning = selectFile(learnings, recent)
+   if learning == nil then return nil end
    path = path .. '/' .. learning[1]
    local images = filterImages(listdir(sshpath, path))
    local image = selectFile(images, recent)
+   if image == nil then return nil end
    path = path .. '/' .. image[1]
    local epochs = filterEpochs(listdir(sshpath, path))
    local epoch = selectEpoch(epochs, recent)
+   if epoch == nil then return nil end
    path = path .. '/' .. epoch[1]
    return path, epoch[1]
 end
@@ -210,6 +218,9 @@ function downloadModel(sshfullpath)
    local modeldir = 'models_downloaded'
    os.execute('mkdir -p ' .. modeldir)
    local path, filename = prompt(sshpath, basepath)
+   if path == nil then
+      return nil
+   end
    os.execute('scp ' .. sshpath .. ':' .. path .. ' ' .. modeldir .. '/')
    return modeldir .. '/' .. filename
 end

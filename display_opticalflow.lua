@@ -66,6 +66,9 @@ end
 
 if opt.download_dir ~= nil then
    opt.input_model = downloadModel(opt.download_dir)
+   if opt.input_model == nil then
+      os.exit(0)
+   end
 end
 
 loaded = loadModel(opt.input_model, true)
