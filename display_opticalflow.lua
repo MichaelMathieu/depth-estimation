@@ -16,13 +16,13 @@ op:option{'-i1', '--input-image1', action='store', dest='input_image1',
 	  help='First image for the optical flow'}
 op:option{'-i2', '--input-image2', action='store', dest='input_image2',
 	  help='Second image for the optical flow'}
-op:option{'-i', '--input-model', action='store', dest='input_model',
-	  help='Trained convnet, this option isn\'t used if -dldir is used'}
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
 op:option{'-p', '--post-process-win-size', action='store', dest='post_process_winsize',
 	  default=1,
 	  help='Basic output post-processing window size (1 disables post-processing)'}
+op:option{'-i', '--input-model', action='store', dest='input_model',
+	  help='Trained convnet, this option isn\'t used if -dldir is used'}
 op:option{'-dldir', '--download-dir', action='store', dest='download_dir', default=nil,
 	  help='scp command to the models folder (eg. mfm352@access.cims.nyu.edu:/depth-estimation/models)'}
 
@@ -85,11 +85,6 @@ for i = 1,#kernels do
    end
 end
 
-if not geometry.maxhGT then
-   geometry.maxhGT = geometry.maxh
-   geometry.maxwGT = geometry.maxw
-end
-
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
 local image1, image2, gt
 if geometry.motion_correction then
@@ -105,9 +100,7 @@ local input = {image1, image2}
 image.display(input)
 
 t = torch.Timer()
-if not geometry.multiscale then
-   input = prepareInput(geometry, input[1], input[2])
-end
+input = prepareInput(geometry, input[1], input[2])
 
 local output = model:forward(input)
 print(t:time())

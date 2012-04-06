@@ -301,12 +301,16 @@ end
 
 function prepareInput(geometry, patch1, patch2)
    assert(patch1:size(2)==patch2:size(2) and patch1:size(3) == patch2:size(3))
-   ret = {}
-   --TODO this should be floor, according to the way the gt is computed. why?
-   ret[1] = patch1:narrow(2, math.ceil(geometry.maxh/2), patch1:size(2)-geometry.maxh+1)
-                  :narrow(3, math.ceil(geometry.maxw/2), patch1:size(3)-geometry.maxw+1)
-   ret[2] = patch2
-   return ret
+   if geometry.multiscale then
+      return {patch1, patch2}
+   else
+      ret = {}
+      --TODO this should be floor, according to the way the gt is computed. why?
+      ret[1] = patch1:narrow(2, math.ceil(geometry.maxh/2), patch1:size(2)-geometry.maxh+1)
+                     :narrow(3, math.ceil(geometry.maxw/2), patch1:size(3)-geometry.maxw+1)
+      ret[2] = patch2
+      return ret
+   end
 end
 
 function processOutput(geometry, output, process_full)
@@ -462,6 +466,7 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
    local targets = ''
    local sampling = ''
+   local motion = ''
    if geometry.soft_targets then targets = '_softTargets' end
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' .. learning.sampling_method
@@ -472,7 +477,9 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    if learning.renew_train_set then
       learning_ = learning_ .. ' renewTrainSet'
    end
+   if geometry.motion_correction then motion = 'MotionCorrection' end
    local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
+   summary = summary .. ' ' .. motion
    return summary
 end
 
@@ -497,16 +504,18 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    local targets = ''
    local sampling = ''
    local renew = ''
+   local motion = ''
    if geometry.soft_targets then targets = '_softTargets' end
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' ..learning.sampling_method
    end
    if learning.renew_train_set then renew = '_renew' end
+   if geometry.motion_correction then motion = '_mc' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_rdTwo' .. learning.rate_decay2
    train_params = train_params .. '_wd' ..learning.weight_decay .. sampling .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
-   local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
+   local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1)) .. motion
    modeldir = modeldir .. '/' .. images
    os.execute('mkdir -p ' .. modeldir)
 
@@ -530,6 +539,38 @@ function loadModel(filename, full_output)
    local ret = {}
    if not loaded.version then -- old version
       ret.geometry = loaded[2]
+      if not ret.geometry.layers then
+	 local nLayers
+	 if ret.geometry.features then
+	    if ret.geometry.features == 'two_layers' then
+	       nLayers = 2
+	    elseif ret.geometry.featues == 'one_layer' then
+	       nLayers = 1
+	    else
+	       print(ret.geometry)
+	       error('Unknown model version')
+	    end
+	 elseif ret.geometry.nLayers then
+	    nLayers = ret.geometry.nLayers
+	 else
+	    print(ret.geometry)
+	    error('Unknown model version')
+	 end
+	 ret.geometry.layers = {}
+	 if nLayers == 2 then
+	    ret.geometry.layers[1] = {ret.geometry.nChannelsIn, ret.geometry.hKernel1,
+				      ret.geometry.wKernel1, ret.geometry.layerTwoSize}
+	    ret.geometry.layers[2] = {ret.geometry.layerTwoConnections, ret.geometry.hKernel2,
+				      ret.geometry.wKernel2, ret.geometry.nFeatures}
+	 else
+	    ret.geometry.layers[1] = {ret.geometry.nChannelsIn, ret.geometry.hKernel,
+				      ret.geometry.wKernel, ret.geometry.nFeatures}
+	 end
+      end
+      if not ret.geometry.maxhGT then
+	 ret.geometry.maxhGT = ret.geometry.maxh
+	 ret.geometry.maxwGT = ret.geometry.maxw
+      end
       if ret.geometry.multiscale then
 	 ret.model = getModelMultiscale(ret.geometry, full_output)
       else
