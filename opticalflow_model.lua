@@ -517,7 +517,7 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    else
       tosave.getModel = getModel
    end
-   tosave.model = model
+   tosave.model_descr = model:__tostring__()
    tosave.parameters = parameters
    tosave.geometry = geometry
    tosave.learning = learning

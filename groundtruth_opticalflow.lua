@@ -132,6 +132,7 @@ end
 
 function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 				       previmagebasename, delta)
+   print('toto')
    local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
    if not paths.filep(imagepath) then
       print("Image " .. imagepath .. " not found.")
@@ -181,8 +182,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
 end
 
-function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta,
-			     use_motion_correction)
+function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
    local imagesdir = dirbasename .. 'images'
    local findIm = 'cd ' .. imagesdir .. ' && ls -LB'
    raw_data = {}
@@ -208,7 +208,7 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta,
    local im = loadImageOpticalFlow(geometry, dirbasename, imagepaths[1], nil, nil)
    table.insert(raw_data.images, im)
    for i = 2,math.min(#imagepaths, nImgs) do
-      if use_motion_correction then
+      if geometry.motion_correction then
          local im, flow, im_rect, H = loadRectifiedImageOpticalFlow(geometry, dirbasename,
 								    imagepaths[i],
 								    imagepaths[i-1], delta)
@@ -291,7 +291,7 @@ function check_borders(index, xPatch, yPatch, geometry)
    return true
 end
 
-function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motion_correction)
+function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
    local dataset = {}
    dataset.raw_data = raw_data
    dataset.patches = torch.Tensor(nSamples, 6)
@@ -303,7 +303,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
 				       local coords = self.patches[index]
 				       local image1 = self.raw_data.images[coords[1]]
 				       local image2
-				       if use_motion_correction then
+				       if geometry.motion_correction then
 					  image2 = self.raw_data.rectified_images[coords[1]]
 				       else
 					  image2 = self.raw_data.images[coords[2]]
@@ -349,7 +349,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
             dataset.targets[iSample][1] = yFlow
             dataset.targets[iSample][2] = xFlow
 
-            if use_motion_correction then
+            if geometry.motion_correction then
                if check_borders(iImg, xPatch, yPatch, geometry) then
                   iSample = iSample+1
                end
@@ -385,7 +385,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method, use_motio
          dataset.targets[iSample][1] = yFlow
          dataset.targets[iSample][2] = xFlow
 
-         if use_motion_correction then
+         if geometry.motion_correction then
             if check_borders(iImg, xPatch, yPatch, geometry) then
                iSample = iSample+1
             end
