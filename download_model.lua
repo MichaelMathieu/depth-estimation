@@ -47,7 +47,7 @@ function listdir(sshpath, dir)
    if dir:sub(-1) ~= '/' then
       dir = dir .. '/'
    end
-   local r = sys.execute(string.format("ssh %s '[[ `uname` == \"Linux\" ]] && ls -lt --time-style +%%F | awk '\\''{print $6 \" \" $7}'\\'' || [[ `uname` == \"SunOS\" ]] && ls -cEt %s | awk '\\''{print $6 \" \" $9}'\\'' || echo ERROR `uname`'", sshpath, dir))
+   local r = sys.execute(string.format("ssh %s '( [[ `uname` == \"Linux\" ]] && ls -lt --time-style +%%F %s | awk '\\''{print $6 \" \" $7}'\\'' ) || ( ( [[ `uname` == \"SunOS\" ]] && ls -cEt %s | awk '\\''{print $6 \" \" $9}'\\'' ) || echo ERROR `uname` ) '", sshpath, dir, dir))
    local ret = {}
    local lines = split(strip(r, {'\n'}), '\n')
    if #lines == 1 and split(lines[1], ' ')[1] == 'ERROR' then

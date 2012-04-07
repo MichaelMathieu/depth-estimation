@@ -146,7 +146,6 @@ end
 
 function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 				       previmagebasename, delta)
-   print('toto')
    local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
    if not paths.filep(imagepath) then
       print("Image " .. imagepath .. " not found.")
