@@ -211,6 +211,8 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       local filter = getFilter(geometry)
       filter1:add(filter)
       filter2:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   else
+      error('Multiscale: prefilter not implemented')
    end
 
    local matcher_filters = nn.ConcatTable()
