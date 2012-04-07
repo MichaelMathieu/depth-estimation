@@ -189,9 +189,7 @@ function getModel(geometry, full_image, prefiltered)
 end
 
 function getModelMultiscale(geometry, full_image, prefiltered)
-   if prefiltered == true then
-      error('getModelMultiscale: prefiltered not implemented yet')
-   end
+   if prefiltered == nil then prefiltered = false end
    assert(geometry.ratios[1] == 1)
    local rmax = geometry.ratios[#geometry.ratios]
    for i = 1,#geometry.ratios do
@@ -200,23 +198,24 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       assert(math.mod(geometry.maxw * k, 2) == 0)
    end
    local nChannelsIn = geometry.layers[1][1]
-   
-   local filter = getFilter(geometry)
 
    local filter1 = nn.Sequential()
+   local filter2 = nn.Sequential()
    filter1:add(nn.Narrow(1, 1, nChannelsIn))
    filter1:add(nn.SpatialZeroPadding(-math.floor((geometry.maxw-1)/2),
 				     -math.ceil ((geometry.maxw-1)/2),
 				     -math.floor((geometry.maxh-1)/2),
 				     -math.ceil ((geometry.maxh-1)/2)))
-   filter1:add(filter)
-   local filter2 = nn.Sequential()
    filter2:add(nn.Narrow(1, nChannelsIn+1, nChannelsIn))
-   filter2:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   if not prefiltered then
+      local filter = getFilter(geometry)
+      filter1:add(filter)
+      filter2:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   end
 
    local matcher_filters = nn.ConcatTable()
    matcher_filters:add(filter1)
-   matcher_filters:add(filter2)
+   matcher_filters:add(filter2)      
 
    local matcher = nn.Sequential()
    matcher:add(matcher_filters)
