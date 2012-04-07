@@ -577,14 +577,14 @@ function loadModel(filename, full_output, prefilter)
       parameters:copy(loaded[1])
    elseif loaded.version >= 1 then 
       ret.geometry = loaded.geometry
-      ret.model = loaded.getModel(ret.geometry, full_output)
+      ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
       ret.getKernel = loaded.getKernels
       if prefilter == true then
 	 if loaded.version < 2 then
 	    error("loadModel: prefilter didn't exist before version 2")
 	 end
-	 ret.filter = loaded.getFilter(geometry)
-	 local parameters = ret.filters:getParameters()
+	 ret.filter = loaded.getFilter(ret.geometry)
+	 local parameters = ret.filter:getParameters()
 	 parameters:copy(loaded.parameters)
       else
 	 local parameters = ret.model:getParameters()

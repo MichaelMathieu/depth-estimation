@@ -42,7 +42,7 @@ end
 
 local loaded = loadModel(opt.input_model, true, true)
 local model = loaded.model
-local filter = locaded.filter
+local filter = loaded.filter
 local geometry = loaded.geometry
 
 local output_window
@@ -51,9 +51,9 @@ local timer
 ImageLoader:init(geometry, opt.root_directory..'/images', opt.first_image, opt.delta)
 local loader = ImageLoader
 
-local last_im = loader:getNextFrame()
+local last_im = filter:forward(loader:getNextFrame())
 while true do
-   local im = loader:getNextFrame()
+   local im = filter:forward(loader:getNextFrame())
    if im == nil then
       break
    end
