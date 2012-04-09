@@ -72,6 +72,7 @@ if opt.download_dir ~= nil then
 end
 
 loaded = loadModel(opt.input_model, true)
+--loaded = loadModel(opt.input_model, false)
 model = loaded.model
 geometry = loaded.geometry
 if not loaded.getKernels then
@@ -106,6 +107,14 @@ t = torch.Timer()
 input = prepareInput(geometry, input[1], input[2])
 
 local output = model:forward(input)
+--local output = torch.Tensor(112, input[1]:size(2), input[1]:size(3))
+--for i = 1,output:size(2) do
+--   xlua.progress(i, output:size(2))
+--   for j = 1,output:size(3) do
+--      model:focus(j, i)
+--      output[{{},i,j}] = model:forward(input):squeeze()
+--   end
+--end
 print(t:time())
 outputt = output:clone()
 output = processOutput(geometry, output)

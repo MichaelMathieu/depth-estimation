@@ -295,7 +295,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
 end
 
 function prepareInput(geometry, patch1, patch2)
-   assert(patch1:size(2)==patch2:size(2) and patch1:size(3) == patch2:size(3))
+   assert(patch1:size(2) == patch2:size(2) and patch1:size(3) == patch2:size(3))
    if geometry.multiscale then
       return {patch1, patch2}
    else
