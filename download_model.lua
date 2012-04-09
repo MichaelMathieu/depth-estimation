@@ -43,18 +43,19 @@ function strip(str, chars)
 end
 
 function listdir(sshpath, dir)
+   options = options or ''
    if dir:sub(-1) ~= '/' then
       dir = dir .. '/'
    end
-   local r = sys.execute(string.format("ssh %s '[[ `uname` == \"Linux\" ]] && ls -l --time-style +%%F | awk '\\''{print $6 \" \" $7}'\\'' || [[ `uname` == \"SunOS\" ]] && ls -cE %s | awk '\\''{print $6 \" \" $9}'\\'' || echo ERROR `uname`'", sshpath, dir))
+   local r = sys.execute(string.format("ssh %s '( [[ `uname` == \"Linux\" ]] && ls -lt --time-style +%%F %s | awk '\\''{print $6 \" \" $7}'\\'' ) || ( ( [[ `uname` == \"SunOS\" ]] && ls -cEt %s | awk '\\''{print $6 \" \" $9}'\\'' ) || echo ERROR `uname` ) '", sshpath, dir, dir))
    local ret = {}
-   local lines = split(r:strip({'\n'}), '\n')
+   local lines = split(strip(r, {'\n'}), '\n')
    if #lines == 1 and split(lines[1], ' ')[1] == 'ERROR' then
       print('Error : No support for ' .. split(lines[1], ' ')[2])
       return nil
    end
    for i = 1,#lines do
-      local t = lines[i]:strip({' '})
+      local t = strip(lines[i], {' '})
       if t ~= '' then
 	 local splited = split(t, ' ')
 	 local date = splited[1]
@@ -62,6 +63,19 @@ function listdir(sshpath, dir)
 	 if #splited == 2 and name:sub(-1) ~= '~' and (name:sub(1) ~= '#' or name:sub(-1) ~= '#') then
 	    table.insert(ret, {name, date})
 	 end
+      end
+   end
+   return ret
+end
+
+function getRecents(path)
+   local r = sys.execute(string.format("ls -lt --time-style +%%F %s | awk '{print $7 \" \" $6}'", path))
+   local lines = split(strip(r, {"\n"}), '\n')
+   local ret = {}
+   for i = 1,#lines do
+      local splited = split(lines[i]:strip({' '}), ' ')
+      if #splited == 2 then
+	 table.insert(ret, splited)
       end
    end
    return ret
@@ -128,22 +142,35 @@ end
 
 function isRecent(date1, today)
    --alright, that doesn't work on bissextile year :P
+   if date1 == today then
+      return ' **'
+   end
    local date1day = tonumber(strip(sys.execute('date -d ' .. date1 .. ' +%j'), {' ', '\n'}))
    local todayday = tonumber(strip(sys.execute('date -d ' .. today .. ' +%j'), {' ', '\n'}))
-   return math.mod(todayday-date1day, 365) < 2
+   if math.mod(todayday-date1day, 365) < 2 then
+      return ' *'
+   else
+      return ''
+   end
 end
 
-function selectFile(files, today)
+function selectFile(files, today, specials)
+   specials = specials or {}
+   if #files == 0 then
+      print('No files in specified directory')
+      return nil
+   end
    for i = 1,#files do
-      if isRecent(files[i][2], today) then
-	 print('(' .. i .. ') ' .. files[i][1] .. ' *')
-      else
-	 print('(' .. i .. ') ' .. files[i][1])
-      end
+      print('(' .. i .. ') ' .. files[i][1] .. isRecent(files[i][2], today))
    end
    local i = nil
    while i == nil do
       i = io.read()
+      for j = 1,#specials do
+	 if i == specials[j] then
+	    return i
+	 end
+      end
       if i == '' and #files == 1 then
 	 i = 1
       end
@@ -152,7 +179,7 @@ function selectFile(files, today)
    return files[i]
 end
 
-function selectEpoch(epochs, recent)
+function selectEpoch(epochs, today)
    local mini = #epochs+1000
    local maxi = -1
    for i = 1,#epochs do
@@ -181,22 +208,33 @@ function selectEpoch(epochs, recent)
    return {'model_of__e' .. i, i}
 end
 
-function prompt(sshpath, basepath)
+function prompt(sshpath, basepath, savepath)
    local path = basepath
-   local recent = sys.execute('date +%F'):strip({' ', '\n'})
+   local today = sys.execute('date +%F'):strip({' ', '\n'})
    local filters = filterFilters(listdir(sshpath, path))
-   local filter = selectFile(filters, recent)
-   path = path .. '/' .. filter[1]
-   local learnings = filterLearnings(listdir(sshpath, path))
-   local learning = selectFile(learnings, recent)
-   path = path .. '/' .. learning[1]
-   local images = filterImages(listdir(sshpath, path))
-   local image = selectFile(images, recent)
-   path = path .. '/' .. image[1]
-   local epochs = filterEpochs(listdir(sshpath, path))
-   local epoch = selectEpoch(epochs, recent)
-   path = path .. '/' .. epoch[1]
-   return path, epoch[1]
+   local filter = selectFile(filters, today, {''})
+   if filter == nil then return nil end
+   if filter == '' then
+      local recents = getRecents(savepath)
+      local recent = selectFile(recents, today)
+      return savepath .. '/' .. recent[1]
+   else
+      path = path .. '/' .. filter[1]
+      local learnings = filterLearnings(listdir(sshpath, path))
+      local learning = selectFile(learnings, today)
+      if learning == nil then return nil end
+      path = path .. '/' .. learning[1]
+      local images = filterImages(listdir(sshpath, path))
+      local image = selectFile(images, today)
+      if image == nil then return nil end
+      path = path .. '/' .. image[1]
+      local epochs = filterEpochs(listdir(sshpath, path))
+      local epoch = selectEpoch(epochs, today)
+      if epoch == nil then return nil end
+      path = path .. '/' .. epoch[1]
+      os.execute('scp ' .. sshpath .. ':' .. path .. ' ' .. savepath .. '/')
+      return savepath .. '/' .. epoch[1]
+   end
 end
 
 function downloadModel(sshfullpath)
@@ -207,9 +245,13 @@ function downloadModel(sshfullpath)
    end
    local sshpath = splited[1]
    local basepath = splited[2]
-   local modeldir = 'models_downloaded'
-   os.execute('mkdir -p ' .. modeldir)
-   local path, filename = prompt(sshpath, basepath)
-   os.execute('scp ' .. sshpath .. ':' .. path .. ' ' .. modeldir .. '/')
-   return modeldir .. '/' .. filename
+   local savedir = 'models_downloaded'
+   local savepath = savedir
+   os.execute('mkdir -p ' .. savepath)
+   local path = prompt(sshpath, basepath, savepath)
+   if path == nil then
+      return nil
+   else
+      return path
+   end
 end

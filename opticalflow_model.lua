@@ -137,7 +137,8 @@ function onebased2centered(geometry, y, x)
    return (y-math.ceil(geometry.maxhGT/2)), (x-math.ceil(geometry.maxwGT/2))
 end
 
-function getModel(geometry, full_image)
+function getFilter(geometry)
+   assert(not geometry.L2Pooling)
    local filter = nn.Sequential()
    for i = 1,#geometry.layers do
       if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
@@ -153,14 +154,21 @@ function getModel(geometry, full_image)
 	 filter:add(nn.Tanh())
       end
    end
-   assert(not geometry.L2Pooling)
+   return filter
+end
 
-   local parallel = nn.ParallelTable()
-   parallel:add(filter)
-   parallel:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
-
+function getModel(geometry, full_image, prefiltered)
+   if prefiltered == nil then prefiltered = false end
    local model = nn.Sequential()
-   model:add(parallel)
+
+   if not prefiltered then
+      local filter = getFilter(geometry)
+      local parallel = nn.ParallelTable()
+      parallel:add(filter)
+      parallel:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+      model:add(parallel)
+   end
+
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
    if full_image then
       model:add(nn.Reshape(geometry.maxw*geometry.maxh,
@@ -180,7 +188,8 @@ function getModel(geometry, full_image)
    return model
 end
 
-function getModelMultiscale(geometry, full_image)
+function getModelMultiscale(geometry, full_image, prefiltered)
+   if prefiltered == nil then prefiltered = false end
    assert(geometry.ratios[1] == 1)
    local rmax = geometry.ratios[#geometry.ratios]
    for i = 1,#geometry.ratios do
@@ -189,38 +198,26 @@ function getModelMultiscale(geometry, full_image)
       assert(math.mod(geometry.maxw * k, 2) == 0)
    end
    local nChannelsIn = geometry.layers[1][1]
-   
-   local filter = nn.Sequential()
-   for i = 1,#geometry.layers do
-      if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
-	 filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
-					  geometry.layers[i][2], geometry.layers[i][3]))
-      else
-	 filter:add(nn.SpatialConvolutionMap(nn.tables.random(geometry.layers[i-1][4],
-							      geometry.layers[i][4],
-							      geometry.layers[i][1]),
-					     geometry.layers[i][2], geometry.layers[i][3]))
-      end
-      if i ~= #geometry.layers then
-	 filter:add(nn.Tanh())
-      end
-   end
-   assert(not geometry.L2Pooling)
 
    local filter1 = nn.Sequential()
+   local filter2 = nn.Sequential()
    filter1:add(nn.Narrow(1, 1, nChannelsIn))
    filter1:add(nn.SpatialZeroPadding(-math.floor((geometry.maxw-1)/2),
 				     -math.ceil ((geometry.maxw-1)/2),
 				     -math.floor((geometry.maxh-1)/2),
 				     -math.ceil ((geometry.maxh-1)/2)))
-   filter1:add(filter)
-   local filter2 = nn.Sequential()
    filter2:add(nn.Narrow(1, nChannelsIn+1, nChannelsIn))
-   filter2:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   if not prefiltered then
+      local filter = getFilter(geometry)
+      filter1:add(filter)
+      filter2:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   else
+      error('Multiscale: prefilter not implemented')
+   end
 
    local matcher_filters = nn.ConcatTable()
    matcher_filters:add(filter1)
-   matcher_filters:add(filter2)
+   matcher_filters:add(filter2)      
 
    local matcher = nn.Sequential()
    matcher:add(matcher_filters)
@@ -301,12 +298,16 @@ end
 
 function prepareInput(geometry, patch1, patch2)
    assert(patch1:size(2)==patch2:size(2) and patch1:size(3) == patch2:size(3))
-   ret = {}
-   --TODO this should be floor, according to the way the gt is computed. why?
-   ret[1] = patch1:narrow(2, math.ceil(geometry.maxh/2), patch1:size(2)-geometry.maxh+1)
-                  :narrow(3, math.ceil(geometry.maxw/2), patch1:size(3)-geometry.maxw+1)
-   ret[2] = patch2
-   return ret
+   if geometry.multiscale then
+      return {patch1, patch2}
+   else
+      ret = {}
+      --TODO this should be floor, according to the way the gt is computed. why?
+      ret[1] = patch1:narrow(2, math.ceil(geometry.maxh/2), patch1:size(2)-geometry.maxh+1)
+                     :narrow(3, math.ceil(geometry.maxw/2), patch1:size(3)-geometry.maxw+1)
+      ret[2] = patch2
+      return ret
+   end
 end
 
 function processOutput(geometry, output, process_full)
@@ -462,6 +463,7 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
    local targets = ''
    local sampling = ''
+   local motion = ''
    if geometry.soft_targets then targets = '_softTargets' end
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' .. learning.sampling_method
@@ -472,7 +474,9 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    if learning.renew_train_set then
       learning_ = learning_ .. ' renewTrainSet'
    end
+   if geometry.motion_correction then motion = 'MotionCorrection' end
    local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
+   summary = summary .. ' ' .. motion
    return summary
 end
 
@@ -497,21 +501,23 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    local targets = ''
    local sampling = ''
    local renew = ''
+   local motion = ''
    if geometry.soft_targets then targets = '_softTargets' end
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' ..learning.sampling_method
    end
    if learning.renew_train_set then renew = '_renew' end
+   if geometry.motion_correction then motion = '_mc' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_rdTwo' .. learning.rate_decay2
    train_params = train_params .. '_wd' ..learning.weight_decay .. sampling .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
-   local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1))
+   local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1)) .. motion
    modeldir = modeldir .. '/' .. images
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 1
+   tosave.version = 2
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
@@ -522,14 +528,47 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    tosave.geometry = geometry
    tosave.learning = learning
    tosave.getKernels = getKernels
+   tosave.getFilter = getFilter
    torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs, tosave)
 end
 
-function loadModel(filename, full_output)
+function loadModel(filename, full_output, prefilter)
    local loaded = torch.load(filename)
    local ret = {}
    if not loaded.version then -- old version
       ret.geometry = loaded[2]
+      if not ret.geometry.layers then
+	 local nLayers
+	 if ret.geometry.features then
+	    if ret.geometry.features == 'two_layers' then
+	       nLayers = 2
+	    elseif ret.geometry.featues == 'one_layer' then
+	       nLayers = 1
+	    else
+	       print(ret.geometry)
+	       error('Unknown model version')
+	    end
+	 elseif ret.geometry.nLayers then
+	    nLayers = ret.geometry.nLayers
+	 else
+	    print(ret.geometry)
+	    error('Unknown model version')
+	 end
+	 ret.geometry.layers = {}
+	 if nLayers == 2 then
+	    ret.geometry.layers[1] = {ret.geometry.nChannelsIn, ret.geometry.hKernel1,
+				      ret.geometry.wKernel1, ret.geometry.layerTwoSize}
+	    ret.geometry.layers[2] = {ret.geometry.layerTwoConnections, ret.geometry.hKernel2,
+				      ret.geometry.wKernel2, ret.geometry.nFeatures}
+	 else
+	    ret.geometry.layers[1] = {ret.geometry.nChannelsIn, ret.geometry.hKernel,
+				      ret.geometry.wKernel, ret.geometry.nFeatures}
+	 end
+      end
+      if not ret.geometry.maxhGT then
+	 ret.geometry.maxhGT = ret.geometry.maxh
+	 ret.geometry.maxwGT = ret.geometry.maxw
+      end
       if ret.geometry.multiscale then
 	 ret.model = getModelMultiscale(ret.geometry, full_output)
       else
@@ -537,12 +576,21 @@ function loadModel(filename, full_output)
       end
       local parameters = ret.model:getParameters()
       parameters:copy(loaded[1])
-   elseif loaded.version == 1 then 
+   elseif loaded.version >= 1 then 
       ret.geometry = loaded.geometry
-      ret.model = loaded.getModel(ret.geometry, full_output)
+      ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
       ret.getKernel = loaded.getKernels
-      local parameters = ret.model:getParameters()
-      parameters:copy(loaded.parameters)
+      if prefilter == true then
+	 if loaded.version < 2 then
+	    error("loadModel: prefilter didn't exist before version 2")
+	 end
+	 ret.filter = loaded.getFilter(ret.geometry)
+	 local parameters = ret.filter:getParameters()
+	 parameters:copy(loaded.parameters)
+      else
+	 local parameters = ret.model:getParameters()
+	 parameters:copy(loaded.parameters)
+      end
    else
       error('loadModel: wrong version')
    end
