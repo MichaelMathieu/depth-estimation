@@ -55,7 +55,12 @@ function getOpticalFlowFast(geometry, image1, image2)
    local output = net:forward({input1b, input2b})
    output = -output
    output = output:reshape(maxh*maxw, output:size(3), output:size(4))
-   local output2 = processOutput(geometry, output, true)
+   local geometryGT = geometry
+   geometryGT.maxw = geometry.maxwGT
+   geometryGT.maxh = geometry.maxhGT
+   geometryGT.hKernel = geometry.hKernelGT
+   geometryGT.wKernel = geometry.wKernelGT
+   local output2 = processOutput(geometryGT, output, true)
    return output2.full[1], output2.full[2]
 end
 
