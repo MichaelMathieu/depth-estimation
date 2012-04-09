@@ -107,7 +107,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       os.execute('mkdir -p ' .. flowdir)
       flowfilename = flowdir .. '/' .. imagebasename .. '.png'
       if paths.filep(flowfilename) then
-         flow = image.loadPNG(flowfilename)
+         flow = image.loadPNG(flowfilename)*255
          if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
        flow = nil
        print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
