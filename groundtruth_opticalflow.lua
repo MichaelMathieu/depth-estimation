@@ -89,7 +89,7 @@ function getOpticalFlow(geometry, image1, image2)
    return findMax(geometry, of)
 end
 
-function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebasename, delta)
+function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebasename, delta, use_liu_groundtruth)
    local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
    if not paths.filep(imagepath) then
       print("Image " .. imagepath .. " not found.")
@@ -102,17 +102,24 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    local flowdir = dirbasename .. 'flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    local flowfilename
    local flow = nil
-   if use_celiu_groundtruth then
+   if use_liu_groundtruth then
       flowdir = flowdir .. '/celiu'
       os.execute('mkdir -p ' .. flowdir)
       flowfilename = flowdir .. '/' .. imagebasename .. '.png'
       if paths.filep(flowfilename) then
-         flow = image.loadPNG(flowfilename)*255
-         if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
+         flowpng = image.loadPNG(flowfilename)*255-128
+         if (flowpng:size(2) ~= geometry.hImg) or (flowpng:size(3) ~= geometry.wImg) then
        flow = nil
        print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
          end
+         flow = {}
+         flow[1] = flowpng[1]
+         flow[2] = flowpng[2]
+      else
+         print("Flow " .. flowfilename .. " not found.")
+         return nil
       end
+
    else
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
       flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
@@ -196,7 +203,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
 end
 
-function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
+function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, use_liu_groundtruth)
    local imagesdir = dirbasename .. 'images'
    local findIm = 'cd ' .. imagesdir .. ' && ls -LB'
    raw_data = {}
@@ -228,17 +235,22 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta)
 
    local im = loadImageOpticalFlow(geometry, dirbasename, imagepaths[1], nil, nil)
    table.insert(raw_data.images, im)
+   
+   if use_liu_groundtruth then
+      print("Using Liu groundtruth...")
+   end
+
    for i = 2,math.min(#imagepaths, nImgs) do
       if geometry.motion_correction then
          local im, flow, im_rect = loadRectifiedImageOpticalFlow(geometry, dirbasename,
 								    imagepaths[i],
-								    imagepaths[i-1], delta)
+								    imagepaths[i-1], delta, use_liu_groundtruth)
          table.insert(raw_data.images, im)
          table.insert(raw_data.flow, flow)   
          table.insert(raw_data.rectified_images, im_rect)
       else
          local im, flow = loadImageOpticalFlow(geometry, dirbasename, imagepaths[i],
-                      imagepaths[i-1], delta)
+                      imagepaths[i-1], delta, use_liu_groundtruth)
          table.insert(raw_data.images, im)
          table.insert(raw_data.flow, flow)
       end
