@@ -72,6 +72,8 @@ op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
 op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correction',
 	  default=false, help='Eliminate panning, tilting and rotation camera movements'}
+op:option{'-lg', '--liu-grountruth', action='store_true', dest='use_liu_groundtruth',
+     default=false, help='Use Liu groundtruth'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -175,7 +177,7 @@ end
 
 print('Loading images...')
 local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
-				     opt.first_image, opt.delta)
+				     opt.first_image, opt.delta, opt.use_liu_groundtruth)
 print('Generating training set...')
 local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
 					  learning.sampling_method)
@@ -206,7 +208,7 @@ for iEpoch = 1,opt.n_epochs do
       else
 	 local sample = testData[t]
 	 input = prepareInput(geometry, sample[1][1], sample[1][2])
-	 targetCrit, target = prepareTarget(geometry, sample[2])
+    targetCrit, target = prepareTarget(geometry, sample[2])
       end
 
       local output = model:forward(input)
