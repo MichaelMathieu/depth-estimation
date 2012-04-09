@@ -257,8 +257,8 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, u
       
    end
    --[[
-   local hoffset = math.ceil(geometry.maxhGT/2) + math.ceil(geometry.hKernel/2) - 2
-   local woffset = math.ceil(geometry.maxwGT/2) + math.ceil(geometry.wKernel/2) - 2
+   local hoffset = math.ceil(geometry.maxhGT/2) + math.ceil(geometry.hKernelGT/2) - 2
+   local woffset = math.ceil(geometry.maxwGT/2) + math.ceil(geometry.wKernelGT/2) - 2
    raw_data.histogram = {}
    for i = 1,geometry.maxhGT do
       raw_data.histogram[i] = {}
@@ -401,8 +401,8 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
          --modProgress(iSample, nSamples, 100)
          local iImg = randInt(2, #raw_data.images+1)
 
-         local yPatch = randInt(1, geometry.hImg-geometry.maxh-geometry.hKernelGT-1)
-         local xPatch = randInt(1, geometry.wImg-geometry.maxw-geometry.wKernelGT-1)
+         local yPatch = randInt(1, geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
+         local xPatch = randInt(1, geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
 
          local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
          local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]

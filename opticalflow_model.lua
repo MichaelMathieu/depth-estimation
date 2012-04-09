@@ -314,8 +314,17 @@ function processOutput(geometry, output, process_full)
    local ret = {}
    if geometry.soft_targets then
       _, ret.index = output:min(1)
+      if geometry.multiscale then
+	 error('Multiscale soft target not up to date')
+      end
    else
-      _, ret.index = output:max(1)
+      local m
+      m, ret.index = output:max(1)
+      if geometry.multiscale then
+	 local middleIndex = yx2xMulti(geometry, 0, 0)
+	 local flatPixels = torch.LongTensor(m:size(2), m:size(3)):copy(m:eq(output[middleIndex]))
+	 ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(2), ret.index:size(3)))
+      end
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then
