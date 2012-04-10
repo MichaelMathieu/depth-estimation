@@ -157,6 +157,26 @@ function getFilter(geometry)
    return filter
 end
 
+function getMultiscalePrefilter(geometry, filter)
+   assert(geometry.multiscale)
+   local wPad = geometry.wPatch2-1
+   local hPad = geometry.hPatch2-1
+   local padLeft   = math.floor(wPad/2)
+   local padRight  = math.ceil (wPad/2)
+   local padTop    = math.floor(hPad/2)
+   local padBottom = math.ceil (hPad/2)
+
+   local prefilter = nn.ConcatTable()
+   for i = 1,#geometry.ratios do
+      local seq = nn.Sequential()
+      seq:add(nn.SpatialDownSampling(geometry.ratios[i], geometry.ratios[i]))
+      seq:add(nn.SpatialZeroPadding(padLeft, padRight, padTop, padBottom))
+      seq:add(filter:clone())
+      prefilter:add(seq)
+   end
+   return prefilter
+end
+
 function getModel(geometry, full_image, prefiltered)
    if prefiltered == nil then prefiltered = false end
    local model = nn.Sequential()
@@ -211,13 +231,11 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       local filter = getFilter(geometry)
       filter1:add(filter)
       filter2:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
-   else
-      error('Multiscale: prefilter not implemented')
    end
 
    local matcher_filters = nn.ConcatTable()
    matcher_filters:add(filter1)
-   matcher_filters:add(filter2)      
+   matcher_filters:add(filter2)
 
    local matcher = nn.Sequential()
    matcher:add(matcher_filters)
@@ -234,10 +252,19 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    end
 
    local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
-				     geometry.wPatch2, geometry.hPatch2, 1, 1)
+				     geometry.wPatch2, geometry.hPatch2, 1, 1, prefiltered)
 
    local model = nn.Sequential()
-   model:add(nn.JoinTable(1))
+   if not prefiltered then
+      model:add(nn.JoinTable(1))
+   else
+      --todo: this is not smart
+      local parallel = nn.ParallelTable()
+      for i = 1,#geometry.ratios do
+	 parallel:add(nn.JoinTable(1))
+      end
+      model:add(parallel)
+   end
    model:add(pyramid)
    local precascad = nn.ParallelTable()
    for i = 1,#geometry.ratios do
@@ -597,7 +624,12 @@ function loadModel(filename, full_output, prefilter)
 	 if loaded.version < 2 then
 	    error("loadModel: prefilter didn't exist before version 2")
 	 end
-	 ret.filter = loaded.getFilter(ret.geometry)
+	 if ret.geometry.multiscale then
+	    local filter = loaded.getFilter(ret.geometry)
+	    ret.filter = getMultiscalePrefilter(ret.geometry, filter)
+	 else
+	    ret.filter = loaded.getFilter(ret.geometry)
+	 end
 	 local parameters = ret.filter:getParameters()
 	 parameters:copy(loaded.parameters)
       else
