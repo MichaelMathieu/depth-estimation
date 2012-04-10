@@ -215,7 +215,7 @@ for iEpoch = 1,opt.n_epochs do
       local err = criterion:forward(output:squeeze(), targetCrit)
       
       meanErr = meanErr + err
-      local outputp = processOutput(geometry, output:squeeze(), false)
+      local outputp = processOutput(geometry, output, false)
       if outputp.index == target then
 	 nGood = nGood + 1
       else

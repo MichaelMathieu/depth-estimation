@@ -26,10 +26,23 @@ function findMax(geometry, of)
 end
 
 function getOpticalFlowFast(geometry, image1, image2)
+   local geometryGT = {}
+   geometryGT.wPatch2 = geometry.maxwGT + geometry.wKernelGT - 1
+   geometryGT.hPatch2 = geometry.maxhGT + geometry.hKernelGT - 1
+   geometryGT.hImg = geometry.hImg
+   geometryGT.wImg = geometry.wImg
+   geometryGT.maxw = geometry.maxwGT
+   geometryGT.maxh = geometry.maxhGT
+   geometryGT.maxwGT = geometry.maxwGT
+   geometryGT.maxhGT = geometry.maxhGT
+   geometryGT.hKernel = geometry.hKernelGT
+   geometryGT.wKernel = geometry.wKernelGT
+   geometryGT.multiscale = false
+
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
    local nfeats = geometry.hKernelGT*geometry.wKernelGT*image1:size(1)
-   local input = prepareInput(geometry, image1, image2)
+   local input = prepareInput(geometryGT, image1, image2)
 
    local input1 = input[1]:unfold(2, geometry.hKernelGT, 1):unfold(3, geometry.wKernelGT, 1)
    local h1 = input1:size(2)
@@ -55,16 +68,6 @@ function getOpticalFlowFast(geometry, image1, image2)
    local output = net:forward({input1b, input2b})
    output = -output
    output = output:reshape(maxh*maxw, output:size(3), output:size(4))
-   local geometryGT = {}
-   geometryGT.wPatch2 = geometry.wPatch2
-   geometryGT.hPatch2 = geometry.hPatch2
-   geometryGT.hImg = geometry.hImg
-   geometryGT.wImg = geometry.wImg
-   geometryGT.maxw = geometry.maxwGT
-   geometryGT.maxh = geometry.maxhGT
-   geometryGT.hKernel = geometry.hKernelGT
-   geometryGT.wKernel = geometry.wKernelGT
-   geometryGT.multiscale = false
    local output2 = processOutput(geometryGT, output, true)
    return output2.full[1], output2.full[2]
 end
