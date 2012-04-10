@@ -320,7 +320,6 @@ function processOutput(geometry, output, process_full)
    else
       local m
       m, ret.index = output:max(1)
-      --[[
       local middleIndex
       if geometry.multiscale then
 	 middleIndex = yx2xMulti(geometry, 0, 0)
@@ -330,7 +329,6 @@ function processOutput(geometry, output, process_full)
       end
       local flatPixels = torch.LongTensor(m:size(2), m:size(3)):copy(m:eq(output[middleIndex]))
       ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(2), ret.index:size(3)))
-      --]]
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then

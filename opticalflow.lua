@@ -257,9 +257,9 @@ for iEpoch = 1,opt.n_epochs do
 			  parameters:copy(x)
 		       end
 		       gradParameters:zero()
-		       local output = model:forward(input):squeeze()
-		       local err = criterion:forward(output, targetCrit)
-		       local df_do = criterion:backward(output, targetCrit)
+		       local output = model:forward(input)
+		       local err = criterion:forward(output:squeeze(), targetCrit)
+		       local df_do = criterion:backward(output:squeeze(), targetCrit)
 		       model:backward(input, df_do)
 		       
 		       meanErr = meanErr + err
