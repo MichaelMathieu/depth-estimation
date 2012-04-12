@@ -48,7 +48,7 @@ function CascadingAddTable:__init(ratios)
       local mul = nn.Mul2()
       self.muls[#self.muls+1] = mul
       seq:add(mul)
-      seq:add(nn.Tanh())
+      --seq:add(nn.Tanh())
       self.postprocessors:add(seq)
    end
    
@@ -64,6 +64,9 @@ end
 
 function CascadingAddTable:reset(stdv)
    self.weight:fill(1)
+   for i = 1,#self.ratios do
+      self.postprocessors.modules[i].modules[1].weight[1] = 1.0 / (#self.ratios-i+1)
+   end
    --[[
    stdv = stdv or 1
    for i = 1,#self.muls do
