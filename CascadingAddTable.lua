@@ -19,16 +19,16 @@ function CascadingAddTable:__init(ratios)
    self.transformers = {}
    for i = 1,#self.ratios-1 do
       local seq1 = nn.Sequential()
-      self.padders[i] = nn.SpatialZeroPadding2(0,0,0,0, 1, 2)
-      seq1:add(self.padders[i])
-      seq1:add(nn.SpatialUpSampling(self.ratios[i+1]/self.ratios[i],
-				   self.ratios[i+1]/self.ratios[i], 1, 2))
       local mul1 = nn.Mul2()
       self.muls[#self.muls+1] = mul1
       seq1:add(mul1)
       seq1:add(nn.Tanh())
       
       local seq2 = nn.Sequential()
+      self.padders[i] = nn.SpatialZeroPadding2(0,0,0,0, 1, 2)
+      seq2:add(self.padders[i])
+      seq2:add(nn.SpatialUpSampling(self.ratios[i+1]/self.ratios[i],
+				    self.ratios[i+1]/self.ratios[i], 1, 2))
       local mul2 = nn.Mul2()
       self.muls[#self.muls+1] = mul2
       seq2:add(mul2)
@@ -48,7 +48,7 @@ function CascadingAddTable:__init(ratios)
       local mul = nn.Mul2()
       self.muls[#self.muls+1] = mul
       seq:add(mul)
-      --seq:add(nn.Tanh())
+      seq:add(nn.Tanh())
       self.postprocessors:add(seq)
    end
    
@@ -63,9 +63,9 @@ function CascadingAddTable:__init(ratios)
 end
 
 function CascadingAddTable:reset(stdv)
-   self.weight:fill(1)
+   self.weight:fill(0.1)
    for i = 1,#self.ratios do
-      self.postprocessors.modules[i].modules[1].weight[1] = 1.0 / (#self.ratios-i+1)
+      self.postprocessors.modules[i].modules[1].weight[1] = 0.1 / (#self.ratios-i+1)
    end
    --[[
    stdv = stdv or 1
@@ -106,6 +106,10 @@ function CascadingAddTable:updateOutput(input)
 end
 
 function CascadingAddTable:updateGradInput(input, gradOutput)
+   for i = 1,#self.muls do --todo this is dirty
+      self.muls[i].weight = self.weight:narrow(1,i,1)
+      self.muls[i].gradWeight = self.gradWeight:narrow(1,i,1)
+   end
    self.postprocessors:updateGradInput(self.outputBP, gradOutput)
    local lastGrad = torch.Tensor(self.postprocessors.gradInput[1]:size()):zero()
    for i = 1,#input-1 do
