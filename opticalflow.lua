@@ -25,7 +25,7 @@ op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
 op:option{'-k3s', '--kernel3-size', action='store', dest='kernel3_size',
 	  default=16, help='Kernel 3 size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
-	  default=17, help='Window size maxw (and maxh)'}
+	  default=16, help='Window size maxw (and maxh)'}
 op:option{'-nl', '-num-layers', action='store', dest='num_layers',
 	  default=2, help='Number of layers in the network (1 2 or 3)'}
 op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', default=8,

@@ -125,7 +125,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
        flow = nil
        print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
          end
-         flow = {}
+         flow = torch.Tensor(2, flowpng:size(2), flowpng:size(3)):fill(1)
          flow[1] = flowpng[1]
          flow[2] = flowpng[2]
       else
@@ -416,7 +416,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
 
          local yPatch = randInt(1, geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
          local xPatch = randInt(1, geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
-
+         
          local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
          local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
 
