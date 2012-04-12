@@ -42,7 +42,7 @@ if opt.download_dir ~= nil then
    end
 end
 
-local loaded = loadModel(opt.input_model, true, true)
+local loaded = loadModel(opt.input_model, true, true, 320, 240)
 local model = loaded.model
 local filter = loaded.filter
 local geometry = loaded.geometry
@@ -51,7 +51,7 @@ local output_window
 local timer
 
 
-local camera = image.Camera{idx=0, width=320, height=180}
+local camera = image.Camera{idx=0, width=320, height=240}
 
 -- while true do
 -- 	last_im = camera:forward()
@@ -59,8 +59,10 @@ local camera = image.Camera{idx=0, width=320, height=180}
 -- end
 
 last_im = camera:forward()
+last_im = filter:forward(last_im):clone()
 while true do
    local im = camera:forward()
+   im = filter:forward(im):clone()
    if im then
        timer = torch.Timer()
 

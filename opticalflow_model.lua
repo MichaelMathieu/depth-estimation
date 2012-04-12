@@ -4,6 +4,7 @@ require 'nnx'
 require 'SmartReshape'
 require 'common'
 require 'CascadingAddTable'
+require 'OutputExtractor'
 
 function yx2x(geometry, y, x)
    return (y-1) * geometry.maxwGT + x
@@ -198,13 +199,9 @@ function getModel(geometry, full_image, prefiltered)
       model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
 
-   if not geometry.soft_targets then
-      model:add(nn.Minus())
-      local spatial = nn.SpatialClassifier()
-      spatial:add(nn.LogSoftMax())
-      model:add(spatial)
-   end
-   
+   assert(not geometry.soft_targets) -- not up to date
+   model:add(OutputExtractor(false))
+
    return model
 end
 
@@ -588,7 +585,7 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs, tosave)
 end
 
-function loadModel(filename, full_output, prefilter)
+function loadModel(filename, full_output, prefilter, wImg, hImg)
    local loaded = torch.load(filename)
    local ret = {}
    if not loaded.version then -- old version
@@ -625,6 +622,8 @@ function loadModel(filename, full_output, prefilter)
 	 ret.geometry.maxhGT = ret.geometry.maxh
 	 ret.geometry.maxwGT = ret.geometry.maxw
       end
+      if wImg then ret.geometry.wImg = wImg end
+      if hImg then ret.geometry.hImg = hImg end
       if ret.geometry.multiscale then
 	 ret.model = getModelMultiscale(ret.geometry, full_output)
       else
@@ -634,6 +633,8 @@ function loadModel(filename, full_output, prefilter)
       parameters:copy(loaded[1])
    elseif loaded.version >= 1 then 
       ret.geometry = loaded.geometry
+      if wImg then ret.geometry.wImg = wImg end
+      if hImg then ret.geometry.hImg = hImg end
       ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
       ret.getKernel = loaded.getKernels
       if prefilter == true then
@@ -650,6 +651,8 @@ function loadModel(filename, full_output, prefilter)
 	 parameters:copy(loaded.parameters)
       else
 	 local parameters = ret.model:getParameters()
+	 print(parameters:size())
+	 print(loaded.parameters:size())
 	 parameters:copy(loaded.parameters)
       end
    else
