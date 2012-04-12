@@ -271,7 +271,9 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       precascad:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
    end
    model:add(precascad)
-   model:add(nn.CascadingAddTable(geometry.ratios))
+   local cascad = nn.CascadingAddTable(geometry.ratios)
+   model:add(cascad)
+   
 
    local postprocessors = nn.ParallelTable()
    postprocessors:add(nn.SmartReshape({-1,-2},-3,-4))
@@ -464,6 +466,14 @@ function getKernels(geometry, model)
 	    end
 	    table.insert(kernel, weight2)
 	 end
+	 if #geometry.layers > 2 then
+	    local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	    if weight3:nDimension() > 3 then --what that happens *only* sometimes??
+	       weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+					 weight3:size(4))
+	    end
+	    table.insert(kernel, weight3)
+	 end
       end
    else
       local weight = model.modules[1].modules[1].modules[1].weight
@@ -475,6 +485,14 @@ function getKernels(geometry, model)
 				      weight2:size(4))
 	 end
 	 table.insert(kernel, weight2)
+      end
+      if #geometry.layers > 2 then
+	 local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	 if weight3:nDimension() > 3 then --what that happens *only* sometimes??
+	    weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+				      weight3:size(4))
+	 end
+	 table.insert(kernel, weight3)
       end
    end
    return kernels
@@ -509,7 +527,6 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
       sampling = '_' .. learning.sampling_method
    end
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
-   learning_ = learning_ .. ', ' .. learning.rate_decay2
    learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets .. sampling
    if learning.renew_train_set then
       learning_ = learning_ .. ' renewTrainSet'
@@ -549,7 +566,6 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    if learning.renew_train_set then renew = '_renew' end
    if geometry.motion_correction then motion = '_mc' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
-   train_params = train_params .. '_rdTwo' .. learning.rate_decay2
    train_params = train_params .. '_wd' ..learning.weight_decay .. sampling .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
    local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1)) .. motion
