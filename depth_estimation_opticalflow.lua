@@ -58,7 +58,15 @@ while true do
       break
    end
    timer = torch.Timer()
-   local input = prepareInput(geometry, last_im, im)
+   local input
+   if geometry.multiscale then
+      input = {}
+      for i = 1,#geometry.ratios do
+	 input[i] = {last_im[i], im[i]}
+      end
+   else
+      input = prepareInput(geometry, last_im, im)
+   end
    local moutput = model:forward(input)
    local output = processOutput(geometry, moutput)
    print(timer:time())
