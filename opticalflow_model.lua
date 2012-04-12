@@ -273,7 +273,6 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    model:add(precascad)
    local cascad = nn.CascadingAddTable(geometry.ratios)
    model:add(cascad)
-   cascad:reset(1)
    
 
    local postprocessors = nn.ParallelTable()

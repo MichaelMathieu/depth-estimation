@@ -63,9 +63,13 @@ function CascadingAddTable:__init(ratios)
 end
 
 function CascadingAddTable:reset(stdv)
+   self.weight:fill(1)
+   --[[
+   stdv = stdv or 1
    for i = 1,#self.muls do
       self.muls[i]:reset(stdv)
    end
+   --]]
 end
 
 function CascadingAddTable:updateOutput(input)
