@@ -1,8 +1,10 @@
 require 'CascadingAddTable'
 
 local function test_CascadingAddTable()
-   local hfeats = 8*math.random(1,3)
-   local wfeats = 8*math.random(1,3)
+   --local hfeats = 8*math.random(1,3)
+   --local wfeats = 8*math.random(1,3)
+   local hfeats = 8*math.random(1,1)
+   local wfeats = 8*math.random(1,1)
    local nratios = math.random(1,4)
    local ratios = {}
    for i = 1,nratios do
@@ -22,8 +24,13 @@ local function test_CascadingAddTable()
 
    local err = nn.Jacobian.testJacobian(module, input)
    local precision = 1e-5
-   --print(err)
    assert(math.abs(err) < precision)
+
+   local err = nn.Jacobian.testJacobianParameters(module, input,
+						  module.modules[2].weight,
+						  module.modules[2].gradWeight)
+   assert(math.abs(err) < precision)
+
 
    local ferr, berr = nn.Jacobian.testIO(module, input)
    assert(ferr == 0)

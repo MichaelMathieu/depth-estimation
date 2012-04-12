@@ -98,7 +98,7 @@ if geometry.motion_correction then
 else
    image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
    image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
-					  opt.input_image1, delta)
+					  opt.input_image1, delta, true)
 end
 local input = {image1, image2}
 image.display(input)
@@ -139,4 +139,13 @@ print("--")
 local hsv = flow2hsv(geometry, output2)
 local gthsv = flow2hsv(geometry, gt)
 image.display{hsv, gthsv}
-image.display{hsv - gthsv}
+local diff=(output2-gt):abs():sum(1):squeeze():sub(math.ceil(geometry.hPatch2/2),
+						   geometry.hImg-math.ceil(geometry.hPatch2/2),
+						   math.ceil(geometry.wPatch2/2),
+						   geometry.wImg-math.ceil(geometry.wPatch2/2))
+local errs = torch.Tensor(diff:size(1), 3*diff:size(2)):fill(0)
+errs:sub(1,diff:size(1), 1               , diff:size(2)  ):copy(diff:ge(1))
+errs:sub(1,diff:size(1), diff:size(2)+1  , 2*diff:size(2)):copy(diff:ge(2))
+errs:sub(1,diff:size(1), 2*diff:size(2)+1, 3*diff:size(2)):copy(diff:ge(3))
+image.display(errs)
+image.display{image=diff}

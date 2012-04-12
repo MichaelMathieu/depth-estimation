@@ -5,6 +5,7 @@ require 'openmp'
 require 'sys'
 require 'download_model'
 require 'image_loader'
+require 'score_opticalflow'
 
 torch.manualSeed(1)
 
@@ -26,6 +27,8 @@ op:option{'-d', '--delta', action='store', dest='delta', default=1,
 -- output
 op:option{'-do', '--display-output', action='store_true', dest='display_output', default=false,
 	  help='Display the computed output'}
+op:option{'-o', '--output-dir', action='store', dest='output_dir', default=nil,
+	  help='Directory to store processed images'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -51,13 +54,16 @@ local timer
 ImageLoader:init(geometry, opt.root_directory..'/images', opt.first_image, opt.delta)
 local loader = ImageLoader
 
-local last_im = filter:forward(loader:getNextFrame())
+local last_frame = loader:getNextFrame()
+local last_im = filter:forward(last_frame):clone()
+local i = 0
 while true do
-   local im = filter:forward(loader:getNextFrame())
+   local frame = loader:getNextFrame()
+   timer = torch.Timer()
+   local im = filter:forward(frame):clone()
    if im == nil then
       break
    end
-   timer = torch.Timer()
    local input
    if geometry.multiscale then
       input = {}
@@ -68,10 +74,23 @@ while true do
       input = prepareInput(geometry, last_im, im)
    end
    local moutput = model:forward(input)
-   local output = processOutput(geometry, moutput)
+   local output = processOutput(geometry, moutput, true)
    print(timer:time())
    if opt.display_output then
       output_window = image.display{image=output.full, win=output_window}
    end
+   if opt.output_dir then
+      local ps = postProcessImage(output.full, 3)
+      local ts = flow2hsv(geometry, ps)
+      local im2 = torch.Tensor(3, 2*ts:size(2), 2*ts:size(3)):zero()
+      local gthsv = flow2hsv(geometry, loader:getCurrentGT())
+      im2:sub(1,im2:size(1),            1, ts:size(2),            1,ts:size(3)):copy(last_frame)
+      im2:sub(1,im2:size(1),            1, ts:size(2), ts:size(3)+1,im2:size(3)):copy(frame)
+      im2:sub(1, ts:size(1), ts:size(2)+1,im2:size(2),            1, ts:size(3)):copy(ts)  
+      im2:sub(1,im2:size(1), ts:size(2)+1,im2:size(2), ts:size(3)+1,im2:size(3)):copy(gthsv)
+      image.save(string.format('%s/%09d.png', opt.output_dir, i), im2)
+   end
    last_im = im
+   last_frame = frame
+   i = i+1
 end

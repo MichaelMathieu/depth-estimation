@@ -271,7 +271,10 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       precascad:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
    end
    model:add(precascad)
-   model:add(nn.CascadingAddTable(geometry.ratios))
+   local cascad = nn.CascadingAddTable(geometry.ratios)
+   model:add(cascad)
+   cascad:reset(1)
+   
 
    local postprocessors = nn.ParallelTable()
    postprocessors:add(nn.SmartReshape({-1,-2},-3,-4))
@@ -464,6 +467,14 @@ function getKernels(geometry, model)
 	    end
 	    table.insert(kernel, weight2)
 	 end
+	 if #geometry.layers > 2 then
+	    local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	    if weight3:nDimension() > 3 then --what that happens *only* sometimes??
+	       weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+					 weight3:size(4))
+	    end
+	    table.insert(kernel, weight3)
+	 end
       end
    else
       local weight = model.modules[1].modules[1].modules[1].weight
@@ -475,6 +486,14 @@ function getKernels(geometry, model)
 				      weight2:size(4))
 	 end
 	 table.insert(kernel, weight2)
+      end
+      if #geometry.layers > 2 then
+	 local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	 if weight3:nDimension() > 3 then --what that happens *only* sometimes??
+	    weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+				      weight3:size(4))
+	 end
+	 table.insert(kernel, weight3)
       end
    end
    return kernels
