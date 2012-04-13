@@ -40,6 +40,8 @@ op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default
 	  help='L2 pooling (experimental)'}
 op:option{'-ms', '--multiscale', action='store', dest='multiscale', default=0,
 	  help='Number of scales used (0 disables multiscale)'}
+op:option{'-sf', '--share-filters', action='store_true', dest='share_filters', default=false,
+	  help='Share multiscale filters'}
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -137,6 +139,7 @@ end
 geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
 geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.motion_correction = opt.motion_correction
+geometry.share_filters = opt.share_filters
 geometry.training_mode = true
 
 assert(geometry.maxwGT >= geometry.maxw)

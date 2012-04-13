@@ -182,7 +182,11 @@ function getMultiscalePrefilter(geometry, filter)
       local seq = nn.Sequential()
       seq:add(nn.SpatialDownSampling(geometry.ratios[i], geometry.ratios[i]))
       seq:add(nn.SpatialZeroPadding(padLeft, padRight, padTop, padBottom))
-      seq:add(filter:clone())
+      if geometry.share_filters then
+	 seq:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+      else
+	 seq:add(filter:clone())
+      end
       prefilter:add(seq)
    end
    return prefilter
@@ -256,7 +260,11 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    
    local matchers = {}
    for i = 1,#geometry.ratios do
-      matchers[i] = matcher:clone()
+      if geometry.share_filters then
+	 matchers[i] = matcher:clone('weight', 'bias', 'gradWeight', 'gradBias')
+      else
+	 matchers[i] = matcher:clone()
+      end
    end
 
    local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
@@ -502,17 +510,17 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    local targets = ''
    local sampling = ''
    local motion = ''
+   local share = ''
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' .. learning.sampling_method
    end
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
    learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets .. sampling
-   if learning.renew_train_set then
-      learning_ = learning_ .. ' renewTrainSet'
-   end
-   if geometry.motion_correction then motion = 'MotionCorrection' end
+   if learning.renew_train_set then learning_ = learning_ .. ' renewTrainSet' end
+   if geometry.motion_correction then motion = ' MotionCorrection' end
+   if geometry.share_filters then share = ' ShareFilters' end
    local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
-   summary = summary .. ' ' .. motion
+   summary = summary .. motion .. share
    return summary
 end
 
@@ -528,6 +536,7 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
       end
    end
    if geometry.L2Pooling then kernel = kernel .. '_l2' end
+   if geometry.share_filters then kernel = kernel .. '_sf' end
    if geometry.multiscale then
       for i = 1,#geometry.ratios do
 	 kernel = kernel .. '-' .. geometry.ratios[i]
@@ -538,6 +547,7 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    local sampling = ''
    local renew = ''
    local motion = ''
+   local share = ''
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' ..learning.sampling_method
    end
