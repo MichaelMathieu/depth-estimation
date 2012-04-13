@@ -34,8 +34,7 @@ geometry.hPatch2=geometry.maxh+geometry.hKernel-1
 nSamples = 100
 
 raw_data = loadDataOpticalFlow(geometry, 'data/', 10, '000000000', 1, false)
-trainData = generateDataOpticalFlow(geometry, raw_data, nSamples,
-				    'uniform_position', false)
+trainData = generateDataOpticalFlow(geometry, raw_data, nSamples)
 
 model = getModelMultiscale(geometry, false)
 --model:focus(1,1,1,1)

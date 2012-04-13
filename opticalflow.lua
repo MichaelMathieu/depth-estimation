@@ -53,8 +53,6 @@ op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
 op:option{'-lrd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
           default=5e-7, help='Learning rate decay'}
-op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
-	  default='uniform_position', help='Sampling method : uniform_position | uniform_flow'}
 op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set',
@@ -149,7 +147,6 @@ local learning = {}
 learning.rate = opt.learning_rate
 learning.rate_decay = opt.learning_rate_decay
 learning.weight_decay = opt.weight_decay
-learning.sampling_method = opt.sampling_method
 learning.renew_train_set = opt.renew_train_set
 
 local summary = describeModel(geometry, learning, opt.num_input_images,
@@ -169,11 +166,9 @@ print('Loading images...')
 local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
 				     opt.first_image, opt.delta, opt.use_liu_groundtruth)
 print('Generating training set...')
-local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
-					  learning.sampling_method)
+local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
 print('Generating test set...')
-local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set,
-					 learning.sampling_method)
+local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set)
 
 saveModel('model_of_', geometry, learning, parameters, model, opt.num_input_images,
 	  opt.first_image, opt.delta, 0)
@@ -229,8 +224,7 @@ for iEpoch = 1,opt.n_epochs do
 
    if learning.renew_train_set then
       print('Generating training set...')
-      trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set,
-					  learning.sampling_method)
+      trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
    end
    
    for t = 1,trainData:size() do

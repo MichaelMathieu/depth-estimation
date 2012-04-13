@@ -32,8 +32,7 @@ iBegin=8
 torch.manualSeed(1)
 
 raw_data = loadDataOpticalFlow(geometry, 'data/', 2, '000000000', 1, false)
-trainData = generateDataOpticalFlow(geometry, raw_data, iBegin+nSamples,
-				    'uniform_position', false)
+trainData = generateDataOpticalFlow(geometry, raw_data, iBegin+nSamples)
 
 nGood = 0
 nBad = 0

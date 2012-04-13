@@ -503,14 +503,10 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
    local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
    local targets = ''
-   local sampling = ''
    local motion = ''
    local share = ''
-   if learning.sampling_method ~= 'uniform_position' then
-      sampling = '_' .. learning.sampling_method
-   end
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
-   learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets .. sampling
+   learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets
    if learning.renew_train_set then learning_ = learning_ .. ' renewTrainSet' end
    if geometry.motion_correction then motion = ' MotionCorrection' end
    if geometry.share_filters then share = ' ShareFilters' end
@@ -539,17 +535,13 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    end
    local modeldir = modelsdirbase .. '/' .. kernel
    local targets = ''
-   local sampling = ''
    local renew = ''
    local motion = ''
    local share = ''
-   if learning.sampling_method ~= 'uniform_position' then
-      sampling = '_' ..learning.sampling_method
-   end
    if learning.renew_train_set then renew = '_renew' end
    if geometry.motion_correction then motion = '_mc' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
-   train_params = train_params .. '_wd' ..learning.weight_decay .. sampling .. targets .. renew
+   train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
    local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1)) .. motion
    modeldir = modeldir .. '/' .. images

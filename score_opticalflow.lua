@@ -69,7 +69,7 @@ end
 
 function evalOpticalFlowPatches(geometry, model, raw_data, nSamples)
    nSamples = nSamples or 1000
-   local testData = generateDataOpticalFlow(geometry, raw_data, nSamples, 'uniform_position')
+   local testData = generateDataOpticalFlow(geometry, raw_data, nSamples)
 
    local criterion = nn.ClassNLLCriterion()
 
