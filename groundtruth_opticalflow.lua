@@ -103,7 +103,8 @@ function getOpticalFlow(geometry, image1, image2)
    return findMax(geometry, of)
 end
 
-function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebasename, delta, use_liu_groundtruth)
+function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebasename,
+			      delta, groundtruth)
    local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
    if not paths.filep(imagepath) then
       print("Image " .. imagepath .. " not found.")
@@ -116,7 +117,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    local flowdir = dirbasename .. 'flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    local flowfilename
    local flow = nil
-   if use_liu_groundtruth then
+   if groundtruth == 'liu' then
       flowdir = flowdir .. '/celiu'
       os.execute('mkdir -p ' .. flowdir)
       flowfilename = flowdir .. '/' .. imagebasename .. '.png'
@@ -134,7 +135,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
          return nil
       end
 
-   else
+   elseif groundtruth == 'cross-correlation' then
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
       flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
       os.execute('mkdir -p ' .. flowdir)
@@ -146,6 +147,8 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
        print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
          end
       end
+   else
+      error('groundtruth must be either liu or cross-correlation')
    end
    if not flow then
       local previmagepath = dirbasename .. 'images/' .. previmagebasename .. '.jpg'
@@ -166,7 +169,8 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
 end
 
 function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
-				       previmagebasename, delta)
+				       previmagebasename, delta, groundtruth)
+   if groundtruth == 'liu' then error('liu rectified : not implemented') end
    local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
    if not paths.filep(imagepath) then
       print("Image " .. imagepath .. " not found.")
@@ -217,7 +221,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
 end
 
-function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, use_liu_groundtruth)
+function loadDataOpticalFlow(geometry, learning, dirbasename)
    local imagesdir = dirbasename .. 'images'
    local findIm = 'cd ' .. imagesdir .. ' && ls -LB'
    raw_data = {}
@@ -233,10 +237,10 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, u
       end
    end
    local imagepaths = {}
-   local iLine = first_image+1 --images are numbered from 0
-   for i = 1,nImgs do
+   local iLine = learning.first_image+1 --images are numbered from 0
+   for i = 1,learning.num_images do
       imagepaths[i] = imagepaths_raw[iLine]
-      iLine = iLine + delta
+      iLine = iLine + learning.delta
    end
 
    if geometry.motion_correction then
@@ -250,21 +254,22 @@ function loadDataOpticalFlow(geometry, dirbasename, nImgs, first_image, delta, u
    local im = loadImageOpticalFlow(geometry, dirbasename, imagepaths[1], nil, nil)
    table.insert(raw_data.images, im)
    
-   if use_liu_groundtruth then
+   if learning.groundtruth == 'liu' then
       print("Using Liu groundtruth...")
    end
 
-   for i = 2,math.min(#imagepaths, nImgs) do
+   for i = 2,math.min(#imagepaths, learning.num_images) do
       if geometry.motion_correction then
-         local im, flow, im_rect = loadRectifiedImageOpticalFlow(geometry, dirbasename,
-								    imagepaths[i],
-								    imagepaths[i-1], delta, use_liu_groundtruth)
+         local im, flow, im_rect = loadRectifiedImageOpticalFlow(
+	    geometry, dirbasename, imagepaths[i], imagepaths[i-1],
+	    learning.delta, learning.groundtruth)
          table.insert(raw_data.images, im)
          table.insert(raw_data.flow, flow)   
          table.insert(raw_data.rectified_images, im_rect)
       else
-         local im, flow = loadImageOpticalFlow(geometry, dirbasename, imagepaths[i],
-                      imagepaths[i-1], delta, use_liu_groundtruth)
+         local im, flow = loadImageOpticalFlow(
+	    geometry, dirbasename, imagepaths[i],
+	    imagepaths[i-1], learning.delta, learning.groundtruth)
          table.insert(raw_data.images, im)
          table.insert(raw_data.flow, flow)
       end

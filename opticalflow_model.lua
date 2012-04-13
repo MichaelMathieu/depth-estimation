@@ -481,7 +481,7 @@ function getKernels(geometry, model)
    return kernels
 end
 
-function describeModel(geometry, learning, nImgs, first_image, delta)
+function describeModel(geometry, learning)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
    local kernel = 'kernel=('
    for i = 1,#geometry.layers do
@@ -501,7 +501,8 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
       kernel = kernel .. '}'
    end
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
-   local images = 'imgs=('..first_image..':'..delta..':'.. first_image+delta*(nImgs-1)..')'
+   local images = 'imgs=(' .. learning.first_image .. ':' .. learning.delta .. ':' 
+   images = images .. learning.first_image+learning.delta*(learning.num_images-1) .. ')'
    local targets = ''
    local motion = ''
    local share = ''
@@ -515,8 +516,7 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    return summary
 end
 
-function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
-		   first_image, delta, nEpochs)
+function saveModel(basefilename, geometry, learning, parameters, model, nEpochs)
    local modelsdirbase = 'models'
    local kernel = ''
    for i = 1,#geometry.layers do
@@ -543,7 +543,8 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew
    modeldir = modeldir .. '/' .. train_params
-   local images = first_image..'_'..delta..'_'..(first_image+delta*(nImgs-1)) .. motion
+   local images = learning.first_image .. '_' .. learning.delta .. '_' 
+   images = images .. (learning.first_image+learning.delta*(learning.num_images-1)) .. motion
    modeldir = modeldir .. '/' .. images
    os.execute('mkdir -p ' .. modeldir)
 

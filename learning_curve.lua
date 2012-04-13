@@ -45,9 +45,14 @@ if not opt.load then
    geometry.maxwGT = 16
    geometry.hKernelGT = 16
    geometry.wKernelGT = 16
+
+   learning = {}
+   learning.num_images = opt.num_input_images
+   learning.first_image = opt.first_image
+   learning.delta = opt.delta
+   learning.groundtruth = 'cross-correlation'
    
-   local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
-					opt.first_image, opt.delta, false)
+   local raw_data = loadDataOpticalFlow(geometry, learning, 'data/')
    
    for iInput = 1,#inputs do
       scores[iInput] = getLearningScores(inputs[iInput], raw_data, 'full', 100)

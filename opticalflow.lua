@@ -83,10 +83,6 @@ opt.learning_rate = tonumber(opt.learning_rate)
 opt.learning_rate_decay = tonumber(opt.learning_rate_decay)
 opt.weight_decay = tonumber(opt.weight_decay)
 
-opt.first_image = tonumber(opt.first_image)
-opt.delta = tonumber(opt.delta)
-opt.num_input_images = tonumber(opt.num_input_images)
-
 openmp.setDefaultNumThreads(opt.nThreads)
 
 local geometry = {}
@@ -144,13 +140,20 @@ assert(geometry.maxwGT >= geometry.maxw)
 assert(geometry.maxhGT >= geometry.maxh)
 
 local learning = {}
+learning.first_image = tonumber(opt.first_image)
+learning.delta = tonumber(opt.delta)
+learning.num_images = tonumber(opt.num_input_images)
 learning.rate = opt.learning_rate
 learning.rate_decay = opt.learning_rate_decay
 learning.weight_decay = opt.weight_decay
 learning.renew_train_set = opt.renew_train_set
+if opt.liu_groundtruth then
+   learning.groundtruth = 'liu'
+else
+   learning.groundtruth = 'cross-correlation'
+end
 
-local summary = describeModel(geometry, learning, opt.num_input_images,
-			      opt.first_image, opt.delta)
+local summary = describeModel(geometry, learning)
 
 --local model
 if geometry.multiscale then
@@ -163,15 +166,13 @@ local parameters, gradParameters = model:getParameters()
 local criterion = nn.ClassNLLCriterion()
 
 print('Loading images...')
-local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
-				     opt.first_image, opt.delta, opt.use_liu_groundtruth)
+local raw_data = loadDataOpticalFlow(geometry, learning, 'data/')
 print('Generating training set...')
 local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set)
 
-saveModel('model_of_', geometry, learning, parameters, model, opt.num_input_images,
-	  opt.first_image, opt.delta, 0)
+saveModel('model_of_', geometry, learning, parameters, model, 0)
 
 config = {learningRate = learning.rate,
 	  weightDecay = learning.weight_decay,
@@ -269,7 +270,6 @@ for iEpoch = 1,opt.n_epochs do
    meanErr = meanErr / (trainData:size())
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
-   saveModel('model_of_', geometry, learning, parameters, model, opt.num_input_images,
-	     opt.first_image, opt.delta, iEpoch)
+   saveModel('model_of_', geometry, learning, parameters, model, iEpoch)
 
 end
