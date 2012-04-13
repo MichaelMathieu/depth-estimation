@@ -357,6 +357,7 @@ function processOutput(geometry, output, process_full)
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then
+      print(ret.index:size())
       ret.y, ret.x = x2yxMulti(geometry, ret.index)
    else
       ret.y, ret.x = x2yx(geometry, ret.index)
@@ -624,6 +625,7 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       end
       if wImg then ret.geometry.wImg = wImg end
       if hImg then ret.geometry.hImg = hImg end
+      ret.geometry.training_mode = true
       if ret.geometry.multiscale then
 	 ret.model = getModelMultiscale(ret.geometry, full_output)
       else
@@ -635,7 +637,11 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       ret.geometry = loaded.geometry
       if wImg then ret.geometry.wImg = wImg end
       if hImg then ret.geometry.hImg = hImg end
-      if full_output then ret.geometry.training_mode = false end
+      if full_output and ret.geometry.training_mode then
+	 ret.geometry.training_mode = false
+      else
+	 ret.geometry.training_mode = true
+      end
       ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
       ret.getKernel = loaded.getKernels
       if prefilter == true then
