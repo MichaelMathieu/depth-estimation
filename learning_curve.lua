@@ -2,6 +2,8 @@ require 'score_opticalflow'
 require 'xlua'
 
 op = xlua.OptionParser('%prog [options]')
+op:option{'-i', '--input', action='store', dest='input', default=nil,
+	  help='Epochs directory'}
 op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
 	  help='Index of first image used'}
 op:option{'-d', '--delta', action='store', dest='delta', default=1,
@@ -26,7 +28,7 @@ geometry.wKernelGT = 16
 local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
 				     opt.first_image, opt.delta, false)
 
-local scores = getLearningScores('models_test', raw_data, 'full', 100)
+local scores = getLearningScores(opt.input, raw_data, 'full', 100)
 
 if opt.save then
    torch.save(opt.save, scores)
