@@ -38,6 +38,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.hKernel = geometry.hKernelGT
    geometryGT.wKernel = geometry.wKernelGT
    geometryGT.multiscale = false
+   geometryGT.training_mode = true
 
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
@@ -362,8 +363,8 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples, method)
 				       return {{patch1, patch2}, self.targets[index]}
 				    end})
 
-   local hoffset = math.ceil(geometry.maxhGT/2) + math.ceil(geometry.hKernelGT/2) - 2
-   local woffset = math.ceil(geometry.maxwGT/2) + math.ceil(geometry.wKernelGT/2) - 2
+   local hoffset = math.ceil(geometry.maxhGT/2) + math.ceil(geometry.hKernelGT/2) - 2+1
+   local woffset = math.ceil(geometry.maxwGT/2) + math.ceil(geometry.wKernelGT/2) - 2+1
    function dataset:getElemFovea(index)
       local coords = self.patches[index]
       return {{{self.raw_data.images[coords[1]], self.raw_data.images[coords[2]]},

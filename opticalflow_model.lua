@@ -376,13 +376,8 @@ function processOutput(geometry, output, process_full)
    end
    if process_full then
       local hoffset, woffset
-      if output:size(2) > 1 then
-	 hoffset = 0
-	 woffset = 0
-      else
-	 hoffset = math.ceil(geometry.maxh/2) + math.ceil(geometry.hKernel/2) - 2
-	 woffset = math.ceil(geometry.maxw/2) + math.ceil(geometry.wKernel/2) - 2
-      end
+      hoffset = math.floor((geometry.hImg-ret.y:size(1))/2)
+      woffset = math.floor((geometry.wImg-ret.y:size(2))/2)
       if type(ret.y) == 'number' then
 	 ret.full = torch.Tensor(2, geometry.hPatch2, geometry.wPatch2):zero()
 	 ret.full[1]:fill(math.ceil(geometry.maxhGT/2))
