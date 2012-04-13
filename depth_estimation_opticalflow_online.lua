@@ -42,7 +42,7 @@ if opt.download_dir ~= nil then
    end
 end
 
-local loaded = loadModel(opt.input_model, true, true, 320, 240)
+local loaded = loadModel(opt.input_model, true, true)
 local model = loaded.model
 local filter = loaded.filter
 local geometry = loaded.geometry
@@ -58,11 +58,11 @@ local camera = image.Camera{idx=0, width=320, height=240}
 -- 	d = image.display{image=last_im, win=d, zoom=1}
 -- end
 
-last_im = camera:forward()
-last_im = filter:forward(last_im):clone()
+last_im = camera:forward():sub(1,3,1, 180,1,320)
+last_im_filtered = filter:forward(last_im):clone()
 while true do
-   local im = camera:forward()
-   im = filter:forward(im):clone()
+   local im = camera:forward():sub(1,3,1,180,1,320)
+   im_filtered = filter:forward(im):clone()
    if im then
        timer = torch.Timer()
 
@@ -70,10 +70,10 @@ while true do
 	   if geometry.multiscale then
 	      input = {}
 	      for i = 1,#geometry.ratios do
-			input[i] = {last_im[i], im[i]}
+			input[i] = {last_im_filtered[i], im_filtered[i]}
 	      end
 	   else
-	      input = prepareInput(geometry, last_im, im)
+	      input = prepareInput(geometry, last_im_filtered, im_filtered)
 	   end
 
 	   local moutput = model:forward(input)
@@ -83,7 +83,7 @@ while true do
 	      output_window = image.display{image=output.full, win=output_window}
 	   end
 	   last_im = im
-	   --d = image.display{image=last_im, win=d, zoom=1}
+	   d = image.display{image=last_im, win=d, zoom=1}
    end
 end
 

@@ -138,6 +138,16 @@ function onebased2centered(geometry, y, x)
    return (y-math.ceil(geometry.maxhGT/2)), (x-math.ceil(geometry.maxwGT/2))
 end
 
+function getMiddleIndex(geometry)
+   if geometry.multiscale then
+      return yx2xMulti(geometry, 0, 0)
+   else
+      local y, x = centered2onebased(geometry, 0, 0)
+      return yx2x(geometry, y, x)
+   end
+end
+
+
 function getFilter(geometry)
    assert(not geometry.L2Pooling)
    local filter = nn.Sequential()
@@ -200,7 +210,7 @@ function getModel(geometry, full_image, prefiltered)
    end
 
    assert(not geometry.soft_targets) -- not up to date
-   model:add(OutputExtractor(false))
+   model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
 
    return model
 end
@@ -306,12 +316,9 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    model:add(postprocessors)
    model:add(nn.JoinTable(1))
    
-   if not geometry.soft_targets then
-      model:add(nn.Minus())
-      local spatial = nn.SpatialClassifier()
-      spatial:add(nn.LogSoftMax())
-      model:add(spatial)
-   end
+   assert(not geometry.soft_targets) -- not up to date
+   
+   model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
 
    if not full_image then
       function model:focus(x, y)
@@ -337,24 +344,16 @@ function prepareInput(geometry, patch1, patch2)
 end
 
 function processOutput(geometry, output, process_full)
+   assert(not geometry.soft_targets)
    local ret = {}
-   if geometry.soft_targets then
-      _, ret.index = output:min(1)
-      if geometry.multiscale then
-	 error('Multiscale soft target not up to date')
-      end
-   else
+   if geometry.training_mode then
       local m
       m, ret.index = output:max(1)
-      local middleIndex
-      if geometry.multiscale then
-	 middleIndex = yx2xMulti(geometry, 0, 0)
-      else
-	 local y, x = centered2onebased(geometry, 0, 0)
-	 middleIndex = yx2x(geometry, y, x)
-      end
+      local middleIndex = getMiddleIndex(geometry)
       local flatPixels = torch.LongTensor(m:size(2), m:size(3)):copy(m:eq(output[middleIndex]))
       ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(2), ret.index:size(3)))
+   else
+      ret.index = output
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then
@@ -370,7 +369,7 @@ function processOutput(geometry, output, process_full)
    end
    if process_full then
       local hoffset, woffset
-      if output:size(2) == geometry.hImg then
+      if output:size(2) > 1 then
 	 hoffset = 0
 	 woffset = 0
       else
@@ -387,6 +386,7 @@ function processOutput(geometry, output, process_full)
 	 ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
 	 ret.full[1]:fill(math.ceil(geometry.maxhGT/2))
 	 ret.full[2]:fill(math.ceil(geometry.maxwGT/2))
+	 print(hoffset)
 	 ret.full:sub(1, 1,
 		      1 + hoffset, ret.y:size(1) + hoffset,
 		      1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
@@ -635,6 +635,7 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       ret.geometry = loaded.geometry
       if wImg then ret.geometry.wImg = wImg end
       if hImg then ret.geometry.hImg = hImg end
+      if full_output then ret.geometry.training_mode = false end
       ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
       ret.getKernel = loaded.getKernels
       if prefilter == true then

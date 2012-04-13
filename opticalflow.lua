@@ -140,6 +140,7 @@ end
 geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
 geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.motion_correction = opt.motion_correction
+geometry.training_mode = true
 
 assert(geometry.maxwGT >= geometry.maxw)
 assert(geometry.maxhGT >= geometry.maxh)
