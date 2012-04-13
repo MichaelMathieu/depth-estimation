@@ -70,6 +70,8 @@ function split(str, char)
 end
 
 function strip(str, chars)
+   if type(chars) == 'string' then chars = {chars} end
+   assert(type(chars) == 'table')
    local function nochar(a)
       for i = 1,#chars do
 	 if a == chars[i] then
@@ -96,14 +98,14 @@ function strip(str, chars)
    return str2:sub(1,i)
 end
 
-function ls2(dir, ext_filter)
+function ls2(dir, filter)
    local ls = split(sys.execute('ls ' .. dir), '\n')
    local ret = {}
    for i = 1,#ls do
-      local a = strip(ls[i],' ')
+      local a = strip(ls[i],{' '})
       if a ~= '' then
-	 if ext_filter then
-	    if a:sub(-ext_filter:len()) == ext_filter then
+	 if filter then
+	    if filter(a) then
 	       table.insert(ret, a)
 	    end
 	 else
@@ -113,3 +115,48 @@ function ls2(dir, ext_filter)
    end
    return ret
 end
+
+function lsR(dir, filter, dirfilter, return_dir_filter)
+   if dir:sub(-1) ~= '/' then dir = dir..'/' end
+   local ls = split(sys.execute('ls -d '.. dir .. '*/ 2> /dev/null' ), '\n')
+   local ret = {}
+   for i = 1,#ls do
+      local a = strip(ls[i], {' '})
+      if a ~= '' then
+	 if a:sub(-1) == '/' then
+	    local sub = {}
+	    if dirfilter then
+	       if dirfilter(a) then
+		  sub = lsR(a, filter, dirfilter, return_dir_filter)
+		  if return_dir_filter then
+		     if return_dir_filter(a) then table.insert(ret, a) end
+		  end
+	       end
+	    else
+	       sub = lsR(a, filter, dirfilter, return_dir_filter)
+	       if return_dir_filter then
+		  if return_dir_filter(a) then table.insert(ret, a) end
+	       end
+	    end
+	    for j = 1,#sub do
+	       table.insert(ret, sub[j])
+	    end
+	 end
+      end
+   end
+   local lsf = split(sys.execute("ls -ld ".. dir .. "* | grep -v ^d | awk '{print $9}'"), '\n')
+   for i = 1,#lsf do
+      local a = strip(lsf[i], {' '})
+      if a ~= '' then
+	 if filter then
+	    if filter(a) then
+	       table.insert(ret, a)
+	    end
+	 else
+	    table.insert(ret, a)
+	 end
+      end
+   end
+   return ret
+end
+   
