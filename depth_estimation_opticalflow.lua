@@ -54,9 +54,14 @@ local timer
 ImageLoader:init(geometry, opt.root_directory..'/images', opt.first_image, opt.delta)
 local loader = ImageLoader
 
+local timer = torch.Timer()
+
 local function filterNext()
    local frame = loader:getNextFrame()
+   timer:reset()
    local filtered = filter:forward(frame)
+   print('filter:')
+   print(timer:time())
    if geometry.multiscale then
       for i = 1,#filtered do
 	 filtered[i] = filtered[i]:clone()
@@ -70,7 +75,6 @@ end
 local last_frame, last_im = filterNext()
 local i = 0
 while true do
-   timer = torch.Timer()
    local frame, im = filterNext()
    if im == nil then
       break
@@ -84,9 +88,11 @@ while true do
    else
       input = prepareInput(geometry, last_im, im)
    end
+   timer:reset()
    local moutput = model:forward(input)
-   local output = processOutput(geometry, moutput, true)
+   print('matching')
    print(timer:time())
+   local output = processOutput(geometry, moutput, true)
    if opt.display_output then
       output_window = image.display{image=output.full, win=output_window}
    end
