@@ -154,7 +154,6 @@ local summary = describeModel(geometry, learning, opt.num_input_images,
 
 --local model
 if geometry.multiscale then
-   --model = getModelFovea(geometry, false)
    model = getModelMultiscale(geometry, false)
 else
    model = getModel(geometry, false)

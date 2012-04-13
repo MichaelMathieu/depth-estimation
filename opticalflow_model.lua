@@ -385,7 +385,6 @@ function processOutput(geometry, output, process_full)
 	 ret.full = torch.Tensor(2, geometry.hImg, geometry.wImg):zero()
 	 ret.full[1]:fill(math.ceil(geometry.maxhGT/2))
 	 ret.full[2]:fill(math.ceil(geometry.maxwGT/2))
-	 print(hoffset)
 	 ret.full:sub(1, 1,
 		      1 + hoffset, ret.y:size(1) + hoffset,
 		      1 + woffset, ret.y:size(2) + woffset):copy(ret.y)
@@ -652,8 +651,6 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	 end
       else
 	 local parameters = ret.model:getParameters()
-	 print(parameters:size())
-	 print(loaded.parameters:size())
 	 parameters:copy(loaded.parameters)
       end
    else

@@ -1,46 +1,5 @@
 require 'sys'
-
-function split(str, char)
-   local nb, ne
-   local e = 0
-   ret = {}
-   while true do
-      nb, ne = str:find(char, e+1)
-      if nb == nil then
-	 table.insert(ret, str:sub(e+1))
-	 return ret
-      end
-      table.insert(ret, str:sub(e+1, nb-1))
-      e = ne
-   end
-end
-
-function strip(str, chars)
-   local function nochar(a)
-      for i = 1,#chars do
-	 if a == chars[i] then
-	    return false
-	 end
-      end
-      return true
-   end
-   local i = 1
-   while i <= str:len() do
-      if nochar(str:sub(i,i)) then
-	 break
-      end
-      i = i+1
-   end
-   local str2 = str:sub(i)
-   i = str2:len()
-   while i >= 1 do
-      if nochar(str2:sub(i,i)) then
-	 break
-      end
-      i = i-1
-   end
-   return str2:sub(1,i)
-end
+require 'common'
 
 function listdir(sshpath, dir)
    options = options or ''

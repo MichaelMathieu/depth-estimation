@@ -1,5 +1,6 @@
 require 'torch'
 require 'xlua'
+require 'sys'
 
 function round(x)
    return math.floor(x+0.5)
@@ -51,4 +52,64 @@ function median(t)
     -- return middle elements
     return temp[math.ceil(#temp/2)]
   end
+end
+
+function split(str, char)
+   local nb, ne
+   local e = 0
+   ret = {}
+   while true do
+      nb, ne = str:find(char, e+1)
+      if nb == nil then
+	 table.insert(ret, str:sub(e+1))
+	 return ret
+      end
+      table.insert(ret, str:sub(e+1, nb-1))
+      e = ne
+   end
+end
+
+function strip(str, chars)
+   local function nochar(a)
+      for i = 1,#chars do
+	 if a == chars[i] then
+	    return false
+	 end
+      end
+      return true
+   end
+   local i = 1
+   while i <= str:len() do
+      if nochar(str:sub(i,i)) then
+	 break
+      end
+      i = i+1
+   end
+   local str2 = str:sub(i)
+   i = str2:len()
+   while i >= 1 do
+      if nochar(str2:sub(i,i)) then
+	 break
+      end
+      i = i-1
+   end
+   return str2:sub(1,i)
+end
+
+function ls2(dir, ext_filter)
+   local ls = split(sys.execute('ls ' .. dir), '\n')
+   local ret = {}
+   for i = 1,#ls do
+      local a = strip(ls[i],' ')
+      if a ~= '' then
+	 if ext_filter then
+	    if a:sub(-ext_filter:len()) == ext_filter then
+	       table.insert(ret, a)
+	    end
+	 else
+	    table.insert(ret, a)
+	 end
+      end
+   end
+   return ret
 end
