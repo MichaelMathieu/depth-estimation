@@ -182,7 +182,11 @@ function getMultiscalePrefilter(geometry, filter)
       local seq = nn.Sequential()
       seq:add(nn.SpatialDownSampling(geometry.ratios[i], geometry.ratios[i]))
       seq:add(nn.SpatialZeroPadding(padLeft, padRight, padTop, padBottom))
-      seq:add(filter:clone())
+      if geometry.share_filters then
+	 seq:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+      else
+	 seq:add(filter:clone())
+      end
       prefilter:add(seq)
    end
    return prefilter
