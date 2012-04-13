@@ -61,7 +61,7 @@ for iSample = iBegin,iBegin+nSamples-1 do
       y = sample[1][2][1]
       x = sample[1][2][2]
    end
-   targetCrit, target = prepareTarget(geometry, sample[2])
+   target = prepareTarget(geometry, sample[2])
    output = model:forward(input)
    m = processOutput(geometry, output, false).index
    local ay,ax = x2yxMulti(geometry, m)

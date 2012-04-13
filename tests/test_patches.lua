@@ -42,7 +42,7 @@ for iSample = 1,nSamples do
    input = prepareInput(geometry, sample[1][1], sample[1][2])
    --image.display{image=input[1], zoom=4,min=0,max=1}
    --image.display{image=input[2], zoom=4,min=0,max=1}
-   targetCrit, target = prepareTarget(geometry, sample[2])
+   target = prepareTarget(geometry, sample[2])
    input1 = input[1]:reshape(geometry.hKernel*geometry.wKernel*3,1,1)
    input2 = input[2]:unfold(2, geometry.hKernel, 1):unfold(3, geometry.wKernel, 1)
    input2b = torch.Tensor(geometry.wKernel*geometry.hKernel*3, geometry.maxh, geometry.maxw)
