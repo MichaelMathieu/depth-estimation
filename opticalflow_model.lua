@@ -210,7 +210,6 @@ function getModel(geometry, full_image, prefiltered)
       model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
    end
 
-   assert(not geometry.soft_targets) -- not up to date
    model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
 
    return model
@@ -319,8 +318,6 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    model:add(postprocessors)
    model:add(nn.JoinTable(1))
    
-   assert(not geometry.soft_targets) -- not up to date
-   
    model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
 
    if not full_image then
@@ -347,7 +344,6 @@ function prepareInput(geometry, patch1, patch2)
 end
 
 function processOutput(geometry, output, process_full)
-   assert(not geometry.soft_targets)
    local ret = {}
    if geometry.training_mode then
       local m
@@ -433,22 +429,7 @@ function prepareTarget(geometry, target)
       local targety = target[1] + math.ceil(geometry.maxhGT/2)
       itarget = (targety-1) * geometry.maxwGT + targetx
    end
-   --local itarget = yx2x(geometry, target[1], target[2])
-   if geometry.soft_targets then
-      assert(false) -- soft target not up-to-date with the centered optical flow
-      local ret = torch.Tensor(geometry.maxh*geometry.maxw):zero()
-      local sigma2 = 1
-      local normer = 1.0 / math.sqrt(sigma2 * 2.0 * math.pi)
-      for i = 1,geometry.maxh do
-	 for j = 1,geometry.maxw do
-	    local dist = math.sqrt((target[1]-i)*(target[1]-i)+(target[2]-j)*(target[2]-j))
-	    ret[yx2x(geometry, i, j)] = normer * math.exp(-dist*dist/sigma2)
-	 end
-      end
-      return ret, itarget
-   else
-      return itarget, itarget
-   end
+   return itarget
 end
 
 function getKernels(geometry, model)
@@ -522,7 +503,6 @@ function describeModel(geometry, learning, nImgs, first_image, delta)
    local targets = ''
    local sampling = ''
    local motion = ''
-   if geometry.soft_targets then targets = '_softTargets' end
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' .. learning.sampling_method
    end
@@ -559,7 +539,6 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    local sampling = ''
    local renew = ''
    local motion = ''
-   if geometry.soft_targets then targets = '_softTargets' end
    if learning.sampling_method ~= 'uniform_position' then
       sampling = '_' ..learning.sampling_method
    end

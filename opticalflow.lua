@@ -51,8 +51,6 @@ op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
           default=5e-3, help='Learning rate'}
 op:option{'-lrd', '--learning-rate-decay', action='store', dest='learning_rate_decay',
           default=5e-7, help='Learning rate decay'}
-op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets', default=false,
-	  help='Enable soft targets (targets are gaussians centered on groundtruth) (experimental)'}
 op:option{'-s', '--sampling-method', action='store', dest='sampling_method',
 	  default='uniform_position', help='Sampling method : uniform_position | uniform_flow'}
 op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
@@ -123,7 +121,6 @@ elseif tonumber(opt.num_layers) == 3 then
 else
    assert(false)
 end
-geometry.soft_targets = opt.soft_targets --todo should be in learning
 geometry.L2Pooling = opt.l2_pooling
 if opt.multiscale == 0 then
    geometry.multiscale = false
@@ -164,14 +161,7 @@ else
 end
 local parameters, gradParameters = model:getParameters()
 
-local criterion
-if geometry.soft_targets then
-   criterion = nn.DistNLLCriterion()
-   criterion.inputAsADistance = true
-   criterion.targetIsProbability = true
-else
-   criterion = nn.ClassNLLCriterion()
-end
+local criterion = nn.ClassNLLCriterion()
 
 print('Loading images...')
 local raw_data = loadDataOpticalFlow(geometry, 'data/', opt.num_input_images,
@@ -203,20 +193,20 @@ for iEpoch = 1,opt.n_epochs do
    for t = 1,testData:size() do
       modProgress(t, testData:size(), 100)
 
-      local input, target, targetCrit
+      local input, target
       if geometry.multiscale then
 	 local sample = testData:getElemFovea(t)
 	 input = sample[1][1]
 	 model:focus(sample[1][2][2], sample[1][2][1])
-	 targetCrit, target = prepareTarget(geometry, sample[2])
+	 target = prepareTarget(geometry, sample[2])
       else
 	 local sample = testData[t]
 	 input = prepareInput(geometry, sample[1][1], sample[1][2])
-    targetCrit, target = prepareTarget(geometry, sample[2])
+	 target = prepareTarget(geometry, sample[2])
       end
 
       local output = model:forward(input)
-      local err = criterion:forward(output:squeeze(), targetCrit)
+      local err = criterion:forward(output:squeeze(), target)
       
       meanErr = meanErr + err
       local outputp = processOutput(geometry, output, false)
@@ -244,16 +234,16 @@ for iEpoch = 1,opt.n_epochs do
    for t = 1,trainData:size() do
       modProgress(t, trainData:size(), 100)
 
-      local input, target, targetCrit
+      local input, target
       if geometry.multiscale then
 	 local sample = trainData:getElemFovea(t)
 	 input = sample[1][1]
 	 model:focus(sample[1][2][2], sample[1][2][1])
-	 targetCrit, target = prepareTarget(geometry, sample[2])
+	 target = prepareTarget(geometry, sample[2])
       else
 	 local sample = trainData[t]
 	 input = prepareInput(geometry, sample[1][1], sample[1][2])
-	 targetCrit, target = prepareTarget(geometry, sample[2])
+	 target = prepareTarget(geometry, sample[2])
       end
       
       local feval = function(x)
@@ -262,8 +252,8 @@ for iEpoch = 1,opt.n_epochs do
 		       end
 		       gradParameters:zero()
 		       local output = model:forward(input)
-		       local err = criterion:forward(output:squeeze(), targetCrit)
-		       local df_do = criterion:backward(output:squeeze(), targetCrit)
+		       local err = criterion:forward(output:squeeze(), target)
+		       local df_do = criterion:backward(output:squeeze(), target)
 		       model:backward(input, df_do)
 		       
 		       meanErr = meanErr + err

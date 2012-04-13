@@ -87,7 +87,7 @@ for iSample = 1,nSamples do
    local y = sample[1][2][1]
    local input = sample[1][1]
    model:focus(x, y)
-   local targetCrit, target = prepareTarget(geometry, sample[2])
+   local target = prepareTarget(geometry, sample[2])
    local output = model:forward(input)
    assert(output:size(1) == maxx)
    processed_output = processOutput(geometry, output)
