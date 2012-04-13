@@ -54,13 +54,24 @@ local timer
 ImageLoader:init(geometry, opt.root_directory..'/images', opt.first_image, opt.delta)
 local loader = ImageLoader
 
-local last_frame = loader:getNextFrame()
-local last_im = filter:forward(last_frame):clone()
+local function filterNext()
+   local frame = loader:getNextFrame()
+   local filtered = filter:forward(frame)
+   if geometry.multiscale then
+      for i = 1,#filtered do
+	 filtered[i] = filtered[i]:clone()
+      end
+   else
+      filtered = filtered:clone()
+   end
+   return frame, filtered
+end
+
+local last_frame, last_im = filterNext()
 local i = 0
 while true do
-   local frame = loader:getNextFrame()
    timer = torch.Timer()
-   local im = filter:forward(frame):clone()
+   local frame, im = filterNext()
    if im == nil then
       break
    end

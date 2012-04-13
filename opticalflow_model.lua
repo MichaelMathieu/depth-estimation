@@ -197,6 +197,7 @@ function getModel(geometry, full_image, prefiltered)
       local parallel = nn.ParallelTable()
       parallel:add(filter)
       parallel:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+      model.filter = filter
       model:add(parallel)
    end
 
@@ -216,6 +217,7 @@ function getModel(geometry, full_image, prefiltered)
 end
 
 function getModelMultiscale(geometry, full_image, prefiltered)
+   local model = nn.Sequential()
    if prefiltered == nil then prefiltered = false end
    assert(geometry.ratios[1] == 1)
    local rmax = geometry.ratios[#geometry.ratios]
@@ -260,8 +262,8 @@ function getModelMultiscale(geometry, full_image, prefiltered)
 
    local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
 				     geometry.wPatch2, geometry.hPatch2, 1, 1, prefiltered)
+   model.filter = pyramid
 
-   local model = nn.Sequential()
    if not prefiltered then
       model:add(nn.JoinTable(1))
    else
@@ -279,6 +281,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    end
    model:add(precascad)
    local cascad = nn.CascadingAddTable(geometry.ratios)
+   model.cascad = cascad
    model:add(cascad)
    
 
@@ -357,7 +360,6 @@ function processOutput(geometry, output, process_full)
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then
-      print(ret.index:size())
       ret.y, ret.x = x2yxMulti(geometry, ret.index)
    else
       ret.y, ret.x = x2yx(geometry, ret.index)
@@ -571,13 +573,19 @@ function saveModel(basefilename, geometry, learning, parameters, model, nImgs,
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 2
+   tosave.version = 3
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
       tosave.getModel = getModel
    end
    tosave.model_descr = model:__tostring__()
+   if model.cascad then
+      tosave.cascad_parameters = model.cascad.weight
+      tosave.filter_parameters = parameters[{{1,-tosave.cascad_parameters:size(1)-1}}]
+   else
+      tosave.filter_parameters = parameters
+   end
    tosave.parameters = parameters
    tosave.geometry = geometry
    tosave.learning = learning
@@ -654,8 +662,15 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	 else
 	    ret.filter = loaded.getFilter(ret.geometry)
 	 end
-	 local parameters = ret.filter:getParameters()
-	 parameters:copy(loaded.parameters)
+	 if loaded.version < 3 then
+	    local parameters = ret.filter:getParameters()
+	    parameters:copy(loaded.parameters)
+	 else
+	    ret.filter:getParameters():copy(loaded.filter_parameters)
+	    if loaded.cascad_parameters then
+	       ret.model:getParameters():copy(loaded.cascad_parameters)
+	    end
+	 end
       else
 	 local parameters = ret.model:getParameters()
 	 print(parameters:size())
