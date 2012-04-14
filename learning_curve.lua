@@ -16,11 +16,14 @@ op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 op:option{'-s', '--save', action='store', dest='save', default = nil,
 	  help = 'If a folder is specified, then the scores are saved inside'}
 op:option{'-l', '--load', action='store', dest='load', default = nil,
-	  help = 'If a path is specified, then the scores are loaded from the path'}
+	  help = 'If a folder is specified, then the scores are loaded from the folder'}
+op:option{'-xmax', '--x-max', action='store', dest='xmax', default=nil,
+	  help = 'Crop to xmax'}
 opt = op:parse()
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
 opt.num_input_images = tonumber(opt.num_input_images)
+opt.xmax = tonumber(opt.xmax)
 if opt.save then
    if opt.save:sub(-1) ~= '/' then opt.save = opt.save..'/' end
 end
@@ -55,19 +58,34 @@ if not opt.load then
    local raw_data = loadDataOpticalFlow(geometry, learning, 'data/')
    
    for iInput = 1,#inputs do
-      scores[iInput] = getLearningScores(inputs[iInput], raw_data, 'full', 100)
+      local name = table.concat(split(inputs[iInput], '/'))
+      scores[iInput] = {name, getLearningScores(inputs[iInput], raw_data, 'full', 100)}
    end
 else
-   scores[1] = torch.load(opt.load)
+   local paths = lsR(opt.load,
+		     function(a) return true end,
+		     function(a) return false end,
+		     function(a) return false end)
+   for i = 1,#paths do
+      scores[i] = {paths[i], torch.load(paths[i])}
+   end
 end
 
 if opt.save then
    for iInput = 1,#inputs do
-      local name = table.concat(split(inputs[iInput], '/'))
-      torch.save(opt.save .. name, scores[iInput])
+      torch.save(opt.save .. scores[iInput][1], scores[iInput][2])
    end
 else
-   for iInput = 1,#scores do
-      getLearningCurve(scores[iInput])
+   if opt.xmax then
+      for i = 1,#scores do
+	 if #scores[i][2] > opt.xmax then
+	    local tmp = {}
+	    for j = 1,opt.xmax do
+	       tmp[j] = scores[i][2][j]
+	    end
+	    scores[i][2] = tmp
+	 end
+      end
    end
+   getLearningCurve(scores)
 end

@@ -144,10 +144,12 @@ function lsR(dir, filter, dirfilter, return_dir_filter)
 	 end
       end
    end
-   local lsf = split(sys.execute("ls -ld ".. dir .. "* | grep -v ^d | awk '{print $9}'"), '\n')
+   local lsf = split(sys.execute("ls -ld ".. dir .. "* | grep -v ^d"), '\n')
    for i = 1,#lsf do
       local a = strip(lsf[i], {' '})
       if a ~= '' then
+	 a = split(a, ' ')
+	 a = a[#a]
 	 if filter then
 	    if filter(a) then
 	       table.insert(ret, a)

@@ -157,15 +157,21 @@ function getLearningScores(dir, raw_data, mode, nSamples)
    return ret
 end
 
-function getLearningCurve(scores)
-   local x = torch.Tensor(#scores)
-   local acc = torch.Tensor(#scores)
-   local err = torch.Tensor(#scores)
-   for i = 1,#scores do
-      x[i] = scores[i][1]
-      acc[i] = scores[i][2]
-      err[i] = scores[i][3]
-      i = i+1
+function getLearningCurve(scores_list)
+   local plot = {}
+   for iScore = 1,#scores_list do
+      local scores = scores_list[iScore][2]
+      local x = torch.Tensor(#scores)
+      local acc = torch.Tensor(#scores)
+      local err = torch.Tensor(#scores)
+      for i = 1,#scores do
+	 x[i] = scores[i][1]
+	 acc[i] = scores[i][2]
+	 err[i] = scores[i][3]
+	 i = i+1
+      end
+      table.insert(plot, {scores_list[iScore][1], x, acc, '-'})
    end
-   gnuplot.plot('curve', x, acc, '+-')
+   gnuplot.plot(plot)
+   gnuplot.movelegend('right', 'bottom')
 end
