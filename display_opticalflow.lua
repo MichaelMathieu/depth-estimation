@@ -98,7 +98,7 @@ if geometry.motion_correction then
 else
    image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
    image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
-					  opt.input_image1, delta, false)
+					  opt.input_image1, delta, 'cross-correlation')
 end
 local input = {image1, image2}
 image.display(input)
