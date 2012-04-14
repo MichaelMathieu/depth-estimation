@@ -45,6 +45,9 @@ op:option{'-sf', '--share-filters', action='store_true', dest='share_filters', d
 	  help='Share multiscale filters'}
 op:option{'-lw', '--load-weights', action='store', dest='load_weights', default = nil,
 	  help = 'Load weights from previously trained model'}
+op:option{'-mstw', '--multiscale-trainable-weights', action='store_true',
+	  dest='ms_trainable_weights', default = false,
+	  help='Allow the weights of CascadingAddTable to be trained'}
 
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
@@ -140,6 +143,10 @@ geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.motion_correction = opt.motion_correction
 geometry.share_filters = opt.share_filters
 geometry.training_mode = true
+if geometry.multiscale then
+   geometry.cascad_trainable_weights = opt.ms_trainable_weights
+end
+
 
 assert(geometry.maxwGT >= geometry.maxw)
 assert(geometry.maxhGT >= geometry.maxh)

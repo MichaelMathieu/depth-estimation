@@ -4,9 +4,10 @@ require 'SpatialZeroPadding2'
 local CascadingAddTable, parent = torch.class('nn.CascadingAddTable', 'nn.Module')
 local CascadingAddTableSplit, parent = torch.class('nn.CascadingAddTableSplit', 'nn.Module')
 
-function CascadingAddTable:__init(ratios)
+function CascadingAddTable:__init(ratios, trainable)
    parent.__init(self)
    self.ratios = ratios
+   self.trainable = trainable
    self.gradInput = {}
    self.outputBP = {}
    self.output = {}
@@ -51,28 +52,26 @@ function CascadingAddTable:__init(ratios)
       seq:add(nn.Tanh())
       self.postprocessors:add(seq)
    end
-   
+
    -- common weight and gradWeight vectors
-   self.weight = torch.Tensor(#self.muls)
-   self.gradWeight = torch.Tensor(#self.muls)
-   for i = 1,#self.muls do
-      self.muls[i].weight = self.weight:narrow(1,i,1)
-      self.muls[i].gradWeight = self.gradWeight:narrow(1,i,1)
+   if self.trainable then
+      self.weight = torch.Tensor(#self.muls)
+      self.gradWeight = torch.Tensor(#self.muls)
+      for i = 1,#self.muls do
+	 self.muls[i].weight = self.weight:narrow(1,i,1)
+	 self.muls[i].gradWeight = self.gradWeight:narrow(1,i,1)
+      end
    end
    self:reset()
 end
 
 function CascadingAddTable:reset(stdv)
-   self.weight:fill(0.1)
+   for i = 1,#self.muls do
+      self.muls[i].weight[1] = 0.1
+   end
    for i = 1,#self.ratios do
       self.postprocessors.modules[i].modules[1].weight[1] = 0.1 / (#self.ratios-i+1)
    end
-   --[[
-   stdv = stdv or 1
-   for i = 1,#self.muls do
-      self.muls[i]:reset(stdv)
-   end
-   --]]
 end
 
 function CascadingAddTable:updateOutput(input)
@@ -106,9 +105,11 @@ function CascadingAddTable:updateOutput(input)
 end
 
 function CascadingAddTable:updateGradInput(input, gradOutput)
-   for i = 1,#self.muls do --todo this is dirty
-      self.muls[i].weight = self.weight:narrow(1,i,1)
-      self.muls[i].gradWeight = self.gradWeight:narrow(1,i,1)
+   if self.trainable then
+      for i = 1,#self.muls do --todo this is dirty
+	 self.muls[i].weight = self.weight:narrow(1,i,1)
+	 self.muls[i].gradWeight = self.gradWeight:narrow(1,i,1)
+      end
    end
    self.postprocessors:updateGradInput(self.outputBP, gradOutput)
    local lastGrad = torch.Tensor(self.postprocessors.gradInput[1]:size()):zero()
@@ -123,10 +124,12 @@ function CascadingAddTable:updateGradInput(input, gradOutput)
 end
 
 function CascadingAddTable:accGradParameters(input, gradOutput, scale)
-   self.postprocessors:accGradParameters(self.outputBP, gradOutput, scale)
-   for i = 1,#input-1 do
-      self.transformers[i]:accGradParameters({input[i], self.outputBP[i+1]},
-					     self.postprocessors.gradInput[i]+self.transformers[i].gradInput[2],
-					     scale)
+   if self.trainable then
+      self.postprocessors:accGradParameters(self.outputBP, gradOutput, scale)
+      for i = 1,#input-1 do
+	 self.transformers[i]:accGradParameters({input[i], self.outputBP[i+1]},
+						self.postprocessors.gradInput[i]+self.transformers[i].gradInput[2],
+						scale)
+      end
    end
 end

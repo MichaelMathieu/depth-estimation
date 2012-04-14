@@ -306,7 +306,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
 
    local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
 				     geometry.wPatch2, geometry.hPatch2, 1, 1, prefiltered)
-   filter.pyramid = pyramid
+   model.pyramid = pyramid
 
    if not prefiltered then
       model:add(nn.JoinTable(1))
@@ -324,7 +324,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       precascad:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
    end
    model:add(precascad)
-   local cascad = nn.CascadingAddTable(geometry.ratios)
+   local cascad = nn.CascadingAddTable(geometry.ratios, geometry.cascad_trainable_weights)
    model.cascad = cascad
    model:add(cascad)
    
@@ -373,11 +373,13 @@ function getModelMultiscale(geometry, full_image, prefiltered)
 
    function model:getWeights()
       local weights = {}
-      weight['cascad'] = self.cascad.weights
+      if geometry.cascad_trainable_weights then
+	 weights['cascad'] = self.cascad.weight
+      end
       if not prefiltered then
 	 local processors = self.pyramid.processors
 	 for i = 1,#processors do
-	    local lweights = self.modules[i].modules[3]:getWeights()
+	    local lweights = processors[i].modules[1].modules[1].modules[3]:getWeights()
 	    for n,w in pairs(lweights) do
 	       local name = 'scale'..geometry.ratios[i]..'_'..n
 	       weights[name] = w
