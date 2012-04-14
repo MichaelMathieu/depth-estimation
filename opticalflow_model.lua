@@ -165,6 +165,19 @@ function getFilter(geometry)
 	 filter:add(nn.Tanh())
       end
    end
+  
+   function filter:getWeights()
+      local weights = {}
+      local iLayer = 1
+      for i = 1,#self.modules do
+	 if self.modules[i].weight then
+	    weights['layer'..iLayer] = self.modules[i].weight
+	    iLayer = iLayer + 1
+	 end
+      end
+      return weights
+   end
+   
    return filter
 end
 
@@ -189,6 +202,23 @@ function getMultiscalePrefilter(geometry, filter)
       end
       prefilter:add(seq)
    end
+
+   function prefilter:getWeights()
+      local weights = {}
+      if geometry.share_filters then
+	 weights = self.modules[1].modules[3]:getWeights()
+      else
+	 for i = 1,#geometry.ratios do
+	    local lweights = self.modules[i].modules[3]:getWeights()
+	    for n,w in pairs(lweights) do
+	       local name = 'scale'..geometry.ratios[i]..'_'..n
+	       weights[name] = w
+	    end
+	 end
+      end
+      return weights
+   end
+   
    return prefilter
 end
 
@@ -201,7 +231,6 @@ function getModel(geometry, full_image, prefiltered)
       local parallel = nn.ParallelTable()
       parallel:add(filter)
       parallel:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
-      model.filter = filter
       model:add(parallel)
    end
 
@@ -215,6 +244,14 @@ function getModel(geometry, full_image, prefiltered)
    end
 
    model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
+
+   function model:getWeights()
+      if prefiltered then
+	 return {}
+      else
+	 return self.modules[1].modules[1]:getWeights()
+      end
+   end
 
    return model
 end
@@ -269,7 +306,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
 
    local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
 				     geometry.wPatch2, geometry.hPatch2, 1, 1, prefiltered)
-   model.filter = pyramid
+   filter.pyramid = pyramid
 
    if not prefiltered then
       model:add(nn.JoinTable(1))
@@ -332,6 +369,22 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       function model:focus(x, y)
 	 pyramid:focus(x, y, 1, 1)
       end
+   end
+
+   function model:getWeights()
+      local weights = {}
+      weight['cascad'] = self.cascad.weights
+      if not prefiltered then
+	 local processors = self.pyramid.processors
+	 for i = 1,#processors do
+	    local lweights = self.modules[i].modules[3]:getWeights()
+	    for n,w in pairs(lweights) do
+	       local name = 'scale'..geometry.ratios[i]..'_'..n
+	       weights[name] = w
+	    end
+	 end
+      end
+      return weights
    end
    
    return model
@@ -516,7 +569,7 @@ function describeModel(geometry, learning)
    return summary
 end
 
-function saveModel(basefilename, geometry, learning, parameters, model, nEpochs)
+function saveModel(basefilename, geometry, learning, model, nEpochs)
    local modelsdirbase = 'models'
    local kernel = ''
    for i = 1,#geometry.layers do
@@ -549,20 +602,14 @@ function saveModel(basefilename, geometry, learning, parameters, model, nEpochs)
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 3
+   tosave.version = 4
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
       tosave.getModel = getModel
    end
    tosave.model_descr = model:__tostring__()
-   if model.cascad then
-      tosave.cascad_parameters = model.cascad.weight
-      tosave.filter_parameters = parameters[{{1,-tosave.cascad_parameters:size(1)-1}}]
-   else
-      tosave.filter_parameters = parameters
-   end
-   tosave.parameters = parameters
+   tosave.weights = model:getWeights()
    tosave.geometry = geometry
    tosave.learning = learning
    tosave.getKernels = getKernels
@@ -638,23 +685,52 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	 else
 	    ret.filter = loaded.getFilter(ret.geometry)
 	 end
-	 if loaded.version < 3 then
+	 if loaded.version == 2 then
 	    local parameters = ret.filter:getParameters()
 	    parameters:copy(loaded.parameters)
-	 else
+	 elseif loaded.version == 3 then
 	    ret.filter:getParameters():copy(loaded.filter_parameters)
 	    if loaded.cascad_parameters then
 	       ret.model:getParameters():copy(loaded.cascad_parameters)
 	    end
+	 elseif loaded.version == 4 then
+	    local weights = ret.filter:getWeights()
+	    for k,v in pairs(weights) do
+	       weights[k]:copy(loaded.weights[k])
+	    end
+	    weights = ret.model:getWeights()
+	    for k,v in pairs(weights) do
+	       weights[k]:copy(loaded.weights[k])
+	    end
 	 end
       else
-	 local parameters = ret.model:getParameters()
-	 parameters:copy(loaded.parameters)
+	 if loaded.version < 4 then
+	    local parameters = ret.model:getParameters()
+	    parameters:copy(loaded.parameters)
+	 else
+	    local weights = ret.model:getWeights()
+	    for k,v in pairs(weights) do
+	       weights[k]:copy(loaded.weights[k])
+	    end
+	 end
       end
    else
       error('loadModel: wrong version')
    end
    return ret
+end
+
+function loadWeightsFrom(model, filename)
+   local loaded = torch.load(filename)
+   if loaded.version < 4 then
+      error("Can't load weights from file before version 4")
+   end
+   local weights = model:getWeights()
+   for k,v in pairs(loaded.weights) do
+      if weights[k] then
+	 weights[k]:copy(v)
+      end
+   end
 end
 
 function postProcessImage(input, winsize)

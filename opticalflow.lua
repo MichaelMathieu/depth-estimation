@@ -15,6 +15,7 @@ op = xlua.OptionParser('%prog [options]')
 -- general
 op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
+
 -- network
 op:option{'-nf', '--n-features', action='store', dest='n_features',
           default=10, help='Number of features used for the matching'}
@@ -33,15 +34,18 @@ op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', defa
 op:option{'-s2c', '--layer-two-connections', action='store', dest='layer_two_connections',
 	  default=4, help='Number of connectons between layers 1 and 2'}
 op:option{'-s3', '--layer-three-size', action='store', dest='layer_three_size', default=8,
-     help='Third layer size, if nl >= 3'}
+	  help='Third layer size, if nl >= 3'}
 op:option{'-s3c', '--layer-three-connections', action='store', dest='layer_three_connections',
-     default=4, help='Number of connectons between layers 2 and 3'}
+	  default=4, help='Number of connectons between layers 2 and 3'}
 op:option{'-l2', '--l2-pooling', action='store_true', dest='l2_pooling', default=false,
 	  help='L2 pooling (experimental)'}
 op:option{'-ms', '--multiscale', action='store', dest='multiscale', default=0,
 	  help='Number of scales used (0 disables multiscale)'}
 op:option{'-sf', '--share-filters', action='store_true', dest='share_filters', default=false,
 	  help='Share multiscale filters'}
+op:option{'-lw', '--load-weights', action='store', dest='load_weights', default = nil,
+	  help = 'Load weights from previously trained model'}
+
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
 	  help='Number of patches in the training set'}
@@ -57,6 +61,7 @@ op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set',
 	  default=false, help='Renew train set at each epoch'}
+
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 	  default='./data', help='Root dataset directory'}
@@ -161,6 +166,9 @@ if geometry.multiscale then
 else
    model = getModel(geometry, false)
 end
+if opt.load_weights then
+   loadWeightsFrom(model, opt.load_weights)
+end
 local parameters, gradParameters = model:getParameters()
 
 local criterion = nn.ClassNLLCriterion()
@@ -172,7 +180,7 @@ local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set)
 
-saveModel('model_of_', geometry, learning, parameters, model, 0)
+saveModel('model_of_', geometry, learning, model, 0)
 
 config = {learningRate = learning.rate,
 	  weightDecay = learning.weight_decay,
@@ -270,6 +278,6 @@ for iEpoch = 1,opt.n_epochs do
    meanErr = meanErr / (trainData:size())
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
-   saveModel('model_of_', geometry, learning, parameters, model, iEpoch)
+   saveModel('model_of_', geometry, learning, model, iEpoch)
 
 end
