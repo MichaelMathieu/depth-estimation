@@ -571,8 +571,9 @@ function describeModel(geometry, learning)
    return summary
 end
 
-function saveModel(basefilename, geometry, learning, model, nEpochs, score)
-   local modelsdirbase = 'models'
+function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
+   if dir:sub(-1) ~= '/' then dir = dir..'/' end
+   local modelsdirbase = dir
    local kernel = ''
    for i = 1,#geometry.layers do
       kernel = kernel .. geometry.layers[i][1] .. 'x' .. geometry.layers[i][2] .. 'x'
@@ -588,7 +589,7 @@ function saveModel(basefilename, geometry, learning, model, nEpochs, score)
 	 kernel = kernel .. '-' .. geometry.ratios[i]
       end
    end
-   local modeldir = modelsdirbase .. '/' .. kernel
+   local modeldir = modelsdirbase .. kernel
    local targets = ''
    local renew = ''
    local motion = ''

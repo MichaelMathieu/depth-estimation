@@ -23,6 +23,8 @@ op:option{'-p', '--plot', action='store_true', dest='plot', default = false,
 	  help = 'Plot curves'}
 op:option{'-fix', '--fix', action='store_true', dest='fix_old', default=false,
 	  help='Fix old files'}
+op:option{'-rd', '--root-directory', action='store', dest='root_directory',
+	  default='./data', help='Root dataset directory'}
 opt = op:parse()
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
@@ -59,7 +61,7 @@ if not opt.load then
    learning.delta = opt.delta
    learning.groundtruth = 'cross-correlation'
    
-   local raw_data = loadDataOpticalFlow(geometry, learning, 'data/')
+   local raw_data = loadDataOpticalFlow(geometry, learning, opt.root_directory)
    
    for iInput = 1,#inputs do
       local name = table.concat(split(inputs[iInput], '/'))

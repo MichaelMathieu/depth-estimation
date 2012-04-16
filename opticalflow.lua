@@ -70,7 +70,7 @@ op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
-	  default='./data', help='Root dataset directory'}
+	  default='data/', help='Root dataset directory'}
 op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
 	  help='Index of first image used'}
 op:option{'-d', '--delta', action='store', dest='delta', default=1,
@@ -80,7 +80,11 @@ op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correction',
 	  default=false, help='Eliminate panning, tilting and rotation camera movements'}
 op:option{'-lg', '--liu-grountruth', action='store_true', dest='use_liu_groundtruth',
-     default=false, help='Use Liu groundtruth'}
+	  default=false, help='Use Liu groundtruth'}
+
+-- output 
+op:option{'-omd', '--output-model-dir', action='store', dest='output_models_dir',
+	  default = 'models', help='Output model directory'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
@@ -185,14 +189,15 @@ local parameters, gradParameters = model:getParameters()
 local criterion = nn.ClassNLLCriterion()
 
 print('Loading images...')
-local raw_data = loadDataOpticalFlow(geometry, learning, 'data/')
+print(opt.root_directory)
+local raw_data = loadDataOpticalFlow(geometry, learning, opt.root_directory)
 print('Generating training set...')
 local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set)
 
 local score = score_epoch(geometry, model, criterion, testData, raw_data, opt.n_images_test_set)
-saveModel('model_of_', geometry, learning, model, 0, score)
+saveModel(opt.output_models_dir, 'model_of_', geometry, learning, model, 0, score)
 
 config = {learningRate = learning.rate,
 	  weightDecay = learning.weight_decay,
@@ -257,6 +262,6 @@ for iEpoch = 1,opt.n_epochs do
 
    local score = score_epoch(geometry, model, criterion, testData,
 			     raw_data, opt.n_images_test_set)
-   saveModel('model_of_', geometry, learning, model, iEpoch, score)
+   saveModel(opt.output_models_dir, 'model_of_', geometry, learning, model, iEpoch, score)
 
 end

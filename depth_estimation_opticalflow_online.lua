@@ -50,8 +50,8 @@ local geometry = loaded.geometry
 local output_window
 local timer
 
-
-local camera = image.Camera{idx=0, width=320, height=240}
+print('ici')
+local camera = image.Camera{idx=1, width=320, height=240, fps=30}
 
 -- while true do
 -- 	last_im = camera:forward()

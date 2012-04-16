@@ -105,12 +105,17 @@ end
 
 function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebasename,
 			      delta, groundtruth)
-   local imagepath = dirbasename .. 'images/' .. imagebasename .. '.jpg'
+   local ext = '.jpg'
+   local imagepath = dirbasename .. 'images/' .. imagebasename .. ext
    if not paths.filep(imagepath) then
-      print("Image " .. imagepath .. " not found.")
-      return nil
+      ext = '.png'
+      imagepath = dirbasename .. 'images/' .. imagebasename .. ext
+      if not paths.filep(imagepath) then
+	 print("Image " .. imagepath .. " not found.")
+	 return nil
+      end
    end
-   local im = image.scale(image.loadJPG(imagepath), geometry.wImg, geometry.hImg)
+   local im = image.scale(image.load(imagepath), geometry.wImg, geometry.hImg)
    if not previmagebasename then
       return im
    end
@@ -151,13 +156,13 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       error('groundtruth must be either liu or cross-correlation')
    end
    if not flow then
-      local previmagepath = dirbasename .. 'images/' .. previmagebasename .. '.jpg'
+      local previmagepath = dirbasename .. 'images/' .. previmagebasename .. ext
       print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
          if not paths.filep(previmagepath) then
 	    print("Image " .. previmagepath .. " not found.")
 	    return nil
 	 end
-      local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
+      local previmage = image.scale(image.load(previmagepath), geometry.wImg, geometry.hImg)
       local yflow, xflow = getOpticalFlowFast(geometry, previmage, im)
       flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow)
@@ -176,7 +181,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
       print("Image " .. imagepath .. " not found.")
       return nil
    end
-   local im = image.scale(image.loadJPG(imagepath), geometry.wImg, geometry.hImg)
+   local im = image.scale(image.load(imagepath), geometry.wImg, geometry.hImg)
    if not previmagebasename then
       return im
    end
@@ -186,7 +191,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
       print("Image " .. rectimagepath .. " not found.")
       return nil
    end
-   local im_rect = image.scale(image.loadJPG(imagepath), geometry.wImg, geometry.hImg)
+   local im_rect = image.scale(image.load(imagepath), geometry.wImg, geometry.hImg)
 
    local flowdir = dirbasename .. 'rectified_flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
@@ -209,7 +214,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
        print("Image " .. previmagepath .. " not found.")
        return nil
     end
-      local previmage = image.scale(image.loadJPG(previmagepath), geometry.wImg, geometry.hImg)
+      local previmage = image.scale(image.load(previmagepath), geometry.wImg, geometry.hImg)
       local yflow, xflow = getOpticalFlowFast(geometry, previmage, im_rect)
       flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow)
@@ -233,6 +238,10 @@ function loadDataOpticalFlow(geometry, learning, dirbasename)
    for line in io.popen(findIm):lines() do
       local linebase,_ = line:gsub('.jpg', '')
       if linebase .. '.jpg' == line then
+         table.insert(imagepaths_raw, linebase)
+      end
+      local linebase,_ = line:gsub('.png', '')
+      if linebase .. '.png' == line then
          table.insert(imagepaths_raw, linebase)
       end
    end
