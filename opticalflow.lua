@@ -8,6 +8,7 @@ require 'groundtruth_opticalflow'
 require 'opticalflow_model'
 require 'sys'
 require 'openmp'
+require 'score_opticalflow'
 
 torch.manualSeed(1)
 
@@ -54,6 +55,8 @@ op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=200
 	  help='Number of patches in the training set'}
 op:option{'-m', '--n-test-set', action='store', dest='n_test_set', default=1000,
 	  help='Number of patches in the test set'}
+op:option{'-mni', '--n-images-test-set', action='store', dest='n_images_test_set', default=2,
+	  help='Number of full images to compute epoch score'}
 op:option{'-e', '--num-epochs', action='store', dest='n_epochs', default=10,
 	  help='Number of epochs'}
 op:option{'-r', '--learning-rate', action='store', dest='learning_rate',
@@ -187,7 +190,8 @@ local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
 print('Generating test set...')
 local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set)
 
-saveModel('model_of_', geometry, learning, model, 0)
+local score = score_epoch(geometry, model, criterion, testData, raw_data, opt.n_images_test_set)
+saveModel('model_of_', geometry, learning, model, 0, score)
 
 config = {learningRate = learning.rate,
 	  weightDecay = learning.weight_decay,
@@ -199,47 +203,12 @@ for iEpoch = 1,opt.n_epochs do
    --print(model.modules[4].weight)
    print(summary)
 
+      
    local nGood = 0
    local nBad = 0
-   local meanErr = 0.
-
-   for t = 1,testData:size() do
-      modProgress(t, testData:size(), 100)
-
-      local input, target
-      if geometry.multiscale then
-	 local sample = testData:getElemFovea(t)
-	 input = sample[1][1]
-	 model:focus(sample[1][2][2], sample[1][2][1])
-	 target = prepareTarget(geometry, sample[2])
-      else
-	 local sample = testData[t]
-	 input = prepareInput(geometry, sample[1][1], sample[1][2])
-	 target = prepareTarget(geometry, sample[2])
-      end
-
-      local output = model:forward(input)
-      local err = criterion:forward(output:squeeze(), target)
-      
-      meanErr = meanErr + err
-      local outputp = processOutput(geometry, output, false)
-      if outputp.index == target then
-	 nGood = nGood + 1
-      else
-	 nBad = nBad + 1
-      end
-   end
-   collectgarbage()
-
-   meanErr = meanErr / (testData:size())
-   print('test: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
-
-   nGood = 0
-   nBad = 0
-   meanErr = 0
+   local meanErr = 0
 
    if learning.renew_train_set then
-      print('Generating training set...')
       trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
    end
    
@@ -285,6 +254,8 @@ for iEpoch = 1,opt.n_epochs do
    meanErr = meanErr / (trainData:size())
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
-   saveModel('model_of_', geometry, learning, model, iEpoch)
+   local score = score_epoch(geometry, model, criterion, testData,
+			     raw_data, opt.n_images_test_set)
+   saveModel('model_of_', geometry, learning, model, iEpoch, score)
 
 end
