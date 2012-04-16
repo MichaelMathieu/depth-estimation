@@ -89,6 +89,7 @@ opt.multiscale = tonumber(opt.multiscale)
 
 opt.n_train_set = tonumber(opt.n_train_set)
 opt.n_test_set = tonumber(opt.n_test_set)
+opt.n_images_test_set = tonumber(opt.n_images_test_set)
 opt.n_epochs = tonumber(opt.n_epochs)
 opt.learning_rate = tonumber(opt.learning_rate)
 opt.learning_rate_decay = tonumber(opt.learning_rate_decay)

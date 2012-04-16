@@ -21,6 +21,8 @@ op:option{'-xmax', '--x-max', action='store', dest='xmax', default=nil,
 	  help = 'Crop to xmax'}
 op:option{'-p', '--plot', action='store_true', dest='plot', default = false,
 	  help = 'Plot curves'}
+op:option{'-fix', '--fix', action='store_true', dest='fix_old', default=false,
+	  help='Fix old files'}
 opt = op:parse()
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
@@ -62,7 +64,8 @@ if not opt.load then
    for iInput = 1,#inputs do
       local name = table.concat(split(inputs[iInput], '/'))
       print(name)
-      scores[iInput] = {name, getLearningScores(inputs[iInput], raw_data, 'full', 100)}
+      scores[iInput] = {name, getLearningScores(inputs[iInput], raw_data, 'full',
+						100, opt.fix_old)}
       if opt.save then
 	 torch.save(opt.save .. scores[iInput][1], scores[iInput][2])
       end

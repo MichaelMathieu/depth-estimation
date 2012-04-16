@@ -131,7 +131,7 @@ function evalOpticalFlowFull(geometry, model, raw_data)
    return accuracy, meanDst
 end
 
-function getLearningScores(dir, raw_data, mode, nSamples)
+function getLearningScores(dir, raw_data, mode, nSamples, fix_file)
    mode = mode or 'patches'
    nSamples = nSamples or 1000
    if dir:sub(-1) ~= '/' then dir = dir .. '/' end
@@ -150,14 +150,34 @@ function getLearningScores(dir, raw_data, mode, nSamples)
    for i = 1,#files do
       xlua.progress(i, #files)
       local loaded = loadModel(files[i][2], mode == 'full', false)
-      local acc, err
-      if mode == 'patches' then
-	 acc, err = evalOpticalFlowPatches(loaded.geometry, loaded.model,
-					   raw_data, nSamples)
+      if loaded.score then
+	 table.insert(ret, {files[i][1], loaded.score.full_score.accuracy,
+			    loaded.score.full_score.meanErr})
       else
-	 acc, err = evalOpticalFlowFull(loaded.geometry, loaded.model, raw_data)
+	 local acc, err
+	 if mode == 'patches' then
+	    acc, err = evalOpticalFlowPatches(loaded.geometry, loaded.model,
+					      raw_data, nSamples)
+	 else
+	    acc, err = evalOpticalFlowFull(loaded.geometry, loaded.model, raw_data)
+	 end
+	 table.insert(ret, {files[i][1], acc, err})
+	 if fix_file then
+	    local loaded_raw = torch.load(files[i][2])
+	    if loaded_raw.version == 4 then
+	       loaded_raw.version = 5
+	       local scores = {}
+	       scores.full_score = {}
+	       scores.full_score.type = 'full'
+	       scores.full_score.n = #raw_data.images
+	       scores.full_score.meanErr = err
+	       scores.full_score.accuracy = acc
+	       loaded_raw.score = score
+	       torch.save(files[i][2], loaded_raw)
+	       --print(files[i][2] .. ' fixed.')
+	    end
+	 end
       end
-      table.insert(ret, {files[i][1], acc, err})
    end
    return ret
 end
@@ -227,7 +247,7 @@ function score_epoch(geometry, model, criterion, testData, raw_data, n_images)
    if n_images > 0 then
       ret.full_score = {}
       ret.full_score.type = 'full'
-      ret.full_score.n = i_imags
+      ret.full_score.n = n_images
       local raw_data2 = {}
       raw_data2.flow = {}
       raw_data2.images = {}
