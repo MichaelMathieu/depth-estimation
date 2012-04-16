@@ -370,11 +370,18 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       end
       if not prefiltered then
 	 local processors = self.pyramid.processors
-	 for i = 1,#processors do
-	    local lweights = processors[i].modules[1].modules[1].modules[3]:getWeights()
+	 if geometry.share_filters then
+	    local lweights = self.modules[1].modules[3]:getWeights()
 	    for n,w in pairs(lweights) do
-	       local name = 'scale'..geometry.ratios[i]..'_'..n
-	       weights[name] = w
+	       weights[n] = w
+	    end
+	 else
+	    for i = 1,#processors do
+	       local lweights = processors[i].modules[1].modules[1].modules[3]:getWeights()
+	       for n,w in pairs(lweights) do
+		  local name = 'scale'..geometry.ratios[i]..'_'..n
+		  weights[name] = w
+	       end
 	    end
 	 end
       end

@@ -175,6 +175,16 @@ function getLearningScores(dir, raw_data, mode, nSamples, fix_file)
 	       loaded_raw.score = score
 	       torch.save(files[i][2], loaded_raw)
 	       --print(files[i][2] .. ' fixed.')
+	    elseif loaded_raw.version >= 5 then
+	       local scores = {}
+	       scores.full_score = {}
+	       scores.full_score.type = 'full'
+	       scores.full_score.n = #raw_data.images
+	       scores.full_score.meanErr = err
+	       scores.full_score.accuracy = acc
+	       loaded_raw.score = score
+	       torch.save(files[i][2], loaded_raw)
+	       --print(files[i][2] .. ' fixed.')
 	    end
 	 end
       end

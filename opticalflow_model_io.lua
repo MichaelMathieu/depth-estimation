@@ -165,7 +165,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 5
+   tosave.version = 6
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
@@ -264,7 +264,23 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	    if loaded.cascad_parameters then
 	       ret.model:getParameters():copy(loaded.cascad_parameters)
 	    end
-	 elseif loaded.version >= 4 then
+	 elseif loaded.version >= 4  and loaded.version < 6 then
+	    local weights = ret.filter:getWeights()
+	    if ret.geometry.share_filters then
+	       for k,v in pairs(weights) do
+		  local kloaded = 'scale1_'..k
+		  weights[k]:copy(loaded.weights[kloaded])
+	       end
+	    else
+	       for k,v in pairs(weights) do
+		  weights[k]:copy(loaded.weights[k])
+	       end
+	    end
+	    weights = ret.model:getWeights()
+	    for k,v in pairs(weights) do
+	       weights[k]:copy(loaded.weights[k])
+	    end
+	 elseif loaded.version >= 6 then
 	    local weights = ret.filter:getWeights()
 	    for k,v in pairs(weights) do
 	       weights[k]:copy(loaded.weights[k])
