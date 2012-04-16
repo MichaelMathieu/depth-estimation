@@ -50,7 +50,7 @@ local geometry = loaded.geometry
 
 local output_window
 
-ImageLoader:init(geometry, opt.root_directory..'/images', opt.first_image, opt.delta)
+ImageLoader:init(geometry, opt.root_directory, opt.first_image, opt.delta)
 local loader = ImageLoader
 
 local timer = torch.Timer()
@@ -105,7 +105,11 @@ while true do
    time_matcher = time_matcher + timer:time()['real']
    local output = processOutput(geometry, moutput, true)
    if opt.display_output then
-      output_window = image.display{image=output.full, win=output_window}
+      --gt_window = image.display{image=flow2hsv(geometry, loader:getCurrentGT()), win=gt_window, legend='groundtruth'}
+      --output_window = image.display{image=flow2hsv(geometry, output.full), win=output_window, legend='output'}
+      im_window = image.display{image={last_frame, frame}, win=im_window}
+      gt_window = image.display{image=loader:getCurrentGT(), win=gt_window, legend='groundtruth'}
+      output_window = image.display{image=output.full, win=output_window, legend='output'}
    end
    if opt.output_dir then
       local ps = postProcessImage(output.full, 3)

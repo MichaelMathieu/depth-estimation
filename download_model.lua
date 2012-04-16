@@ -44,6 +44,7 @@ function parseFilter(str)
    local s1 = split(str, '-')
    local kernels = s1[1]
    local multiscale = nil
+   local sf = false
    if #s1 > 1 then
       multiscale = {}
       for i = 2,#s1 do
@@ -55,15 +56,20 @@ function parseFilter(str)
    for i = 1,#s2 do
       local layer = {}
       local s3 = split(s2[i], 'x')
-      if #s3 ~= 4 then
+      if #s3 == 1 then
+	 if s3[1] == 'sf' then
+	    sf = true
+	 end
+      elseif #s3 == 4 then
+	 for j = 1,#s3 do
+	    table.insert(layer, s3[j])
+	 end
+	 table.insert(layers, layer)
+      else
 	 return nil
       end
-      for j = 1,#s3 do
-	 table.insert(layer, s3[j])
-      end
-      table.insert(layers, layer)
    end
-   return {layers, multiscale}
+   return {layers, multiscale, sf}
 end
 
 function filterFilters(strs)
