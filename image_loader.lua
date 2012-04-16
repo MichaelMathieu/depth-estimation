@@ -18,7 +18,10 @@ function ImageLoader:getNextFrame()
    self.nextFrame = self.nextFrame + 1
    local impath = string.format("%s%09d.jpg", self.path, self.nextFrame)
    if not paths.filep(impath) then
-      return nil
+      impath = string.format("%s%09d.png", self.path, self.nextFrame)
+      if not paths.filep(impath) then
+	 return nil
+      end
    end
    local im = image.scale(image.load(impath), self.geometry.wImg, self.geometry.hImg)
    return im
@@ -28,7 +31,7 @@ function ImageLoader:getCurrentGT()
    if self.nextFrame >= 1 then
       local pimpath = string.format("%09d",self.nextFrame-1)
       local impath = string.format("%09d", self.nextFrame)
-      local _, gt = loadImageOpticalFlow(self.geometry, 'data/', impath, pimpath, 1, false)
+      local _, gt = loadImageOpticalFlow(self.geometry, self.path, impath, pimpath, 1, false)
       return gt
    else
       return torch.Tensor(2, self.geometry.wImg, self.geometry.hImg)
