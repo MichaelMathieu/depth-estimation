@@ -6,6 +6,7 @@ require 'optim'
 require 'load_data'
 require 'groundtruth_opticalflow'
 require 'opticalflow_model'
+require 'opticalflow_model_io'
 require 'sys'
 require 'openmp'
 require 'score_opticalflow'
@@ -167,7 +168,7 @@ learning.rate = opt.learning_rate
 learning.rate_decay = opt.learning_rate_decay
 learning.weight_decay = opt.weight_decay
 learning.renew_train_set = opt.renew_train_set
-if opt.liu_groundtruth then
+if opt.use_liu_groundtruth then
    learning.groundtruth = 'liu'
 else
    learning.groundtruth = 'cross-correlation'

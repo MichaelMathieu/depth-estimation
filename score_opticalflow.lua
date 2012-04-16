@@ -243,6 +243,7 @@ function score_epoch(geometry, model, criterion, testData, raw_data, n_images)
       ret.patches_score.n = testData:size()
       ret.patches_score.meanErr = meanErr
       ret.patches_score.accuracy = accuracy
+      print(string.format('Patches: accuracy: %.1f%% meanErr: %.1f', accuracy*100, meanErr))
    end
    if n_images > 0 then
       ret.full_score = {}
@@ -259,6 +260,7 @@ function score_epoch(geometry, model, criterion, testData, raw_data, n_images)
       local acc, err = evalOpticalFlowFull(geometry, model, raw_data2)
       ret.full_score.accuracy = acc
       ret.full_score.meanErr = err
+      print(string.format('Full: accuracy: %.1f%% meanErr: %.1f', acc*100, err))
    end
    return ret
 end

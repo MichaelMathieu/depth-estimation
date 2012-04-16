@@ -4,6 +4,7 @@ require 'sys'
 require 'image'
 require 'nnx'
 require 'opticalflow_model'
+require 'opticalflow_model_io'
 require 'groundtruth_opticalflow'
 require 'openmp'
 require 'score_opticalflow'
@@ -32,38 +33,6 @@ opt.post_process_winsize = tonumber(opt.post_process_winsize)
 
 openmp.setDefaultNumThreads(opt.nThreads)
 
---do not change that function anymore (eventually, remove it)
-function getKernelsLegacy(geometry, model)
-   local kernels = {}
-   if geometry.multiscale then
-      for i = 1,#geometry.ratios do
-	 local matcher = model.modules[2].unfocused_pipeline.modules[i].modules[3]
-	 local weight = matcher.modules[1].modules[1].modules[3].modules[1].weight
-	 table.insert(kernels, weight)
-	 if #geometry.layers > 1 then
-	    local weight2 = matcher.modules[1].modules[1].modules[3].modules[3].weight
-	    if weight2:nDimension() > 3 then --what that happens *only* sometimes??
-	       weight2 = weight2:reshape(weight2:size(1)*weight2:size(2), weight2:size(3),
-					 weight2:size(4))
-	    end
-	    table.insert(kernels, weight2)
-	 end
-      end
-   else
-      local weight = model.modules[1].modules[1].modules[1].weight
-      table.insert(kernels, weight)
-      if #geometry.layers > 1 then
-	 local weight2 = model.modules[1].modules[1].modules[3].weight
-	 if weight2:nDimension() > 3 then --what that happens *only* sometimes??
-	    weight2 = weight2:reshape(weight2:size(1)*weight2:size(2), weight2:size(3),
-				      weight2:size(4))
-	 end
-	 table.insert(kernels, weight2)
-      end
-   end
-   return kernels
-end
-
 if opt.download_dir ~= nil then
    opt.input_model = downloadModel(opt.download_dir)
    if opt.input_model == nil then
@@ -75,11 +44,7 @@ loaded = loadModel(opt.input_model, true)
 --loaded = loadModel(opt.input_model, false)
 model = loaded.model
 geometry = loaded.geometry
-if not loaded.getKernels then
-   kernels = getKernelsLegacy(geometry, model)
-else
-   kernels = loaded.getKernels(geometry, models)
-end
+kernels = loaded.getKernels(geometry, models)
 
 for i = 1,#kernels do
    if kernels[i]:size(2) > 5 then
