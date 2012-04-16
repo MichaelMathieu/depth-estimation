@@ -49,18 +49,24 @@ local filter = loaded.filter
 local geometry = loaded.geometry
 
 local output_window
-local timer
 
 ImageLoader:init(geometry, opt.root_directory..'/images', opt.first_image, opt.delta)
 local loader = ImageLoader
 
 local timer = torch.Timer()
+local total_timer = torch.Timer()
 
 local time_filter = 0.
 local time_matcher = 0.
+local total_time = 0.
+local time_load = 0.
 
 local function filterNext(first)
+   timer:reset()
    local frame = loader:getNextFrame()
+   if not first then
+      time_load = time_load + timer:time()['real']
+   end
    timer:reset()
    local filtered = filter:forward(frame)
    if not first then
@@ -79,6 +85,7 @@ end
 local last_frame, last_im = filterNext(true)
 local i = 0
 while true do
+   total_timer:reset()
    print('--')
    local frame, im = filterNext()
    if im == nil then
@@ -111,8 +118,11 @@ while true do
       im2:sub(1,im2:size(1), ts:size(2)+1,im2:size(2), ts:size(3)+1,im2:size(3)):copy(gthsv)
       image.save(string.format('%s/%09d.png', opt.output_dir, i), im2)
    end
+   total_time = total_time + total_timer:time()['real']
    print('filter   : ' .. time_filter/(i+1))
    print('min+match: ' .. time_matcher/(i+1))
+   print('load     : ' .. time_load/(i+1))
+   print('total    : ' .. total_time/(i+1))
    last_im = im
    last_frame = frame
    i = i+1
