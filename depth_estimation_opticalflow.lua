@@ -56,12 +56,16 @@ local loader = ImageLoader
 
 local timer = torch.Timer()
 
-local function filterNext()
+local time_filter = 0.
+local time_matcher = 0.
+
+local function filterNext(first)
    local frame = loader:getNextFrame()
    timer:reset()
    local filtered = filter:forward(frame)
-   print('filter:')
-   print(timer:time())
+   if not first then
+      time_filter = time_filter + timer:time()['real']
+   end
    if geometry.multiscale then
       for i = 1,#filtered do
 	 filtered[i] = filtered[i]:clone()
@@ -72,7 +76,7 @@ local function filterNext()
    return frame, filtered
 end
 
-local last_frame, last_im = filterNext()
+local last_frame, last_im = filterNext(true)
 local i = 0
 while true do
    local frame, im = filterNext()
@@ -90,8 +94,7 @@ while true do
    end
    timer:reset()
    local moutput = model:forward(input)
-   print('matching')
-   print(timer:time())
+   time_matcher = time_matcher + timer:time()['real']
    local output = processOutput(geometry, moutput, true)
    if opt.display_output then
       output_window = image.display{image=output.full, win=output_window}
@@ -107,6 +110,9 @@ while true do
       im2:sub(1,im2:size(1), ts:size(2)+1,im2:size(2), ts:size(3)+1,im2:size(3)):copy(gthsv)
       image.save(string.format('%s/%09d.png', opt.output_dir, i), im2)
    end
+   print('--')
+   print(time_filter/(i+1))
+   print(time_matcher/(i+1))
    last_im = im
    last_frame = frame
    i = i+1

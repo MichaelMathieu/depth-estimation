@@ -7,7 +7,7 @@ local CascadingAddTableSplit, parent = torch.class('nn.CascadingAddTableSplit', 
 function CascadingAddTable:__init(ratios, trainable)
    parent.__init(self)
    self.ratios = ratios
-   self.trainable = trainable
+   if trainable == nil then self.trainable = true else self.trainable = trainable end
    self.gradInput = {}
    self.outputBP = {}
    self.output = {}

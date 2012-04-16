@@ -561,13 +561,21 @@ function describeModel(geometry, learning)
    local targets = ''
    local motion = ''
    local share = ''
+   local train_cascad = ''
+   if geometry.multiscale then
+      if geometry.cascad_trainable_weights then
+	 train_cascad = ' TrainCascad'
+      else
+	 train_cascad = ' NoTrainCascad'
+      end
+   end
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
    learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets
    if learning.renew_train_set then learning_ = learning_ .. ' renewTrainSet' end
    if geometry.motion_correction then motion = ' MotionCorrection' end
    if geometry.share_filters then share = ' ShareFilters' end
    local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
-   summary = summary .. motion .. share
+   summary = summary .. motion .. share .. train_cascad
    return summary
 end
 
@@ -593,10 +601,19 @@ function saveModel(basefilename, geometry, learning, model, nEpochs)
    local renew = ''
    local motion = ''
    local share = ''
+   local train_cascad = ''
+   if geometry.multiscale then
+      if geometry.cascad_trainable_weights then
+	 train_cascad = '_tcw'
+      else
+	 train_cascad = '_ntcw'
+      end
+   end
    if learning.renew_train_set then renew = '_renew' end
    if geometry.motion_correction then motion = '_mc' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew
+   train_params = train_params .. train_cascad
    modeldir = modeldir .. '/' .. train_params
    local images = learning.first_image .. '_' .. learning.delta .. '_' 
    images = images .. (learning.first_image+learning.delta*(learning.num_images-1)) .. motion

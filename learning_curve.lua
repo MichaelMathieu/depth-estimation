@@ -19,6 +19,8 @@ op:option{'-l', '--load', action='store', dest='load', default = nil,
 	  help = 'If a folder is specified, then the scores are loaded from the folder'}
 op:option{'-xmax', '--x-max', action='store', dest='xmax', default=nil,
 	  help = 'Crop to xmax'}
+op:option{'-p', '--plot', action='store_true', dest='plot', default = false,
+	  help = 'Plot curves'}
 opt = op:parse()
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
@@ -59,7 +61,11 @@ if not opt.load then
    
    for iInput = 1,#inputs do
       local name = table.concat(split(inputs[iInput], '/'))
+      print(name)
       scores[iInput] = {name, getLearningScores(inputs[iInput], raw_data, 'full', 100)}
+      if opt.save then
+	 torch.save(opt.save .. scores[iInput][1], scores[iInput][2])
+      end
    end
 else
    local paths = lsR(opt.load,
@@ -71,11 +77,7 @@ else
    end
 end
 
-if opt.save then
-   for iInput = 1,#inputs do
-      torch.save(opt.save .. scores[iInput][1], scores[iInput][2])
-   end
-else
+if opt.plot then
    if opt.xmax then
       for i = 1,#scores do
 	 if #scores[i][2] > opt.xmax then

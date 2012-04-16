@@ -68,6 +68,7 @@ function evalOpticalflow(geometry, output, gt, computeDst)
 end
 
 function evalOpticalFlowPatches(geometry, model, raw_data, nSamples)
+   assert(#raw_data.flow > 0)
    nSamples = nSamples or 1000
    local testData = generateDataOpticalFlow(geometry, raw_data, nSamples)
 
@@ -110,6 +111,7 @@ function evalOpticalFlowPatches(geometry, model, raw_data, nSamples)
 end
 
 function evalOpticalFlowFull(geometry, model, raw_data)
+   assert(#raw_data.flow > 0)
    local accuracy = 0.
    local meanDst = 0.
    for i = 1,#raw_data.flow do
@@ -143,7 +145,7 @@ function getLearningScores(dir, raw_data, mode, nSamples)
    table.sort(files, function(a,b) return a[1]<b[1] end)
    local ret = {}
    for i = 1,#files do
-      print(i)
+      xlua.progress(i, #files)
       local loaded = loadModel(files[i][2], mode == 'full', false)
       local acc, err
       if mode == 'patches' then
