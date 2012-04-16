@@ -116,6 +116,9 @@ function evalOpticalFlowFull(geometry, model, raw_data)
    local meanDst = 0.
    for i = 1,#raw_data.flow do
       local input = prepareInput(geometry, raw_data.images[i], raw_data.images[i+1])
+      if model.focus then
+	 model:focus()
+      end
       local output = processOutput(geometry, model:forward(input), true).full
       local gt = raw_data.flow[i]
       local nGood, nNear, nBad, d, meanDst_, stdDst = evalOpticalflow(geometry, output,
@@ -128,7 +131,7 @@ function evalOpticalFlowFull(geometry, model, raw_data)
    return accuracy, meanDst
 end
 
-function getLearningScores(dir, raw_data, mode, nSamples)
+function getLearningScores(dir, raw_data, mode, nSamples, fix_file)
    mode = mode or 'patches'
    nSamples = nSamples or 1000
    if dir:sub(-1) ~= '/' then dir = dir .. '/' end
@@ -147,14 +150,34 @@ function getLearningScores(dir, raw_data, mode, nSamples)
    for i = 1,#files do
       xlua.progress(i, #files)
       local loaded = loadModel(files[i][2], mode == 'full', false)
-      local acc, err
-      if mode == 'patches' then
-	 acc, err = evalOpticalFlowPatches(loaded.geometry, loaded.model,
-					   raw_data, nSamples)
+      if loaded.score then
+	 table.insert(ret, {files[i][1], loaded.score.full_score.accuracy,
+			    loaded.score.full_score.meanErr})
       else
-	 acc, err = evalOpticalFlowFull(loaded.geometry, loaded.model, raw_data)
+	 local acc, err
+	 if mode == 'patches' then
+	    acc, err = evalOpticalFlowPatches(loaded.geometry, loaded.model,
+					      raw_data, nSamples)
+	 else
+	    acc, err = evalOpticalFlowFull(loaded.geometry, loaded.model, raw_data)
+	 end
+	 table.insert(ret, {files[i][1], acc, err})
+	 if fix_file then
+	    local loaded_raw = torch.load(files[i][2])
+	    if loaded_raw.version == 4 then
+	       loaded_raw.version = 5
+	       local scores = {}
+	       scores.full_score = {}
+	       scores.full_score.type = 'full'
+	       scores.full_score.n = #raw_data.images
+	       scores.full_score.meanErr = err
+	       scores.full_score.accuracy = acc
+	       loaded_raw.score = score
+	       torch.save(files[i][2], loaded_raw)
+	       --print(files[i][2] .. ' fixed.')
+	    end
+	 end
       end
-      table.insert(ret, {files[i][1], acc, err})
    end
    return ret
 end
@@ -176,4 +199,66 @@ function getLearningCurve(scores_list)
    end
    gnuplot.plot(plot)
    gnuplot.movelegend('right', 'bottom')
+end
+
+function score_epoch(geometry, model, criterion, testData, raw_data, n_images)
+   local ret = {}
+   ret.version = 1
+   if testData:size() > 0 then
+      local nGood = 0
+      local nBad = 0
+      local meanErr = 0.
+
+      for t = 1,testData:size() do
+	 local input, target
+	 if geometry.multiscale then
+	    local sample = testData:getElemFovea(t)
+	    input = sample[1][1]
+	    model:focus(sample[1][2][2], sample[1][2][1])
+	    target = prepareTarget(geometry, sample[2])
+	 else
+	    local sample = testData[t]
+	    input = prepareInput(geometry, sample[1][1], sample[1][2])
+	    target = prepareTarget(geometry, sample[2])
+	 end
+	 
+	 local output = model:forward(input)
+	 local err = criterion:forward(output:squeeze(), target)
+	 
+	 meanErr = meanErr + err
+	 local outputp = processOutput(geometry, output, false)
+	 if outputp.index == target then
+	    nGood = nGood + 1
+	 else
+	    nBad = nBad + 1
+	 end
+      end
+
+      collectgarbage()
+      
+      local meanErr = meanErr / (testData:size())
+      local accuracy = nGood/(nGood+nBad)
+      ret.patches_score = {}
+      ret.patches_score.type = 'patch'
+      ret.patches_score.n = testData:size()
+      ret.patches_score.meanErr = meanErr
+      ret.patches_score.accuracy = accuracy
+   end
+   if n_images > 0 then
+      ret.full_score = {}
+      ret.full_score.type = 'full'
+      ret.full_score.n = n_images
+      local raw_data2 = {}
+      raw_data2.flow = {}
+      raw_data2.images = {}
+      for i = 1,n_images-1 do
+	 raw_data2.flow[i] = raw_data.flow[i]
+	 raw_data2.images[i] = raw_data.images[i]
+      end
+      raw_data2.images[n_images] = raw_data.images[n_images]
+      local acc, err = evalOpticalFlowFull(geometry, model, raw_data2)
+      ret.full_score.accuracy = acc
+      ret.full_score.meanErr = err
+   end
+   return ret
 end

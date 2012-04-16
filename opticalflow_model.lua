@@ -235,13 +235,7 @@ function getModel(geometry, full_image, prefiltered)
    end
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-   if full_image then
-      model:add(nn.Reshape(geometry.maxw*geometry.maxh,
-			   geometry.hImg - geometry.hPatch2 + 1,
-			   geometry.wImg - geometry.wPatch2 + 1))
-   else
-      model:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
-   end
+   model:add(nn.SmartReshape(geometry.maxw*geometry.maxh, -3, -4))
 
    model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
 
@@ -289,11 +283,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    local matcher = nn.Sequential()
    matcher:add(matcher_filters)
    matcher:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-   if full_image then
-      matcher:add(nn.SmartReshape(geometry.maxw*geometry.maxh, -3, -4))
-   else
-      matcher:add(nn.Reshape(geometry.maxw*geometry.maxh, 1, 1))
-   end
+   matcher:add(nn.SmartReshape(geometry.maxw*geometry.maxh, -3, -4))
    
    local matchers = {}
    for i = 1,#geometry.ratios do
@@ -365,8 +355,10 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    
    model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
 
-   if not full_image then
-      function model:focus(x, y)
+   function model:focus(x, y)
+      if not x then
+	 pyramid:focus()
+      else
 	 pyramid:focus(x, y, 1, 1)
       end
    end
@@ -579,7 +571,7 @@ function describeModel(geometry, learning)
    return summary
 end
 
-function saveModel(basefilename, geometry, learning, model, nEpochs)
+function saveModel(basefilename, geometry, learning, model, nEpochs, score)
    local modelsdirbase = 'models'
    local kernel = ''
    for i = 1,#geometry.layers do
@@ -621,7 +613,7 @@ function saveModel(basefilename, geometry, learning, model, nEpochs)
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 4
+   tosave.version = 5
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
@@ -633,6 +625,7 @@ function saveModel(basefilename, geometry, learning, model, nEpochs)
    tosave.learning = learning
    tosave.getKernels = getKernels
    tosave.getFilter = getFilter
+   tosave.score = score
    torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs, tosave)
 end
 
@@ -694,6 +687,9 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       end
       ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
       ret.getKernel = loaded.getKernels
+      if loaded.version >= 5 then
+	 ret.score = loaded.score
+      end
       if prefilter == true then
 	 if loaded.version < 2 then
 	    error("loadModel: prefilter didn't exist before version 2")
@@ -712,7 +708,7 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	    if loaded.cascad_parameters then
 	       ret.model:getParameters():copy(loaded.cascad_parameters)
 	    end
-	 elseif loaded.version == 4 then
+	 elseif loaded.version >= 4 then
 	    local weights = ret.filter:getWeights()
 	    for k,v in pairs(weights) do
 	       weights[k]:copy(loaded.weights[k])
