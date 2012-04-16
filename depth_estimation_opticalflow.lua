@@ -1,6 +1,7 @@
 require 'torch'
 require 'xlua'
 require 'opticalflow_model'
+require 'opticalflow_model_io'
 require 'openmp'
 require 'sys'
 require 'download_model'
