@@ -51,7 +51,7 @@ local output_window
 local timer
 
 
-local camera = image.Camera{idx=0, width=320, height=240}
+local camera = image.Camera{idx=1, width=320, height=240, fps=30}
 
 -- while true do
 -- 	last_im = camera:forward()
@@ -60,8 +60,16 @@ local camera = image.Camera{idx=0, width=320, height=240}
 
 last_im = camera:forward():sub(1,3,1, 180,1,320)
 last_im_filtered = filter:forward(last_im):clone()
+local i = 0
 while true do
+   sys.tic()
    local im = camera:forward():sub(1,3,1,180,1,320)
+   image.save(string.format("test/%09d.png", i), im)
+   d = image.display{image=im, win=d, zoom=1}
+   i = i + 1
+   print(i)
+   print("FPS: ".. 1/sys.toc())
+   --[[
    im_filtered = filter:forward(im):clone()
    if im then
        timer = torch.Timer()
@@ -83,8 +91,10 @@ while true do
 	      output_window = image.display{image=output.full, win=output_window}
 	   end
 	   last_im = im
-	   d = image.display{image=last_im, win=d, zoom=1}
-   end
+	   last_im_filtered = im_filtered:clone()
+	   d = image.display{image={last_im, im}, win=d, zoom=1}
+	end
+	--]]
 end
 
 camera:stop()
