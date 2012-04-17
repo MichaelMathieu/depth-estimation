@@ -178,7 +178,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    tosave.getKernels = getKernels
    tosave.getFilter = getFilter
    tosave.score = score
-   torch.save(modeldir .. '/' .. basefilename .. '_e'..nEpochs, tosave)
+   torch.save(string.format("%s/%s_e%06d",modeldir, basefilename, nEpochs), tosave)
 end
 
 function loadModel(filename, full_output, prefilter, wImg, hImg)

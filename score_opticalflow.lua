@@ -138,15 +138,24 @@ function getLearningScores(dir, raw_data, mode, nSamples, fix_file, epoch_max)
    nSamples = nSamples or 1000
    if dir:sub(-1) ~= '/' then dir = dir .. '/' end
    local ls = ls2(dir)
-   local files = {}
-   if #ls < epoch_max then epoch_max = #ls end
-   for i = 1,epoch_max do
+   local filtered = {}
+   for i = 1,#ls do
       if ls[i]:sub(1,11) == 'model_of__e' then
-	 local iEpoch = tonumber(ls[i]:sub(12))
-	 if iEpoch ~= nil then
-	    table.insert(files, {iEpoch, dir .. ls[i]})
+	 local n = tonumber(ls[i]:sub(12))
+	 if n ~= nil then
+	    if ls[i]:len() ~= 17 then
+	       table.insert(filtered,{string.format('model_of__e%06d', n), ls[i], n})
+	    else
+	       table.insert(filtered, {ls[i], ls[i], n})
+	    end
 	 end
       end
+   end
+   table.sort(filtered, function (a, b) return a[1]<b[1] end)
+   local files = {}
+   if #filtered < epoch_max then epoch_max = #filtered end
+   for i = 1,epoch_max do
+      table.insert(files, {filtered[i][3], dir .. filtered[i][2]})
    end
    table.sort(files, function(a,b) return a[1]<b[1] end)
    local ret = {}
