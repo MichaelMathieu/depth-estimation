@@ -51,19 +51,22 @@ local geometry = loaded.geometry
 local output_window
 local timer
 
-local camera = image.Camera{idx=1, width=320, height=240, fps=30}
+local camera = image.Camera{idx=1, fps=30}
 
 -- while true do
 -- 	last_im = camera:forward()
 -- 	d = image.display{image=last_im, win=d, zoom=1}
 -- end
 
-last_im = camera:forward():sub(1,3,1, 180,1,320)
+--last_im = camera:forward():sub(1,3,1, 180,1,320)
+last_im = image.scale(camera:forward():sub(1,3,1, 360,1,640), 320, 180)
+--last_im = camera:forward():sub(1,3,1, 360,1,640)
 last_im_filtered = filter:forward(last_im):clone()
 local i = 0
 while true do
    sys.tic()
-   local im = camera:forward():sub(1,3,1,180,1,320)
+   local im = image.scale(camera:forward():sub(1,3,1, 360,1,640), 320, 180)
+   --local im = camera:forward():sub(1,3,1,180,1,320)
    image.save(string.format("test/%09d.png", i), im)
    d = image.display{image=im, win=d, zoom=1}
    i = i + 1

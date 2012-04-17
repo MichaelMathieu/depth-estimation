@@ -85,13 +85,13 @@ end
 if opt.plot then
    if opt.xmax then
       for i = 1,#scores do
-	 if #scores[i][2] > opt.xmax then
-	    local tmp = {}
-	    for j = 1,opt.xmax do
+	 local tmp = {}
+	 for j = 1,#scores[i][2] do
+	    if scores[i][2][j][1] <= opt.xmax then
 	       tmp[j] = scores[i][2][j]
 	    end
-	    scores[i][2] = tmp
 	 end
+	 scores[i][2] = tmp
       end
    end
    getLearningCurve(scores)

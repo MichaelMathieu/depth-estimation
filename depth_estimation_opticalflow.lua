@@ -112,8 +112,8 @@ while true do
       local m = -math.ceil(geometry.maxhGT/2)+1
       local M = math.floor(geometry.maxhGT/2)
       im_window = image.display{image={last_frame, frame}, win=im_window}
-      gt_window = image.display{image=loader:getCurrentGT(), win=gt_window,
-				legend='groundtruth', min=m, max=M}
+      --gt_window = image.display{image=loader:getCurrentGT(), win=gt_window,
+      --legend='groundtruth', min=m, max=M}
       output_window = image.display{image=output.full, win=output_window,
 				    legend='output', min=m, max=M}
    end
