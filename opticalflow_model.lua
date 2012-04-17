@@ -260,7 +260,12 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       assert(math.mod(geometry.maxh * k, 2) == 0)
       assert(math.mod(geometry.maxw * k, 2) == 0)
    end
-   local nChannelsIn = geometry.layers[1][1]
+   local nChannelsIn
+   if prefiltered then
+      nChannelsIn = geometry.layers[1][1]
+   else
+      nChannelsIn = geometry.layers[#geometry.layers][4]
+   end
 
    local filter1 = nn.Sequential()
    local filter2 = nn.Sequential()

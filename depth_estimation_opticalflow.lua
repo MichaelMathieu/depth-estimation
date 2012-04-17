@@ -45,8 +45,8 @@ if opt.download_dir ~= nil then
 end
 
 local loaded = loadModel(opt.input_model, true, true)
-local model = loaded.model
-local filter = loaded.filter
+model = loaded.model
+filter = loaded.filter
 local geometry = loaded.geometry
 
 local output_window
@@ -73,14 +73,15 @@ local function filterNext(first)
    if not first then
       time_filter = time_filter + timer:time()['real']
    end
+   local ret = {}
    if geometry.multiscale then
       for i = 1,#filtered do
-	 filtered[i] = filtered[i]:clone()
+	 ret[i] = filtered[i]:clone()
       end
    else
-      filtered = filtered:clone()
+      ret = filtered:clone()
    end
-   return frame, filtered
+   return frame, ret
 end
 
 local last_frame, last_im = filterNext(true)
@@ -108,9 +109,13 @@ while true do
    if opt.display_output then
       --gt_window = image.display{image=flow2hsv(geometry, loader:getCurrentGT()), win=gt_window, legend='groundtruth'}
       --output_window = image.display{image=flow2hsv(geometry, output.full), win=output_window, legend='output'}
+      local m = -math.ceil(geometry.maxhGT/2)+1
+      local M = math.floor(geometry.maxhGT/2)
       im_window = image.display{image={last_frame, frame}, win=im_window}
-      gt_window = image.display{image=loader:getCurrentGT(), win=gt_window, legend='groundtruth'}
-      output_window = image.display{image=output.full, win=output_window, legend='output'}
+      gt_window = image.display{image=loader:getCurrentGT(), win=gt_window,
+				legend='groundtruth', min=m, max=M}
+      output_window = image.display{image=output.full, win=output_window,
+				    legend='output', min=m, max=M}
    end
    if opt.output_dir then
       local ps = postProcessImage(output.full, 3)

@@ -26,10 +26,20 @@ op:option{'-i', '--input-model', action='store', dest='input_model',
 	  help='Trained convnet, this option isn\'t used if -dldir is used'}
 op:option{'-dldir', '--download-dir', action='store', dest='download_dir', default=nil,
 	  help='scp command to the models folder (eg. mfm352@access.cims.nyu.edu:/depth-estimation/models)'}
+op:option{'-rd', '--root-directory', action='store', dest='root_directory',
+	  default='./data', help='Root dataset directory'}
+op:option{'-lg', '--liu-grountruth', action='store_true', dest='use_liu_groundtruth',
+	  default=false, help='Use Liu groundtruth'}
 
 opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.post_process_winsize = tonumber(opt.post_process_winsize)
+local groundtruth
+if opt.use_liu_groundtruth then
+   groundtruth = 'cross-correlation'
+else
+   groundtruth = 'liu'
+end
 
 openmp.setDefaultNumThreads(opt.nThreads)
 
@@ -44,7 +54,7 @@ loaded = loadModel(opt.input_model, true)
 --loaded = loadModel(opt.input_model, false)
 model = loaded.model
 geometry = loaded.geometry
-kernels = loaded.getKernels(geometry, models)
+kernels = loaded.getKernels(geometry, model)
 
 for i = 1,#kernels do
    if kernels[i]:size(2) > 5 then
@@ -57,13 +67,14 @@ end
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
 local image1, image2, gt
 if geometry.motion_correction then
-   image1 = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
-   _,gt,image2,_ = loadRectifiedImageOpticalFlow(geometry, 'data/', opt.input_image2,
-						       opt.input_image1, delta)
+   image1 = loadRectifiedImageOpticalFlow(geometry, opt.root_directory, opt.input_image1,
+					  nil, nil)
+   _,gt,image2,_ = loadRectifiedImageOpticalFlow(geometry, opt.root_directory,
+						 opt.input_image2, opt.input_image1, delta)
 else
-   image1 = loadImageOpticalFlow(geometry, 'data/', opt.input_image1, nil, nil)
-   image2,gt = loadImageOpticalFlow(geometry, 'data/', opt.input_image2,
-					  opt.input_image1, delta, 'cross-correlation')
+   image1 = loadImageOpticalFlow(geometry, opt.root_directory, opt.input_image1, nil, nil)
+   image2,gt = loadImageOpticalFlow(geometry, opt.root_directory, opt.input_image2,
+				    opt.input_image1, delta, groundtruth)
 end
 local input = {image1, image2}
 image.display(input)
@@ -81,7 +92,6 @@ local output = model:forward(input)
 --   end
 --end
 print(t:time())
-outputt = output:clone()
 output = processOutput(geometry, output)
 
 local output2 = torch.Tensor(2, output.x:size(1), output.x:size(2)):zero()

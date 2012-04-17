@@ -1,7 +1,7 @@
 require 'opticalflow_model'
 
 function getKernels(geometry, model)
-   local kernels = {}
+   local kernel = {}
    if geometry.multiscale then
       for i = 1,#geometry.ratios do
 	 local matcher = model.modules[2].unfocused_pipeline.modules[i].modules[3]
@@ -44,7 +44,7 @@ function getKernels(geometry, model)
 	 table.insert(kernel, weight3)
       end
    end
-   return kernels
+   return kernel
 end
 
 --do not change that function anymore (eventually, remove it)
@@ -165,7 +165,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 6
+   tosave.version = 8
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
@@ -184,6 +184,7 @@ end
 function loadModel(filename, full_output, prefilter, wImg, hImg)
    local loaded = torch.load(filename)
    local ret = {}
+
    if not loaded.version then -- old version
       ret.geometry = loaded[2]
       if not ret.geometry.layers then
@@ -228,6 +229,8 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       end
       local parameters = ret.model:getParameters()
       parameters:copy(loaded[1])
+      ret.getKernels = getKernelLegacy
+
    elseif loaded.version >= 1 then 
       ret.geometry = loaded.geometry
       if wImg then ret.geometry.wImg = wImg end
@@ -238,10 +241,10 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	 ret.geometry.training_mode = true
       end
       ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
-      if loaded.getKernels then
-	 ret.getKernel = loaded.getKernels
+      if loaded.getKernels and loaded.version ~= 5 then
+	 ret.getKernels = loaded.getKernels
       else
-	 ret.getKernel = getKernelLegacy
+	 ret.getKernels = getKernelsLegacy
       end
       if loaded.version >= 5 then
 	 ret.score = loaded.score
@@ -288,6 +291,14 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	    weights = ret.model:getWeights()
 	    for k,v in pairs(weights) do
 	       weights[k]:copy(loaded.weights[k])
+	    end
+	 end
+	 if loaded.version < 8 and ret.geometry.multiscale then
+	    local nFeatures = ret.geometry.layers[#ret.geometry.layers][4]
+	    for i = 1,#ret.model.modules[2].processors do
+	       ret.model.modules[2].processors[i].modules[1].modules[1].modules[1].length = nFeatures
+	       ret.model.modules[2].processors[i].modules[1].modules[2].modules[1].index = nFeatures+1
+	       ret.model.modules[2].processors[i].modules[1].modules[2].modules[1].length = nFeatures
 	    end
 	 end
       else
