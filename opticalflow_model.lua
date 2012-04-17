@@ -262,9 +262,9 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    end
    local nChannelsIn
    if prefiltered then
-      nChannelsIn = geometry.layers[1][1]
-   else
       nChannelsIn = geometry.layers[#geometry.layers][4]
+   else
+      nChannelsIn = geometry.layers[1][1]
    end
 
    local filter1 = nn.Sequential()
