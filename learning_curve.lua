@@ -24,7 +24,7 @@ op:option{'-p', '--plot', action='store_true', dest='plot', default = false,
 op:option{'-fix', '--fix', action='store_true', dest='fix_old', default=false,
 	  help='Fix old files'}
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
-	  default='./data', help='Root dataset directory'}
+	  default='data/', help='Root dataset directory'}
 opt = op:parse()
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
@@ -67,7 +67,7 @@ if not opt.load then
       local name = table.concat(split(inputs[iInput], '/'))
       print(name)
       scores[iInput] = {name, getLearningScores(inputs[iInput], raw_data, 'full',
-						100, opt.fix_old)}
+						100, opt.fix_old, opt.xmax)}
       if opt.save then
 	 torch.save(opt.save .. scores[iInput][1], scores[iInput][2])
       end

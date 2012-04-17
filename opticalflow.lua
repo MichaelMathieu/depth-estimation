@@ -156,10 +156,6 @@ if geometry.multiscale then
    geometry.cascad_trainable_weights = opt.ms_trainable_weights
 end
 
-
-assert(geometry.maxwGT >= geometry.maxw)
-assert(geometry.maxhGT >= geometry.maxh)
-
 local learning = {}
 learning.first_image = tonumber(opt.first_image)
 learning.delta = tonumber(opt.delta)
@@ -173,6 +169,17 @@ if opt.use_liu_groundtruth then
 else
    learning.groundtruth = 'cross-correlation'
 end
+
+if learning.groundtruth == 'liu' then
+   geometry.hKernelGT = geometry.hKernel
+   geometry.wKernelGT = geometry.wKernel
+   --geometry.maxhGT = geometry.maxh
+   --geometry.maxwGT = geometry.maxw
+else
+   assert(geometry.maxwGT >= geometry.maxw)
+   assert(geometry.maxhGT >= geometry.maxh)
+end
+
 
 local summary = describeModel(geometry, learning)
 

@@ -376,7 +376,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       if not prefiltered then
 	 local processors = self.pyramid.processors
 	 if geometry.share_filters then
-	    local lweights = self.modules[1].modules[3]:getWeights()
+	    local lweights = processors[1].modules[1].modules[1].modules[3]:getWeights()
 	    for n,w in pairs(lweights) do
 	       weights[n] = w
 	    end

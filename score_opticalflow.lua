@@ -1,5 +1,6 @@
 require 'groundtruth_opticalflow'
 require 'opticalflow_model'
+require 'opticalflow_model_io'
 require 'gnuplot'
 
 function flow2pol(geometry, y, x)
@@ -131,13 +132,15 @@ function evalOpticalFlowFull(geometry, model, raw_data)
    return accuracy, meanDst
 end
 
-function getLearningScores(dir, raw_data, mode, nSamples, fix_file)
+function getLearningScores(dir, raw_data, mode, nSamples, fix_file, epoch_max)
+   eopch_max = eopch_max or 1e10
    mode = mode or 'patches'
    nSamples = nSamples or 1000
    if dir:sub(-1) ~= '/' then dir = dir .. '/' end
    local ls = ls2(dir)
    local files = {}
-   for i = 1,#ls do
+   if #ls < epoch_max then epoch_max = #ls end
+   for i = 1,epoch_max do
       if ls[i]:sub(1,11) == 'model_of__e' then
 	 local iEpoch = tonumber(ls[i]:sub(12))
 	 if iEpoch ~= nil then
@@ -164,6 +167,9 @@ function getLearningScores(dir, raw_data, mode, nSamples, fix_file)
 	 table.insert(ret, {files[i][1], acc, err})
 	 if fix_file then
 	    local loaded_raw = torch.load(files[i][2])
+	    if loaded_raw.version < 4 then
+	       print("Warniing: version < 4. Won't be fixed (version "..loaded_raw.version..')')
+	    end
 	    if loaded_raw.version == 4 then
 	       loaded_raw.version = 5
 	       local scores = {}
@@ -172,7 +178,7 @@ function getLearningScores(dir, raw_data, mode, nSamples, fix_file)
 	       scores.full_score.n = #raw_data.images
 	       scores.full_score.meanErr = err
 	       scores.full_score.accuracy = acc
-	       loaded_raw.score = score
+	       loaded_raw.score = scores
 	       torch.save(files[i][2], loaded_raw)
 	       --print(files[i][2] .. ' fixed.')
 	    elseif loaded_raw.version >= 5 then
@@ -182,7 +188,7 @@ function getLearningScores(dir, raw_data, mode, nSamples, fix_file)
 	       scores.full_score.n = #raw_data.images
 	       scores.full_score.meanErr = err
 	       scores.full_score.accuracy = acc
-	       loaded_raw.score = score
+	       loaded_raw.score = scores
 	       torch.save(files[i][2], loaded_raw)
 	       --print(files[i][2] .. ' fixed.')
 	    end
