@@ -27,7 +27,7 @@ op:option{'-i', '--input-model', action='store', dest='input_model',
 op:option{'-dldir', '--download-dir', action='store', dest='download_dir', default=nil,
 	  help='scp command to the models folder (eg. mfm352@access.cims.nyu.edu:/depth-estimation/models)'}
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
-	  default='./data', help='Root dataset directory'}
+	  default='./data/', help='Root dataset directory'}
 op:option{'-lg', '--liu-grountruth', action='store_true', dest='use_liu_groundtruth',
 	  default=false, help='Use Liu groundtruth'}
 
@@ -35,7 +35,7 @@ opt=op:parse()
 opt.nThreads = tonumber(opt.nThreads)
 opt.post_process_winsize = tonumber(opt.post_process_winsize)
 local groundtruth
-if opt.use_liu_groundtruth then
+if not opt.use_liu_groundtruth then
    groundtruth = 'cross-correlation'
 else
    groundtruth = 'liu'

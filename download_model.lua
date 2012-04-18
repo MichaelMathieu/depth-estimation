@@ -165,7 +165,7 @@ function selectEpoch(epochs, today)
    while i == nil do
       i = io.read()
       if i == '' then
-	 return {eopchs[maxi][1], maxi}
+	 return {epochs[maxi][1], maxi}
       else
 	 i = tonumber(i)
       end
