@@ -15,8 +15,8 @@ op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
 op:option{'-s', '--save', action='store', dest='save', default = nil,
 	  help = 'If a folder is specified, then the scores are saved inside'}
-op:option{'-l', '--load', action='store', dest='load', default = nil,
-	  help = 'If a folder is specified, then the scores are loaded from the folder'}
+op:option{'-l', '--load', action='store_true', dest='load', default = false,
+	  help = 'If specified, then the args are loaded'}
 op:option{'-xmax', '--x-max', action='store', dest='xmax', default=nil,
 	  help = 'Crop to xmax'}
 op:option{'-p', '--plot', action='store_true', dest='plot', default = false,
@@ -25,7 +25,7 @@ op:option{'-fix', '--fix', action='store_true', dest='fix_old', default=false,
 	  help='Fix old files'}
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 	  default='data/', help='Root dataset directory'}
-opt = op:parse()
+opt, args = op:parse()
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
 opt.num_input_images = tonumber(opt.num_input_images)
@@ -73,10 +73,13 @@ if not opt.load then
       end
    end
 else
+   --[[
    local paths = lsR(opt.load,
 		     function(a) return true end,
 		     function(a) return false end,
 		     function(a) return false end)
+   --]]
+   local paths = args
    for i = 1,#paths do
       scores[i] = {paths[i], torch.load(paths[i])}
    end
