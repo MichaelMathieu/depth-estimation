@@ -133,7 +133,7 @@ function evalOpticalFlowFull(geometry, model, raw_data)
 end
 
 function getLearningScores(dir, raw_data, mode, nSamples, fix_file, epoch_max)
-   eopch_max = eopch_max or 1e10
+   epoch_max = epoch_max or 1e10
    mode = mode or 'patches'
    nSamples = nSamples or 1000
    if dir:sub(-1) ~= '/' then dir = dir .. '/' end

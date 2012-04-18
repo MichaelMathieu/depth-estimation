@@ -145,6 +145,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    local motion = ''
    local share = ''
    local train_cascad = ''
+   local gt = ''
    if geometry.multiscale then
       if geometry.cascad_trainable_weights then
 	 train_cascad = '_tcw'
@@ -155,8 +156,9 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    if learning.renew_train_set then renew = '_renew' end
    if geometry.motion_correction then motion = '_mc' end
    if learning.soft_targets then targets = '_st' end
+   if learning.groundtruth == 'liu' then gt = '_liu' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
-   train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew
+   train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew .. gt
    train_params = train_params .. train_cascad
    modeldir = modeldir .. '/' .. train_params
    local images = learning.first_image .. '_' .. learning.delta .. '_' 

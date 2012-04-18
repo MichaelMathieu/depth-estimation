@@ -276,7 +276,11 @@ for iEpoch = 1,opt.n_epochs do
    end
    collectgarbage()
 
-   print(model.cascad.weight)
+   if model.cascad then
+      if model.cascad.weight then
+	 print(model.cascad.weight)
+      end
+   end
       
    meanErr = meanErr / (trainData:size())
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)

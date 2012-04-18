@@ -18,7 +18,6 @@ function CascadingAddTable:__init(ratios, trainable)
    self.muls = {}
    self.padders = {}
    self.transformers = {}
-   print(self.ratios)
    for i = 1,#self.ratios-1 do
       --[[
       local seq1 = nn.Sequential()
