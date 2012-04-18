@@ -101,24 +101,23 @@ function describeModel(geometry, learning)
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
    local images = 'imgs=(' .. learning.first_image .. ':' .. learning.delta .. ':' 
    images = images .. learning.first_image+learning.delta*(learning.num_images-1) .. ')'
-   local targets = ''
-   local motion = ''
-   local share = ''
-   local train_cascad = ''
+   local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
+   learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay
+   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
+
+   local extra = {}
    if geometry.multiscale then
       if geometry.cascad_trainable_weights then
-	 train_cascad = ' TrainCascad'
+	 table.insert(extra, 'TrainCascad')
       else
-	 train_cascad = ' NoTrainCascad'
+	 table.insert(extra, 'NoTrainCascad')
       end
    end
-   local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
-   learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay .. targets
-   if learning.renew_train_set then learning_ = learning_ .. ' renewTrainSet' end
-   if geometry.motion_correction then motion = ' MotionCorrection' end
-   if geometry.share_filters then share = ' ShareFilters' end
-   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
-   summary = summary .. motion .. share .. train_cascad
+   if learning.renew_train_set then table.insert(extra, 'renewTrainSet') end
+   if geometry.motion_correction then table.insert(extra, 'MotionCorrection') end
+   if geometry.share_filters then table.insert(extra, 'ShareFilters') end
+   if learning.soft_targets then table.insert(extra, 'SoftTargets') end
+   summary = summary .. table.concat(extra, ' ')
    return summary
 end
 
@@ -155,6 +154,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    end
    if learning.renew_train_set then renew = '_renew' end
    if geometry.motion_correction then motion = '_mc' end
+   if learning.soft_targets then targets = '_st' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew
    train_params = train_params .. train_cascad

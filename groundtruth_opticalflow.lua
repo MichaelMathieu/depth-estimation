@@ -228,22 +228,16 @@ end
 
 function loadDataOpticalFlow(geometry, learning, dirbasename)
    local imagesdir = dirbasename .. 'images'
-   local findIm = 'cd ' .. imagesdir .. ' && ls -LB'
    raw_data = {}
    raw_data.images = {}
    raw_data.flow = {}
 
    local imagepaths_raw = {}
    local flowpaths = {}
-   for line in io.popen(findIm):lines() do
-      local linebase,_ = line:gsub('.jpg', '')
-      if linebase .. '.jpg' == line then
-         table.insert(imagepaths_raw, linebase)
-      end
-      local linebase,_ = line:gsub('.png', '')
-      if linebase .. '.png' == line then
-         table.insert(imagepaths_raw, linebase)
-      end
+   local ls = ls2(imagesdir, function(a) return a:sub(-4) == '.jpg' or a:sub(-4) == '.png' end)
+   for i = 1,#ls do
+      local linebase,_ = ls[i]:sub(1,-5)
+      table.insert(imagepaths_raw, linebase)
    end
    local imagepaths = {}
    local iLine = learning.first_image+1 --images are numbered from 0

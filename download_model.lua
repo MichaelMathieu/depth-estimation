@@ -145,6 +145,7 @@ function selectFile(files, today, specials)
 end
 
 function selectEpoch(epochs, today)
+   table.sort(epochs, function(a, b) return a[3] < b[3] end)
    local mini = #epochs+1000
    local maxi = -1
    for i = 1,#epochs do
@@ -164,13 +165,13 @@ function selectEpoch(epochs, today)
    while i == nil do
       i = io.read()
       if i == '' then
-	 return {'model_of__e' .. maxi, maxi}
+	 return {eopchs[maxi][1], maxi}
       else
 	 i = tonumber(i)
       end
    end
    assert(mini <= i and i <= maxi)
-   return {'model_of__e' .. i, i}
+   return {epochs[i][1], i}
 end
 
 function prompt(sshpath, basepath, savepath)

@@ -226,7 +226,7 @@ function getLearningCurve(scores_list)
    gnuplot.movelegend('right', 'bottom')
 end
 
-function score_epoch(geometry, model, criterion, testData, raw_data, n_images)
+function score_epoch(geometry, learning, model, criterion, testData, raw_data, n_images)
    local ret = {}
    ret.version = 1
    if testData:size() > 0 then
@@ -235,16 +235,16 @@ function score_epoch(geometry, model, criterion, testData, raw_data, n_images)
       local meanErr = 0.
 
       for t = 1,testData:size() do
-	 local input, target
+	 local input, itarget, target
 	 if geometry.multiscale then
 	    local sample = testData:getElemFovea(t)
 	    input = sample[1][1]
 	    model:focus(sample[1][2][2], sample[1][2][1])
-	    target = prepareTarget(geometry, sample[2])
+	    itarget, target = prepareTarget(geometry, learning, sample[2])
 	 else
 	    local sample = testData[t]
 	    input = prepareInput(geometry, sample[1][1], sample[1][2])
-	    target = prepareTarget(geometry, sample[2])
+	    itarget, target = prepareTarget(geometry, learning, sample[2])
 	 end
 	 
 	 local output = model:forward(input)
@@ -252,7 +252,7 @@ function score_epoch(geometry, model, criterion, testData, raw_data, n_images)
 	 
 	 meanErr = meanErr + err
 	 local outputp = processOutput(geometry, output, false)
-	 if outputp.index == target then
+	 if outputp.index == itarget then
 	    nGood = nGood + 1
 	 else
 	    nBad = nBad + 1

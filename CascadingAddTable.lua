@@ -18,12 +18,15 @@ function CascadingAddTable:__init(ratios, trainable)
    self.muls = {}
    self.padders = {}
    self.transformers = {}
+   print(self.ratios)
    for i = 1,#self.ratios-1 do
+      --[[
       local seq1 = nn.Sequential()
       local mul1 = nn.Mul2()
       self.muls[#self.muls+1] = mul1
       seq1:add(mul1)
       seq1:add(nn.Tanh())
+      --]]
       
       local seq2 = nn.Sequential()
       self.padders[i] = nn.SpatialZeroPadding2(0,0,0,0, 1, 2)
@@ -36,7 +39,8 @@ function CascadingAddTable:__init(ratios, trainable)
       seq2:add(nn.Tanh())
 
       local parallel = nn.ParallelTable()
-      parallel:add(seq1)
+      --parallel:add(seq1)
+      parallel:add(nn.Identity())
       parallel:add(seq2)
       
       self.transformers[i] = nn.Sequential()
@@ -63,6 +67,7 @@ function CascadingAddTable:__init(ratios, trainable)
       end
    end
    self:reset()
+   --self.muls[#self.muls].weight[1] = 1000
 end
 
 function CascadingAddTable:reset(stdv)
@@ -106,7 +111,7 @@ end
 
 function CascadingAddTable:updateGradInput(input, gradOutput)
    if self.trainable then
-      for i = 1,#self.muls do --todo this is dirty
+      for i = 1,#self.muls do --todo this is dirty, see how it's done when sharing weights
 	 self.muls[i].weight = self.weight:narrow(1,i,1)
 	 self.muls[i].gradWeight = self.gradWeight:narrow(1,i,1)
       end
@@ -123,7 +128,8 @@ function CascadingAddTable:updateGradInput(input, gradOutput)
    return self.gradInput
 end
 
-function CascadingAddTable:accGradParameters(input, gradOutput, scale)
+function CascadingAddTable:accGradParameters(input, gradOutput, scale_)
+   local scale = scale_*0.25
    if self.trainable then
       self.postprocessors:accGradParameters(self.outputBP, gradOutput, scale)
       for i = 1,#input-1 do

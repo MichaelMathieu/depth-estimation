@@ -481,32 +481,49 @@ function processOutput2(geometry, output)
    return ret
 end
 
-function prepareTarget(geometry, target)
-   local itarget
+function prepareTarget(geometry, learning, targett)
+   local itarget, target, xtarget, ytarget
+   local halfh1 = math.ceil(geometry.maxhGT/2)-1
+   local halfh2 = math.floor(geometry.maxhGT/2)
+   local halfw1 = math.ceil(geometry.maxwGT/2)-1
+   local halfw2 = math.floor(geometry.maxwGT/2)
+   if (targett[1] < -halfh1) or (targett[1] > halfh2) or
+      (targett[2] < -halfw1) or (targett[2] > halfw2) then
+      xtarget = 0
+      ytarget = 0
+   else
+      xtarget = targett[2]
+      ytarget = targett[1]
+   end
    if geometry.multiscale then
-      if (target[1] < -math.ceil(geometry.maxhGT/2)+1) or
-	 (target[1] > math.floor(geometry.maxhGT/2)) or
-	 (target[2] < -math.ceil(geometry.maxwGT/2)+1) or
-	 (target[2] > math.floor(geometry.maxwGT/2)) then
-	     itarget = yx2xMulti(geometry, 0, 0)
-      else
-	 itarget = yx2xMulti(geometry, target[1], target[2])
+      itarget = yx2xMulti(geometry, ytarget, xtarget)
+   else
+      local xtargetO = xtarget + halfw1 + 1
+      local ytargetO = ytarget + halfh1 + 1
+      itarget = (ytargetO-1) * geometry.maxwGT + xtargetO
+   end
+   if learning.soft_targets then
+      target = torch.Tensor(geometry.maxhGT*geometry.maxwGT)
+      local invsigma2 = 1.
+      for y = -halfh1, halfh2 do
+	 for x = -halfw1, halfw2 do
+	    local d2 = (ytarget-y)*(ytarget-y) + (xtarget-x)*(xtarget-x)
+	    local g = math.exp(-d2*invsigma2)
+	    local i
+	    if geometry.multiscale then
+	       i = yx2xMulti(geometry, y, x)
+	    else
+	       local xO = x + halfw1 + 1
+	       local yO = y + halfh1 + 1
+	       i = (yO-1) * geometry.maxwGT + xO
+	    end
+	    target[i] = g
+	 end
       end
    else
-      if (target[1] < -math.ceil(geometry.maxhGT/2)+1) or
-	 (target[1] > math.floor(geometry.maxhGT/2)) or
-	 (target[2] < -math.ceil(geometry.maxwGT/2)+1) or
-	 (target[2] > math.floor(geometry.maxwGT/2)) then
-	     local targetx = 0 + math.ceil(geometry.maxwGT/2)
-	     local targety = 0 + math.ceil(geometry.maxhGT/2)
-	     itarget = (targety-1) * geometry.maxwGT + targetx
-      else
-	 local targetx = target[2] + math.ceil(geometry.maxwGT/2)
-	 local targety = target[1] + math.ceil(geometry.maxhGT/2)
-	 itarget = (targety-1) * geometry.maxwGT + targetx
-      end
+      target = itarget
    end
-   return itarget
+   return itarget, target
 end
 
 
