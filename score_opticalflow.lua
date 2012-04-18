@@ -163,6 +163,7 @@ function getLearningScores(dir, raw_data, mode, nSamples, fix_file, epoch_max)
       xlua.progress(i, #files)
       local loaded = loadModel(files[i][2], mode == 'full', false)
       if loaded.score then
+	 print(loaded.score.full_score.n)
 	 table.insert(ret, {files[i][1], loaded.score.full_score.accuracy,
 			    loaded.score.full_score.meanErr})
       else
