@@ -24,6 +24,7 @@ local function test_CascadingAddTable()
 
    local err = nn.Jacobian.testJacobian(module, input)
    local precision = 1e-5
+   print(math.abs(err))
    assert(math.abs(err) < precision)
 
    local err = nn.Jacobian.testJacobianParameters(module, input,

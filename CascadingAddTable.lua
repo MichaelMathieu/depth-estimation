@@ -1,5 +1,6 @@
 require 'nnx'
 require 'Mul2'
+require 'Log'
 require 'SpatialZeroPadding2'
 local CascadingAddTable, parent = torch.class('nn.CascadingAddTable', 'nn.Module')
 local CascadingAddTableSplit, parent = torch.class('nn.CascadingAddTableSplit', 'nn.Module')
@@ -18,14 +19,19 @@ function CascadingAddTable:__init(ratios, trainable)
    self.muls = {}
    self.padders = {}
    self.transformers = {}
+   local beta = 1.
    for i = 1,#self.ratios-1 do
-      --[[
       local seq1 = nn.Sequential()
+      --[[
       local mul1 = nn.Mul2()
       self.muls[#self.muls+1] = mul1
       seq1:add(mul1)
       seq1:add(nn.Tanh())
       --]]
+      local mul1 = nn.Mul2()
+      mul1.weight[1] = -beta
+      seq1:add(mul1)
+      seq1:add(nn.Exp())
       
       local seq2 = nn.Sequential()
       self.padders[i] = nn.SpatialZeroPadding2(0,0,0,0, 1, 2)
@@ -33,26 +39,39 @@ function CascadingAddTable:__init(ratios, trainable)
       seq2:add(nn.SpatialUpSampling(self.ratios[i+1]/self.ratios[i],
 				    self.ratios[i+1]/self.ratios[i], 1, 2))
       local mul2 = nn.Mul2()
+      mul2.weight[1] = -beta
+      seq2:add(mul2)
+      seq2:add(nn.Exp())
+      --[[
+      local mul2 = nn.Mul2()
       self.muls[#self.muls+1] = mul2
       seq2:add(mul2)
       seq2:add(nn.Tanh())
+      --]]
 
       local parallel = nn.ParallelTable()
-      --parallel:add(seq1)
-      parallel:add(nn.Identity())
+      parallel:add(seq1)
+      --parallel:add(nn.Identity())
       parallel:add(seq2)
       
       self.transformers[i] = nn.Sequential()
       self.transformers[i]:add(parallel)
       self.transformers[i]:add(nn.CAddTable())
+      self.transformers[i]:add(nn.Log2())
+      local mul3 = nn.Mul2()
+      mul3.weight[1] = -1./beta
+      self.transformers[i]:add(mul3)
    end
    self.postprocessors = nn.ParallelTable()
    for i = 1,#self.ratios do
+      --[[
       local seq = nn.Sequential()
       local mul = nn.Mul2()
       self.muls[#self.muls+1] = mul
       seq:add(mul)
       seq:add(nn.Tanh())
+      --]]
+      local seq = nn.Identity()
       self.postprocessors:add(seq)
    end
 
@@ -70,12 +89,14 @@ function CascadingAddTable:__init(ratios, trainable)
 end
 
 function CascadingAddTable:reset(stdv)
+   --[[
    for i = 1,#self.muls do
       self.muls[i].weight[1] = 0.1
    end
    for i = 1,#self.ratios do
       self.postprocessors.modules[i].modules[1].weight[1] = 0.1 / (#self.ratios-i+1)
    end
+   --]]
 end
 
 function CascadingAddTable:updateOutput(input)
