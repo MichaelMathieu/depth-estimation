@@ -77,7 +77,7 @@ function calculate_samples_number(ptsin, ptsout, s)
 	while (N > sample_count) do
 		sample = get_random_sample(ptsin, ptsout, s)
 		inliers = math.max(get_inliers_number(ptsin, ptsout, sample), 1)
-		
+		err = 1 - inliers/npts
 		N = math.log(1-p)/math.log(1-math.pow(1-err, s))
 		sample_count = sample_count+1
 	end
@@ -207,3 +207,38 @@ function test_lsq_trans()
 	image.display{image={imgL,warpimgrsac},legend='RANSAC'}
 
 end
+
+function motion_correction(imgL, imgR)
+
+	local w_imgs = imgL:size(3)
+	local h_imgs = imgL:size(2)
+	local w_center = w_imgs/2
+	local h_center = h_imgs/2
+
+	local ptsin = opencv.GoodFeaturesToTrack{image=imgL, count=50}
+	local ptsout = opencv.TrackPyrLK{pair={imgL, imgR}, points_in=ptsin}
+	local H = lsq_trans_ransac(ptsin, ptsout, w_imgs/2, h_imgs/2)
+	local inputImg = imgR:clone()
+	local warpImg = opencv.WarpAffine(inputImg, H)
+
+	return warpImg
+end
+
+function test_motion_correction()
+	imgfilenameL = 'data/parc/images/000000000.jpg'
+	imgfilenameR = 'data/parc/images/000000020.jpg'
+
+	local imgL = image.loadJPG(imgfilenameL)
+	local imgR = image.loadJPG(imgfilenameR)
+
+	imgL = image.scale(imgL, 320, 240)
+	imgR = image.scale(imgR, 320, 240)
+
+	image.display{image={imgL,imgR}, legend='Input Imgs'}
+
+	local wi = motion_correction(imgL, imgR)
+
+	image.display{image=wi, legend='Corrected Img'}
+end
+
+
