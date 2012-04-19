@@ -16,6 +16,7 @@ end
 
 function ImageLoader:getNextFrame()
    self.nextFrame = self.nextFrame + 1
+   print(self.nextFrame)
    local impath = string.format("%simages/%09d.jpg", self.path, self.nextFrame)
    if not paths.filep(impath) then
       impath = string.format("%simages/%09d.png", self.path, self.nextFrame)

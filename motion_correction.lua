@@ -209,18 +209,19 @@ function test_lsq_trans()
 end
 
 function motion_correction(imgL, imgR)
-
+   local timer = torch.Timer()
 	local w_imgs = imgL:size(3)
 	local h_imgs = imgL:size(2)
 	local w_center = w_imgs/2
 	local h_center = h_imgs/2
 
-	local ptsin = opencv.GoodFeaturesToTrack{image=imgL, count=50}
+	local ptsin = opencv.GoodFeaturesToTrack{image=imgL, count=200}
 	local ptsout = opencv.TrackPyrLK{pair={imgL, imgR}, points_in=ptsin}
 	local H = lsq_trans_ransac(ptsin, ptsout, w_imgs/2, h_imgs/2)
+	--local H = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
 	local inputImg = imgR:clone()
 	local warpImg = opencv.WarpAffine(inputImg, H)
-
+	print(timer:time()['real'])
 	return warpImg
 end
 
