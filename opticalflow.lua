@@ -50,6 +50,8 @@ op:option{'-lw', '--load-weights', action='store', dest='load_weights', default 
 op:option{'-mstw', '--multiscale-trainable-weights', action='store_true',
 	  dest='ms_trainable_weights', default = false,
 	  help='Allow the weights of CascadingAddTable to be trained'}
+op:option{'-mssb', '--multiscale-single-beta', action='store_true', default=false,
+	  dest='ms_single_beta', help='Single beta per scale in CascadingAddTable'}
 
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
@@ -68,8 +70,8 @@ op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set',
 	  default=false, help='Renew train set at each epoch'}
-op:option{'-st', '--soft-targets', action='store_true', dest='soft_targets',
-	  default=false, help='Targets are gaussians'}
+op:option{'-st', '--soft-targets', action='store', dest='soft_targets',
+	  default=nil, help='Targets are gaussians, specify sigma2'}
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -158,6 +160,7 @@ geometry.share_filters = opt.share_filters
 geometry.training_mode = true
 if geometry.multiscale then
    geometry.cascad_trainable_weights = opt.ms_trainable_weights
+   geometry.single_beta = opt.ms_single_beta
 end
 
 local learning = {}
@@ -168,7 +171,8 @@ learning.rate = opt.learning_rate
 learning.rate_decay = opt.learning_rate_decay
 learning.weight_decay = opt.weight_decay
 learning.renew_train_set = opt.renew_train_set
-learning.soft_targets = opt.soft_targets
+learning.soft_targets = opt.soft_targets ~= nil
+learning.st_sigma2 = tonumber(opt.soft_targets)
 if opt.use_liu_groundtruth then
    learning.groundtruth = 'liu'
 else
@@ -273,12 +277,20 @@ for iEpoch = 1,opt.n_epochs do
 		    end
 
       optim.sgd(feval, parameters, config)
+      if model.cascad then --optim.sgd sucks. Why doesn't it use updateParameters ?????
+	 model.cascad:updateNormalizers()
+      end
    end
    collectgarbage()
 
-   if model.cascad then
-      if model.cascad.weight then
-	 print(model.cascad.weight)
+   if geometry.cascad_trainable_weights then
+      local p, gp = model.cascad:parameters()
+      for i = 1,#p do
+	 print(p[i][1])
+      end
+      print('--')
+      for i = 1,#model.cascad.muls_normalizers do
+	 print(model.cascad.muls_normalizers[i][1].weight[1])
       end
    end
       

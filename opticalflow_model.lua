@@ -319,7 +319,8 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       precascad:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
    end
    model:add(precascad)
-   local cascad = nn.CascadingAddTable(geometry.ratios, geometry.cascad_trainable_weights)
+   local cascad = nn.CascadingAddTable(geometry.ratios, geometry.cascad_trainable_weights,
+				      geometry.single_beta)
    model.cascad = cascad
    model:add(cascad)
    
@@ -371,7 +372,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    function model:getWeights()
       local weights = {}
       if geometry.cascad_trainable_weights then
-	 weights['cascad'] = self.cascad.weight
+	 weights['cascad'] = self.cascad:getWeight()
       end
       if not prefiltered then
 	 local processors = self.pyramid.processors
@@ -504,7 +505,7 @@ function prepareTarget(geometry, learning, targett)
    end
    if learning.soft_targets then
       target = torch.Tensor(geometry.maxhGT*geometry.maxwGT)
-      local invsigma2 = 1.
+      local invsigma2 = 1./learning.st_sigma2
       for y = -halfh1, halfh2 do
 	 for x = -halfw1, halfw2 do
 	    local d2 = (ytarget-y)*(ytarget-y) + (xtarget-x)*(xtarget-x)

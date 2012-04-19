@@ -116,7 +116,9 @@ function describeModel(geometry, learning)
    if learning.renew_train_set then table.insert(extra, 'renewTrainSet') end
    if geometry.motion_correction then table.insert(extra, 'MotionCorrection') end
    if geometry.share_filters then table.insert(extra, 'ShareFilters') end
-   if learning.soft_targets then table.insert(extra, 'SoftTargets') end
+   if learning.soft_targets then table.insert(extra, 'SoftTargets('..learning.st_sigma2..')') end
+   if geometry.single_beta then table.insert(extra, 'SingleBeta') end
+   if learning.groundtruth=='liu' then table.insert(extra, 'Liu') end
    summary = summary .. table.concat(extra, ' ')
    return summary
 end
@@ -152,10 +154,13 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
       else
 	 train_cascad = '_ntcw'
       end
+      if geometry.single_beta then
+	 train_cascad = train_cascad..'_sb'
+      end
    end
    if learning.renew_train_set then renew = '_renew' end
    if geometry.motion_correction then motion = '_mc' end
-   if learning.soft_targets then targets = '_st' end
+   if learning.soft_targets then targets = '_st'..learning.st_sigma2 end
    if learning.groundtruth == 'liu' then gt = '_liu' end
    local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew .. gt
@@ -256,6 +261,7 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	    error("loadModel: prefilter didn't exist before version 2")
 	 end
 	 if ret.geometry.multiscale then
+	    print('No multiscale prefilter anymore! (TODO implement)')
 	    local filter = loaded.getFilter(ret.geometry)
 	    ret.filter = getMultiscalePrefilter(ret.geometry, filter)
 	 else
