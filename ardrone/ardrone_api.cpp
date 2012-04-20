@@ -4,22 +4,48 @@
 #include<cstdlib>
 #include<cstring>
 #include<fcntl.h>
+#include<unistd.h>
+#include<ostream>
 using namespace std;
 
-ARdroneAPI::ARdroneAPI(const string & fifo_path)
-  :DroneAPI(), fifo(0) {
-  memset(fifoBuffer, 0, sizeof(char)*(fifoBufferLen+1));
-  fifo = open(fifo_path.c_str(), O_WRONLY);
+ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_fifo_path)
+  :DroneAPI(), control_fifo(0), navdata_fifo(0),
+   imuAccel(3, 1, 0.0f), imuGyro(3, 1, 0.0f),
+   imuAltitude(0.0f), batteryState(100.0f), droneState(0) {
+  memset(controlFifoBuffer, 0, sizeof(char)*(controlFifoBufferLen+1));
+  memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
+  control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
+  printf("Almost!\n");
+  navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
+  //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY);
+  printf("OK!\n");
 }
 
 ARdroneAPI::~ARdroneAPI() {
   land();
-  close(fifo);
+  close(control_fifo);
+  close(navdata_fifo);
 }
 
 
 void ARdroneAPI::next() {
-  
+  for (int i = 0; i < 3; ++i) {
+    imuAccel(i, 0) = 0.0f;
+  }
+  float vx, vy, vz;
+  int gx, gy, gz, bs, a;
+  while (read(navdata_fifo, navdataFifoBuffer, navdataFifoBufferLen) == navdataFifoBufferLen) {
+    sscanf(navdataFifoBuffer, "%d %d %d %d %d %d %f %f %f", &droneState, &bs,
+	   &gx, &gy, &gz, &a, &vx, &vy, &vz);
+    batteryState = bs;
+    imuAltitude = a;
+    imuGyro(0,0) = gx;
+    imuGyro(1,0) = gy;
+    imuGyro(2,0) = gz;
+    imuAccel(0,0) += vx;
+    imuAccel(1,0) += vy;
+    imuAccel(2,0) += vz;
+  }
 }
 
 matf ARdroneAPI::getDepthMap() const {
@@ -27,12 +53,25 @@ matf ARdroneAPI::getDepthMap() const {
 }
 
 matf ARdroneAPI::getIMUAccel() const {
-  
+  return imuAccel;
 }
 
 matf ARdroneAPI::getIMUGyro() const {
-  
+  return imuGyro;
 }
+
+float ARdroneAPI::getIMUAltitude() const {
+  return imuAltitude;
+}
+
+float ARdroneAPI::getBatteryState() const {
+  return batteryState;
+}
+
+int ARdroneAPI::getDroneState() const {
+  return droneState;
+}
+
 
 void ARdroneAPI::takeoff() {
   sendOnFifo(TAKEOFF);
@@ -48,26 +87,39 @@ void ARdroneAPI::setControl(float pitch, float gaz, float roll, float yaw) {
 }
 
 string ARdroneAPI::toString() const {
-  return "Ardrone API";
+  ostringstream oss;
+  char buffer[128];
+  oss << "ARdroneAPI:\n";
+  sprintf(buffer, "  v      = (%.5f %.5f %.5f)", imuAccel(0,0), imuAccel(1,0), imuAccel(2,0));
+  oss << buffer << "\n";
+  sprintf(buffer, " gyro    = (%.5f %.5f %.5f)", imuGyro(0,0), imuGyro(1,0), imuGyro(2,0));
+  oss << buffer << "\n";
+  sprintf(buffer, "  alt    = %.5f", imuAltitude);
+  oss << buffer << "\n";
+  sprintf(buffer, "  battery= %f%%", batteryState);
+  oss << buffer << "\n";
+  sprintf(buffer, "  state  = %d", droneState);
+  oss << buffer << "\n";
+  return oss.str();
 }
 
 void ARdroneAPI::sendOnFifo(Order order, float pitch, float gaz,
 			    float roll, float yaw) {
-  memset(fifoBuffer, ' ', sizeof(char)*fifoBufferLen);
+  memset(controlFifoBuffer, ' ', sizeof(char)*controlFifoBufferLen);
   switch (order) {
   case TAKEOFF:    
-    fifoBuffer[0] = 'T';
+    controlFifoBuffer[0] = 'T';
     break;
   case LAND:
-    fifoBuffer[0] = 'L';
+    controlFifoBuffer[0] = 'L';
     break;
   case CONTROL:
     roll = saturate(roll, -1.0f, 1.0f)*100.0f;
     gaz = saturate(gaz, -1.0f, 1.0f)*100.0f;
     pitch = saturate(pitch, -1.0f, 1.0f)*100.0f;
     yaw = saturate(yaw, -1.0f, 1.0f)*100.0f;
-    sprintf(fifoBuffer, "C%08d%08d%08d%08d", (char)roll, (char)pitch, (char)gaz, (char)yaw);
+    sprintf(controlFifoBuffer, "C%08d%08d%08d%08d", (char)roll, (char)pitch, (char)gaz, (char)yaw);
     break;
   }
-  write(fifo, fifoBuffer, fifoBufferLen);
+  write(control_fifo, controlFifoBuffer, controlFifoBufferLen);
 }

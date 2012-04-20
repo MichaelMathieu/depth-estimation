@@ -17,7 +17,7 @@ static void buttons_callback( GtkWidget *widget,
 			      gpointer   data )
 {
   g_print("Waiting for instructions...\n");
-  int pipe = open("test_pipe", O_RDONLY);
+  int pipe = open("control_pipe", O_RDONLY);
   int nRead;
   const int instr_size = 33;
   char buffer[instr_size+1];

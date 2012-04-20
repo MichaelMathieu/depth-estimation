@@ -88,8 +88,9 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  SimulatedAPI api(320, 240);
-  //ARdroneAPI api("API/Examples/Linux/Build/Release/test_pipe");
+  //SimulatedAPI api(320, 240);
+  ARdroneAPI api("API/Examples/Linux/Build/Release/control_pipe",
+		 "API/Examples/Linux/Build/Release/navdata_pipe");
   pApi = &api;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);

@@ -15,6 +15,9 @@ public:
   virtual matf getDepthMap() const;
   virtual matf getIMUAccel() const;
   virtual matf getIMUGyro() const;
+  virtual float getIMUAltitude() const;
+  virtual float getBatteryState() const;
+  virtual int getDroneState() const;
 
   virtual void takeoff();
   virtual void land();

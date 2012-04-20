@@ -5,17 +5,21 @@
 
 #include "drone_api.h"
 
-const size_t fifoBufferLen = 33;
+const size_t controlFifoBufferLen = 33;
+const size_t navdataFifoBufferLen = 98;
 
 class ARdroneAPI : public DroneAPI {
 public:
-  ARdroneAPI(const std::string & fifo_path);
+  ARdroneAPI(const std::string & control_fifo_path, const std::string & navdata_fifo_path);
   virtual ~ARdroneAPI();
 public:
   virtual void next();
   virtual matf getDepthMap() const;
   virtual matf getIMUAccel() const;
   virtual matf getIMUGyro() const;
+  virtual float getIMUAltitude() const;
+  virtual float getBatteryState() const;
+  virtual int getDroneState() const;
 
   virtual void takeoff();
   virtual void land();
@@ -23,8 +27,14 @@ public:
 
   virtual std::string toString() const;
 private:
-  int fifo;
-  char fifoBuffer[fifoBufferLen+1];
+  int control_fifo, navdata_fifo;
+
+  matf imuAccel, imuGyro;
+  float imuAltitude, batteryState;
+  int droneState;
+  
+  char controlFifoBuffer[controlFifoBufferLen+1];
+  char navdataFifoBuffer[navdataFifoBufferLen+1];
   enum Order {
     TAKEOFF, LAND, CONTROL,
   };

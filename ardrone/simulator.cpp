@@ -68,6 +68,18 @@ matf SimulatedAPI::getIMUGyro() const {
   return gyro;
 }
 
+float SimulatedAPI::getIMUAltitude() const {
+  return x(2,0);
+}
+
+float SimulatedAPI::getBatteryState() const {
+  return 100.0f;
+}
+
+int SimulatedAPI::getDroneState() const {
+  return 1; //not implemented (I don't know what are the states anyway)
+}
+
 void SimulatedAPI::takeoff() {
   flying = true;
 }
