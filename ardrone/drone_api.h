@@ -15,6 +15,8 @@ public:
   virtual matf getIMUAccel() const =0;
   virtual matf getIMUGyro() const =0;
   
+  virtual void takeoff() =0;
+  virtual void land() =0;
   virtual void setControl(float pitch, float gaz, float roll, float yaw) =0;
 
   virtual std::string toString() const =0;

@@ -6,14 +6,18 @@
 using namespace std;
 
 SimulatedAPI::SimulatedAPI(int depthMapWidth, int depthMapHeight)
-  :ArdroneAPI(), last_time(getTimeInSec()),
-   theta(0.0f), dtheta(0.0f),
+  :DroneAPI(), last_time(getTimeInSec()),
+   flying(false), theta(0.0f), dtheta(0.0f),
    x(3, 1, 0.0f), dx(3, 1, 0.0f), ddx(3, 1, 0.0f),
    pitch(0.0f), gaz(0.0f), roll(0.0f), dyaw(0.0f),
    dmH(depthMapHeight), dmW(depthMapWidth),
    alpha_friction(0.5f), focal_length(depthMapWidth),
    obstacles() {
   obstacles.push_back(Obstacle(3,0,0, 0.5f));
+}
+
+SimulatedAPI::~SimulatedAPI() {
+  flying = false;
 }
 
 void SimulatedAPI::next() {
@@ -64,6 +68,14 @@ matf SimulatedAPI::getIMUGyro() const {
   return gyro;
 }
 
+void SimulatedAPI::takeoff() {
+  flying = true;
+}
+
+void SimulatedAPI::land() {
+  flying = false;
+}
+
 void SimulatedAPI::setControl(float pitch_, float gaz_, float roll_, float dyaw_) {
   pitch = pitch_;
   gaz = gaz_;
@@ -85,6 +97,8 @@ string SimulatedAPI::toString() const {
 }
 
 void SimulatedAPI::updatePosition(float delta_t) {
+  if (!flying)
+    return;
   dtheta= dyaw * delta_t;
   theta = theta + dtheta;
   matf up = getUp();

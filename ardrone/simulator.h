@@ -9,13 +9,15 @@
 class SimulatedAPI : public DroneAPI {
 public:
   SimulatedAPI(int depthMapWidth = 320, int depthMapHeight = 240);
-  virtual ~SimulatedAPI() {};
+  virtual ~SimulatedAPI();
 public:
   virtual void next();
   virtual matf getDepthMap() const;
   virtual matf getIMUAccel() const;
   virtual matf getIMUGyro() const;
 
+  virtual void takeoff();
+  virtual void land();
   virtual void setControl(float pitch, float gaz, float roll, float dyaw);
 
   virtual std::string toString() const;
@@ -32,6 +34,7 @@ public:
   };
 private:
   double last_time;
+  bool flying;
   float theta, dtheta;
   matf x, dx, ddx;
   float pitch, gaz, roll, dyaw;

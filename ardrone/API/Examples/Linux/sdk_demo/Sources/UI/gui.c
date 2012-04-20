@@ -44,7 +44,7 @@ static void buttons_callback( GtkWidget *widget,
 	gaz = atoi(numberbuffer);
 	strncpy(numberbuffer, buffer+25, 8);
 	yaw = atoi(numberbuffer);
-	ardrone_at_set_progress_cmd(1, roll, pitch, gaz, yaw);
+	ardrone_at_set_progress_cmd(1, roll/100.0f, pitch/100.0f, gaz/100.0f, yaw/100.0f);
 	break;
       }
     }

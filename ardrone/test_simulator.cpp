@@ -7,6 +7,7 @@ using namespace std;
 
 int main_window_id;
 float dyaw = 0.0f, pitch =0.0f, roll = 0.0f, gaz = 0.0f;
+bool flying = false;
 DroneAPI* pApi = NULL;
 GLuint map_texture;
 
@@ -48,6 +49,12 @@ void keyboard(int key, bool special, bool down) {
       //move backward
       if (down) pitch = -1.0f; else pitch = 0.0f;
       break;
+    case ' ':
+      //takeoff/land
+      if (down) {
+	if (flying) pApi->land(); else pApi->takeoff();
+	flying = !flying;
+      }
     }
   }
   pApi->setControl(pitch, gaz, roll, dyaw);
@@ -81,8 +88,8 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  //SimulatedAPI api(320, 240);
-  ARdroneAPI api("API/Examples/Linux/Build/Release/test_pipe");
+  SimulatedAPI api(320, 240);
+  //ARdroneAPI api("API/Examples/Linux/Build/Release/test_pipe");
   pApi = &api;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);

@@ -13,4 +13,12 @@ template<typename T> int inline round2(T a) {
   return floor(a+(T)0.5);
 }
 
+template<typename T> T inline saturate(T a, T min, T max) {
+  if (a < min)
+    a = min;
+  if (a > max)
+    a = max;
+  return a;
+}
+
 #endif
