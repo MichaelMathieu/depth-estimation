@@ -1,7 +1,7 @@
 LINK=`pkg-config --libs opencv` -lglut -lGLU -lGL
 FLAGS=-g -W -Wall -Wextra
 CXX=g++
-CPP=simulator.cpp common.cpp
+CPP=simulator.cpp common.cpp ardrone_api.cpp
 OBJ=$(CPP:.cpp=.o)
 
 .cpp.o:

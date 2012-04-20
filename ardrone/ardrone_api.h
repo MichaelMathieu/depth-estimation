@@ -3,21 +3,23 @@
 
 #include<string>
 
-#include<opencv/cv.h>
-typedef cv::Mat_<float> matf;
+#include "drone_api.h"
 
-class ArdroneAPI {
+class ARdroneAPI : public DroneAPI {
 public:
-  virtual ~ArdroneAPI() {};
+  ARdroneAPI(const std::string & fifo_path);
+  virtual ~ARdroneAPI();
 public:
-  virtual void next() =0;
-  virtual matf getDepthMap() const =0;
-  virtual matf getIMUAccel() const =0;
-  virtual matf getIMUGyro() const =0;
+  virtual void next();
+  virtual matf getDepthMap() const;
+  virtual matf getIMUAccel() const;
+  virtual matf getIMUGyro() const;
   
-  virtual void setControl(float pitch, float gaz, float roll, float yaw) =0;
+  virtual void setControl(float pitch, float gaz, float roll, float yaw);
 
-  virtual std::string toString() const =0;
+  virtual std::string toString() const;
+private:
+  int fifo;
 };
 
 #endif

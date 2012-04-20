@@ -4,9 +4,9 @@
 #include<string>
 #include<vector>
 
-#include "ardrone_api.h"
+#include "drone_api.h"
 
-class SimulatedAPI : public ArdroneAPI {
+class SimulatedAPI : public DroneAPI {
 public:
   SimulatedAPI(int depthMapWidth = 320, int depthMapHeight = 240);
   virtual ~SimulatedAPI() {};
