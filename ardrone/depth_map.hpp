@@ -14,6 +14,22 @@ DepthMap::CartesianCoordinates DepthMap::BinIndex::toCartesianCoordinates() cons
   return toSphericCoordinates().toCartesianCoordinates();
 }
 
+float DepthMap::BinIndex::getRho1() const {
+  return map->getRho1FromIRho(iRho);
+}
+
+float DepthMap::BinIndex::getRho2() const {
+  return map->getRho2FromIRho(iRho);
+}
+
+float DepthMap::BinIndex::getTheta1() const {
+  return map->getTheta1FromITheta(iTheta);
+}
+
+float DepthMap::BinIndex::getTheta2() const {
+  return map->getTheta2FromITheta(iTheta);
+}
+
 float & DepthMap::BinIndex::value() {
   return map->map(iTheta, iRho);
 }
@@ -91,13 +107,13 @@ DepthMap::Map::Map()
 }
 
 DepthMap::Map::Map(size_t d1, size_t d2, float init)
-  :map(new std::vector<std::vector<float> >(d1)), d2(d2), nRefs(new int(1)) {
+  :nRefs(new int(1)), map(new std::vector<std::vector<float> >(d1)), d2(d2) {
   for (size_t i = 0; i < d1; ++i)
     (*map)[i] = std::vector<float>(d2, init);
 }
 
 DepthMap::Map::Map(const Map & src)
-  :map(src.map), d2(src.d2), nRefs(src.nRefs) {
+  :nRefs(src.nRefs), map(src.map), d2(src.d2) {
   ++(*nRefs);
 }
 
@@ -160,12 +176,34 @@ float DepthMap::getRhoFromIRho(size_t iRho) const {
   return ((float)iRho + 0.5f) * maxDepth/(float)nBinsRho();
 }
 
+float DepthMap::getRho1FromIRho(size_t iRho) const {
+  return (float)iRho * maxDepth/(float)nBinsRho();
+}
+
+float DepthMap::getRho2FromIRho(size_t iRho) const {
+  return ((float)iRho + 1.0f) * maxDepth/(float)nBinsRho();
+}
+
 float DepthMap::getThetaFromITheta(size_t iTheta) const {
+  return getTheta1FromITheta(iTheta) + 1.0f*PI/(float)nBinsTheta();
+  /*
   float theta = (((float)iTheta + 0.5f) / (float)nBinsTheta() - 0.5f) * 2.0f * PI -theta_sight;
   if (theta < -PI)
     return theta + 2.0f * PI;
   else
+  return theta;*/
+}
+
+float DepthMap::getTheta1FromITheta(size_t iTheta) const {
+  float theta = ((float)iTheta / (float)nBinsTheta() - 0.5f) * 2.0f * PI -theta_sight;
+  if (theta < -PI)
+    return theta + 2.0f * PI;
+  else
     return theta;
+}
+
+float DepthMap::getTheta2FromITheta(size_t iTheta) const {
+  return getTheta1FromITheta(iTheta) + 2.0f*PI/(float)nBinsTheta();
 }
 
 size_t DepthMap::nBinsRho () const {
