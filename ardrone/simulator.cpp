@@ -6,14 +6,14 @@
 using namespace std;
 
 SimulatedAPI::SimulatedAPI(int depthMapWidth, int depthMapHeight)
-  :DroneAPI(), last_time(getTimeInSec()),
+  :DroneAPI(), last_time(getTimeInSec()), delta_t(0.0f),
    flying(false), theta(0.0f), dtheta(0.0f),
    x(3, 1, 0.0f), dx(3, 1, 0.0f), ddx(3, 1, 0.0f),
    pitch(0.0f), gaz(0.0f), roll(0.0f), dyaw(0.0f),
    dmH(depthMapHeight), dmW(depthMapWidth),
    alpha_friction(0.5f), focal_length(depthMapWidth),
    obstacles() {
-  obstacles.push_back(Obstacle(3,0,0, 0.5f));
+  obstacles.push_back(Obstacle(10,0,0, 1.0f));
 }
 
 SimulatedAPI::~SimulatedAPI() {
@@ -22,8 +22,13 @@ SimulatedAPI::~SimulatedAPI() {
 
 void SimulatedAPI::next() {
   double time = getTimeInSec();
-  updatePosition((float)(time - last_time));
+  delta_t = (float)(time-last_time);
+  updatePosition(delta_t);
   last_time = time;
+}
+
+float SimulatedAPI::getDeltaT() const {
+  return delta_t;
 }
 
 matf SimulatedAPI::getDepthMap() const {
@@ -43,12 +48,14 @@ matf SimulatedAPI::getDepthMap() const {
     float D = pray.dot(v);
     if (D <= epsilon) // the point is behind
       continue;
+    cout <<  pray << endl;
     float k = focal_length / D;
     float a = k * npray.dot(v);
     float b = k * up.dot(v);
     float D2 = norm(v);
     float k2 = focal_length / D2;
     float r = k2 * radius;
+    printf("%f %f %f %f\n", r, radius, k2, D2);
     for (int ii = max(0,round2(a+hw-r)); ii < min(dmW, round2(a+hw+r)); ++ii)
       for (int jj = max(0, round2(b+hh-r)); jj < min(dmH, round2(b+hh+r)); ++jj)
 	if (D2 < map(jj, ii))
@@ -57,15 +64,20 @@ matf SimulatedAPI::getDepthMap() const {
   return map;
 }
 
-matf SimulatedAPI::getIMUAccel() const {
-  return ddx;
+matf SimulatedAPI::getIMUTranslation() const {
+  matf pray = getPRay();
+  matf npray = getNPRay();
+  matf up = getUp();
+  matf v = dx * delta_t;
+  matf ret(3,1);
+  ret(0,0) = v.dot(pray);
+  ret(1,0) = v.dot(npray);
+  ret(2,0) = v.dot(up);
+  return ret;
 }
 
 matf SimulatedAPI::getIMUGyro() const {
-  matf gyro(3, 1, 0.0f);
-  gyro(0, 0) = cos(dtheta);
-  gyro(1, 0) = sin(dtheta);
-  return gyro;
+  return getPRay();
 }
 
 float SimulatedAPI::getIMUAltitude() const {
@@ -120,9 +132,9 @@ void SimulatedAPI::updatePosition(float delta_t) {
     ddx = -dx;
   else
     ddx = -alpha_friction * dx;
-  ddx += pitch * pray;
-  ddx += roll * npray;
-  ddx += gaz * up;
+  ddx += pitch*10.0f * pray;
+  ddx += roll*10.0f * npray;
+  ddx += gaz*10.0f * up;
   dx += ddx * delta_t;
   x += dx * delta_t;
 }

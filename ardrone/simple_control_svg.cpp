@@ -1,6 +1,5 @@
 #include "simulator.h"
 #include "ardrone_api.h"
-#include "depth_map.h"
 #include <GL/glut.h>
 #include <iostream>
 #include <ctime>
@@ -11,18 +10,17 @@ float dyaw = 0.0f, pitch =0.0f, roll = 0.0f, gaz = 0.0f;
 bool flying = false;
 DroneAPI* pApi = NULL;
 GLuint map_texture;
-DepthMap* pMap = NULL;
 
 void keyboard(int key, bool special, bool down) {
   if (special) {
     switch(key) {
     case GLUT_KEY_LEFT:
       //turn left
-      if (down) dyaw = -1.0f; else dyaw = 0.0f;
+      if (down) dyaw = -0.25f; else dyaw = 0.0f;
       break;
     case GLUT_KEY_RIGHT:
       //turn right
-      if (down) dyaw = 1.0f; else dyaw = 0.0f;
+      if (down) dyaw = 0.25f; else dyaw = 0.0f;
       break;
     case GLUT_KEY_UP:
       //move up
@@ -75,24 +73,14 @@ void keyboardUp2(int key, int, int) {
   keyboard(key, true, false);
 }
 
-#include "opencv/highgui.h"
 void idle() {
   pApi->next();
   cout << pitch << " " << roll << " " << dyaw << " " << gaz << endl;
   cout << pApi->toString() << endl;
-  matf frameDMap = pApi->getDepthMap();
-  glDrawPixels(320, 240, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
+  matf map = 0.1*pApi->getDepthMap();
+  glDrawPixels(320, 240, GL_LUMINANCE, GL_FLOAT, (float*)map.data);
   glutSwapBuffers();
-  
-  pMap->newDisplacement(pApi->getIMUTranslation(), pApi->getIMUGyro());
-  pMap->newFrame(frameDMap);
-
-  cv::namedWindow("window");
-   cv::imshow("window", pMap->to2DMap());
-  cvWaitKey(1);
-  
-  //cout << pMap->toString() << endl;
-  //usleep(100000);
+  usleep(100000);
 }
 
 void render() {
@@ -100,12 +88,10 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  SimulatedAPI api(320, 240);
-  //ARdroneAPI api("API/Examples/Linux/Build/Release/control_pipe",
-  //"API/Examples/Linux/Build/Release/navdata_pipe");
+  //SimulatedAPI api(320, 240);
+  ARdroneAPI api("API/Examples/Linux/Build/Release/control_pipe",
+		 "API/Examples/Linux/Build/Release/navdata_pipe");
   pApi = &api;
-  DepthMap map(128, 128, 120, 320);
-  pMap = &map;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);
   glutInitWindowSize(320, 240);

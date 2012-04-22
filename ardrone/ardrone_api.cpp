@@ -10,7 +10,8 @@ using namespace std;
 
 ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_fifo_path)
   :DroneAPI(), control_fifo(0), navdata_fifo(0),
-   imuAccel(3, 1, 0.0f), imuGyro(3, 1, 0.0f),
+   last_time(getTimeInSec()), delta_t(0.0f),
+   imuD(3, 1, 0.0f), imuGyro(3, 1, 0.0f),
    imuAltitude(0.0f), batteryState(100.0f), droneState(0) {
   memset(controlFifoBuffer, 0, sizeof(char)*(controlFifoBufferLen+1));
   memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
@@ -29,11 +30,11 @@ ARdroneAPI::~ARdroneAPI() {
 
 
 void ARdroneAPI::next() {
-  for (int i = 0; i < 3; ++i) {
-    imuAccel(i, 0) = 0.0f;
-  }
   float vx, vy, vz;
   int gx, gy, gz, bs, a;
+  double time = getTimeInSec();
+  delta_t = (float)(time - last_time);
+  last_time = time;
   while (read(navdata_fifo, navdataFifoBuffer, navdataFifoBufferLen) == navdataFifoBufferLen) {
     sscanf(navdataFifoBuffer, "%d %d %d %d %d %d %f %f %f", &droneState, &bs,
 	   &gx, &gy, &gz, &a, &vx, &vy, &vz);
@@ -42,18 +43,23 @@ void ARdroneAPI::next() {
     imuGyro(0,0) = gx;
     imuGyro(1,0) = gy;
     imuGyro(2,0) = gz;
-    imuAccel(0,0) += vx;
-    imuAccel(1,0) += vy;
-    imuAccel(2,0) += vz;
+    imuD(0,0) = vx;
+    imuD(1,0) = vy;
+    imuD(2,0) = vz;
   }
+  imuD *= delta_t;
+}
+
+float ARdroneAPI::getDeltaT() const {
+  return delta_t;
 }
 
 matf ARdroneAPI::getDepthMap() const {
   return matf(320, 240, 0.0f);
 }
 
-matf ARdroneAPI::getIMUAccel() const {
-  return imuAccel;
+matf ARdroneAPI::getIMUTranslation() const {
+  return imuD;
 }
 
 matf ARdroneAPI::getIMUGyro() const {
@@ -90,7 +96,7 @@ string ARdroneAPI::toString() const {
   ostringstream oss;
   char buffer[128];
   oss << "ARdroneAPI:\n";
-  sprintf(buffer, "  v      = (%.5f %.5f %.5f)", imuAccel(0,0), imuAccel(1,0), imuAccel(2,0));
+  sprintf(buffer, "  d      = (%.5f %.5f %.5f)", imuD(0,0), imuD(1,0), imuD(2,0));
   oss << buffer << "\n";
   sprintf(buffer, " gyro    = (%.5f %.5f %.5f)", imuGyro(0,0), imuGyro(1,0), imuGyro(2,0));
   oss << buffer << "\n";

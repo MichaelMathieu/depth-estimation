@@ -12,8 +12,9 @@ public:
   virtual ~SimulatedAPI();
 public:
   virtual void next();
+  virtual float getDeltaT() const;
   virtual matf getDepthMap() const;
-  virtual matf getIMUAccel() const;
+  virtual matf getIMUTranslation() const;
   virtual matf getIMUGyro() const;
   virtual float getIMUAltitude() const;
   virtual float getBatteryState() const;
@@ -37,6 +38,7 @@ public:
   };
 private:
   double last_time;
+  float delta_t;
   bool flying;
   float theta, dtheta;
   matf x, dx, ddx;

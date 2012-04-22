@@ -6,6 +6,12 @@
 #endif
 
 #include<cmath>
+#include<opencv/cv.h>
+
+typedef cv::Mat_<float> matf;
+typedef cv::Mat_<cv::Vec3b> mat3b;
+
+const double PI = 3.1415926535897932384626433832795028841971693993751058209;
 
 double getTimeInSec();
 

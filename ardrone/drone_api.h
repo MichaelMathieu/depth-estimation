@@ -2,17 +2,16 @@
 #define __DRONE_API_H_19APR12__
 
 #include<string>
-
-#include<opencv/cv.h>
-typedef cv::Mat_<float> matf;
+#include "common.h"
 
 class DroneAPI {
 public:
   virtual ~DroneAPI() {};
 public:
   virtual void next() =0;
+  virtual float getDeltaT() const =0;
   virtual matf getDepthMap() const =0;
-  virtual matf getIMUAccel() const =0;
+  virtual matf getIMUTranslation() const =0;
   virtual matf getIMUGyro() const =0;
   virtual float getIMUAltitude() const =0;
   virtual float getBatteryState() const =0;

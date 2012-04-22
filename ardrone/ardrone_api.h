@@ -14,8 +14,9 @@ public:
   virtual ~ARdroneAPI();
 public:
   virtual void next();
+  virtual float getDeltaT() const;
   virtual matf getDepthMap() const;
-  virtual matf getIMUAccel() const;
+  virtual matf getIMUTranslation() const;
   virtual matf getIMUGyro() const;
   virtual float getIMUAltitude() const;
   virtual float getBatteryState() const;
@@ -29,7 +30,9 @@ public:
 private:
   int control_fifo, navdata_fifo;
 
-  matf imuAccel, imuGyro;
+  double last_time;
+  float delta_t;
+  matf imuD, imuGyro;
   float imuAltitude, batteryState;
   int droneState;
   

@@ -15,6 +15,7 @@ function OutputExtractor:updateOutput(input)
    if self.training_mode then
       return self.module:updateOutput(input)
    else
+      --[[
       local entropy = torch.Tensor(input[1]:size()):zero()
       local tmp = torch.Tensor(input[1]:size())
       print(input:size(1))
@@ -24,9 +25,8 @@ function OutputExtractor:updateOutput(input)
 	 entropy:add(tmp)
       end
       image.display(entropy:gt(25000))
-      --      t = torch.Timer()
+      --]]
       local m, idx = input:min(1)
-      --print('min      : ' .. t:time()['real'])
       local flatPixels = torch.LongTensor(m:size(2), m:size(3)):copy(m:eq(input[self.middleIndex]))
       return flatPixels * self.middleIndex + (-flatPixels+1):cmul(idx:reshape(idx:size(2), idx:size(3)))
    end
