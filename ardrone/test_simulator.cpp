@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
   //ARdroneAPI api("API/Examples/Linux/Build/Release/control_pipe",
   //"API/Examples/Linux/Build/Release/navdata_pipe");
   pApi = &api;
-  DepthMap map(32, 64, 60, 320);
+  DepthMap map(32, 64, 60, 0.9f, 320);
   pMap = &map;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);

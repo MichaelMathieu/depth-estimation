@@ -1,7 +1,6 @@
 require 'nnx'
 require 'Mul2'
 require 'Log'
-require 'SpatialZeroPadding2'
 local CascadingAddTable, parent = torch.class('nn.CascadingAddTable', 'nn.Module')
 local CascadingAddTableSplit, parent = torch.class('nn.CascadingAddTableSplit', 'nn.Module')
 
@@ -31,10 +30,11 @@ function CascadingAddTable:__init(ratios, trainable, single_beta)
       seq1:add(nn.Exp())
       
       local seq2 = nn.Sequential()
-      self.padders[i] = nn.SpatialZeroPadding2(0,0,0,0, 1, 2)
+      self.padders[i] = nn.SmartZeroPadding(0,0,0,0, 3, 4)
       seq2:add(self.padders[i])
-      seq2:add(nn.SpatialUpSampling(self.ratios[i+1]/self.ratios[i],
-				    self.ratios[i+1]/self.ratios[i], 1, 2))
+      seq2:add(nn.SmartReSampling{rwidth=self.ratios[i+1]/self.ratios[i],
+				  rheight=self.ratios[i+1]/self.ratios[i],
+				  yDim=3, xDim=4})
       local mul2
       if single_beta then
 	 mul2 = mul1:clone('weight', 'gradWeight')
@@ -118,12 +118,12 @@ function CascadingAddTable:updateOutput(input)
    for i = #input-1,1,-1 do
       local r = self.ratios[i]
       local r2 = self.ratios[i+1]
-      if ((math.mod(input[i]:size(1) * (r2-r), 2*r2) ~= 0) or
-       (math.mod(input[i]:size(2) * (r2-r), 2*r2) ~= 0)) then
+      if ((math.mod(input[i]:size(3) * (r2-r), 2*r2) ~= 0) or
+       (math.mod(input[i]:size(4) * (r2-r), 2*r2) ~= 0)) then
 	 error('nn.CascadingAddTable: ratios and input sizes not compatible')
       end
-      local dh = input[i]:size(1) * (r2-r) / (2*r2)
-      local dw = input[i]:size(2) * (r2-r) / (2*r2)
+      local dh = input[i]:size(3) * (r2-r) / (2*r2)
+      local dw = input[i]:size(4) * (r2-r) / (2*r2)
 
       self.padders[i].pad_t = -dh
       self.padders[i].pad_b = -dh

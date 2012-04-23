@@ -235,9 +235,16 @@ function getModel(geometry, full_image, prefiltered)
    end
 
    model:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-   model:add(nn.SmartReshape(geometry.maxw*geometry.maxh, -3, -4))
+   model:add(nn.SmartReshape({-1, -2}, {-3, -4}))
 
-   model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
+   --model:add(nn.SmartReshape({-1,-2},-3))
+   model:add(nn.Minus())
+   model:add(nn.LogSoftMax())
+   if geometry.training_mode then
+      model:add(nn.SmartReshape(1,1,-2))
+   else
+      model:add(nn.SmartReshape(geometry.hImg, geometry.wImg,-2))
+   end
 
    function model:getWeights()
       if prefiltered then
@@ -288,7 +295,6 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    local matcher = nn.Sequential()
    matcher:add(matcher_filters)
    matcher:add(nn.SpatialMatching(geometry.maxh, geometry.maxw, false))
-   matcher:add(nn.SmartReshape(geometry.maxw*geometry.maxh, -3, -4))
    
    local matchers = {}
    for i = 1,#geometry.ratios do
@@ -300,7 +306,8 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    end
 
    local pyramid = nn.SpatialPyramid(geometry.ratios, matchers,
-				     geometry.wPatch2, geometry.hPatch2, 1, 1, prefiltered)
+				     geometry.wPatch2, geometry.hPatch2, 1, 1,
+				     3, 2, 2, 1, prefiltered)
    model.pyramid = pyramid
 
    if not prefiltered then
@@ -314,11 +321,6 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       model:add(parallel)
    end
    model:add(pyramid)
-   local precascad = nn.ParallelTable()
-   for i = 1,#geometry.ratios do
-      precascad:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
-   end
-   model:add(precascad)
    local cascad = nn.CascadingAddTable(geometry.ratios, geometry.cascad_trainable_weights,
 				      geometry.single_beta)
    model.cascad = cascad
@@ -326,23 +328,23 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    
 
    local postprocessors = nn.ParallelTable()
-   postprocessors:add(nn.SmartReshape({-1,-2},-3,-4))
+   postprocessors:add(nn.SmartReshape(-1, -2, {-3, -4}))
    for i = 2,#geometry.ratios do
       local d = round(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]))
       local remover1 = nn.Sequential()
       local remover2 = nn.Sequential()
       local remover3 = nn.Sequential()
       local remover4 = nn.Sequential()
-      remover1:add(nn.Narrow(1, 1, d))
-      remover2:add(nn.Narrow(1, d+1, geometry.maxh-2*d))
-      remover2:add(nn.Narrow(2, 1, d))
-      remover3:add(nn.Narrow(1, d+1, geometry.maxh-2*d))
-      remover3:add(nn.Narrow(2, geometry.maxw-d+1, d))
-      remover4:add(nn.Narrow(1, geometry.maxh-d+1, d))
-      remover1:add(nn.SmartReshape({-1,-2},-3,-4))
-      remover2:add(nn.SmartReshape({-1,-2},-3,-4))
-      remover3:add(nn.SmartReshape({-1,-2},-3,-4))
-      remover4:add(nn.SmartReshape({-1,-2},-3,-4))
+      remover1:add(nn.Narrow(3, 1, d))
+      remover2:add(nn.Narrow(3, d+1, geometry.maxh-2*d))
+      remover2:add(nn.Narrow(4, 1, d))
+      remover3:add(nn.Narrow(3, d+1, geometry.maxh-2*d))
+      remover3:add(nn.Narrow(4, geometry.maxw-d+1, d))
+      remover4:add(nn.Narrow(3, geometry.maxh-d+1, d))
+      remover1:add(nn.SmartReshape(-1, -2, {-3, -4}))
+      remover2:add(nn.SmartReshape(-1, -2, {-3, -4}))
+      remover3:add(nn.SmartReshape(-1, -2, {-3, -4}))
+      remover4:add(nn.SmartReshape(-1, -2, {-3, -4}))
       local removers = nn.ConcatTable()
       removers:add(remover1)
       removers:add(remover2)
@@ -350,16 +352,22 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       removers:add(remover4)
       
       local middleRemover = nn.Sequential()
-      --middleRemover:add(nn.SmartReshape(geometry.maxh, geometry.maxw, -2, -3))
       middleRemover:add(removers)
-      middleRemover:add(nn.JoinTable(1))
+      middleRemover:add(nn.JoinTable(3))
       postprocessors:add(middleRemover:clone())
    end
    
    model:add(postprocessors)
-   model:add(nn.JoinTable(1))
+   model:add(nn.JoinTable(3))
    
-   model:add(nn.OutputExtractor(geometry.training_mode, getMiddleIndex(geometry)))
+   model:add(nn.Minus())
+   model:add(nn.SmartReshape({-1,-2},-3))
+   model:add(nn.LogSoftMax())
+   if geometry.training_mode then
+      model:add(nn.SmartReshape(1,1,-2))
+   else
+      model:add(nn.SmartReshape(geometry.hImg, geometry.wImg,-2))
+   end
 
    function model:focus(x, y)
       if not x then
@@ -411,16 +419,41 @@ function prepareInput(geometry, patch1, patch2)
    end
 end
 
+function getOutputConfidences(geometry, input)
+   --[[
+   local entropy = torch.Tensor(input[1]:size()):zero()
+   local tmp = torch.Tensor(input[1]:size())
+   print(input:size(1))
+   for i = 1,input:size(1) do
+      tmp:copy(input[1]:lt(1e-20):mul(1e-20)):add(input[1])
+      tmp:log():cmul(input[i])
+      entropy:add(tmp)
+   end
+   image.display(entropy:gt(25000))
+   --]]
+   m, ret.index = output:max(3)[{{},{},1}]
+   error('Cf processOutput')
+   local h = m:size(1)
+   local w = m:size(2)
+   local middleIndex = getMiddleIndex(geometry)
+   local flatPixels = torch.LongTensor(h, w):copy(m:eq(input[middleIndex]))
+   local indices = flatPixels * middleIndex + (-flatPixels+1):cmul(idx:reshape(h, w))
+   local confidences = torch.Tensor(indices:size()):fill(1)
+   return indices, confidences
+end
+
 function processOutput(geometry, output, process_full)
    local ret = {}
    if geometry.training_mode then
       local m
-      m, ret.index = output:max(1)
+      m, ret.index = output:max(3)
+      m = m:select(3,1)
+      ret.index = ret.index:select(3,1)
       local middleIndex = getMiddleIndex(geometry)
-      local flatPixels = torch.LongTensor(m:size(2), m:size(3)):copy(m:eq(output[middleIndex]))
-      ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(2), ret.index:size(3)))
+      local flatPixels = torch.LongTensor(m:size(1), m:size(2)):copy(m:eq(output[{{},{},middleIndex}]))
+      ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(1), ret.index:size(2)))
    else
-      ret.index = output
+      ret.index, confidences = getOutputConfidences(geometry, output)
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then

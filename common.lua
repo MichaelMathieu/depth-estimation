@@ -2,6 +2,14 @@ require 'torch'
 require 'xlua'
 require 'sys'
 
+function sameSize(a, b)
+   if a:nDimension() ~= b:nDimension() then
+      return false
+   else
+      return (a:size()-b:size()):sum() == 0
+   end
+end
+
 function round(x)
    return math.floor(x+0.5)
 end

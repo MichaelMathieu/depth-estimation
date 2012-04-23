@@ -47,38 +47,6 @@ function getKernels(geometry, model)
    return kernel
 end
 
---do not change that function anymore (eventually, remove it)
-function getKernelsLegacy(geometry, model)
-   local kernels = {}
-   if geometry.multiscale then
-      for i = 1,#geometry.ratios do
-	 local matcher = model.modules[2].unfocused_pipeline.modules[i].modules[3]
-	 local weight = matcher.modules[1].modules[1].modules[3].modules[1].weight
-	 table.insert(kernels, weight)
-	 if #geometry.layers > 1 then
-	    local weight2 = matcher.modules[1].modules[1].modules[3].modules[3].weight
-	    if weight2:nDimension() > 3 then --what that happens *only* sometimes??
-	       weight2 = weight2:reshape(weight2:size(1)*weight2:size(2), weight2:size(3),
-					 weight2:size(4))
-	    end
-	    table.insert(kernels, weight2)
-	 end
-      end
-   else
-      local weight = model.modules[1].modules[1].modules[1].weight
-      table.insert(kernels, weight)
-      if #geometry.layers > 1 then
-	 local weight2 = model.modules[1].modules[1].modules[3].weight
-	 if weight2:nDimension() > 3 then --what that happens *only* sometimes??
-	    weight2 = weight2:reshape(weight2:size(1)*weight2:size(2), weight2:size(3),
-				      weight2:size(4))
-	 end
-	 table.insert(kernels, weight2)
-      end
-   end
-   return kernels
-end
-
 function describeModel(geometry, learning)
    local imgSize = 'imgSize=(' .. geometry.hImg .. 'x' .. geometry.wImg .. ')'
    local kernel = 'kernel=('
@@ -103,7 +71,7 @@ function describeModel(geometry, learning)
    images = images .. learning.first_image+learning.delta*(learning.num_images-1) .. ')'
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
    learning_ = learning_ .. ') weightDecay=' .. learning.weight_decay
-   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_
+   local summary = imgSize .. ' ' .. kernel .. ' ' .. win .. ' ' .. images .. ' ' .. learning_ .. ' '
 
    local extra = {}
    if geometry.multiscale then
@@ -172,7 +140,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    os.execute('mkdir -p ' .. modeldir)
 
    local tosave = {}
-   tosave.version = 8
+   tosave.version = 9
    if geometry.multiscale then
       tosave.getModel = getModelMultiscale
    else
@@ -192,53 +160,9 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
    local loaded = torch.load(filename)
    local ret = {}
 
-   if not loaded.version then -- old version
-      ret.geometry = loaded[2]
-      if not ret.geometry.layers then
-	 local nLayers
-	 if ret.geometry.features then
-	    if ret.geometry.features == 'two_layers' then
-	       nLayers = 2
-	    elseif ret.geometry.featues == 'one_layer' then
-	       nLayers = 1
-	    else
-	       print(ret.geometry)
-	       error('Unknown model version')
-	    end
-	 elseif ret.geometry.nLayers then
-	    nLayers = ret.geometry.nLayers
-	 else
-	    print(ret.geometry)
-	    error('Unknown model version')
-	 end
-	 ret.geometry.layers = {}
-	 if nLayers == 2 then
-	    ret.geometry.layers[1] = {ret.geometry.nChannelsIn, ret.geometry.hKernel1,
-				      ret.geometry.wKernel1, ret.geometry.layerTwoSize}
-	    ret.geometry.layers[2] = {ret.geometry.layerTwoConnections, ret.geometry.hKernel2,
-				      ret.geometry.wKernel2, ret.geometry.nFeatures}
-	 else
-	    ret.geometry.layers[1] = {ret.geometry.nChannelsIn, ret.geometry.hKernel,
-				      ret.geometry.wKernel, ret.geometry.nFeatures}
-	 end
-      end
-      if not ret.geometry.maxhGT then
-	 ret.geometry.maxhGT = ret.geometry.maxh
-	 ret.geometry.maxwGT = ret.geometry.maxw
-      end
-      if wImg then ret.geometry.wImg = wImg end
-      if hImg then ret.geometry.hImg = hImg end
-      ret.geometry.training_mode = true
-      if ret.geometry.multiscale then
-	 ret.model = getModelMultiscale(ret.geometry, full_output)
-      else
-	 ret.model = getModel(ret.geometry, full_output)
-      end
-      local parameters = ret.model:getParameters()
-      parameters:copy(loaded[1])
-      ret.getKernels = getKernelLegacy
-
-   elseif loaded.version >= 1 then 
+   if loaded.version < 9 then
+      error("loadModel: can't load before version 9 (structure has changed too much)")
+   else
       ret.geometry = loaded.geometry
       if wImg then ret.geometry.wImg = wImg end
       if hImg then ret.geometry.hImg = hImg end
@@ -248,18 +172,9 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	 ret.geometry.training_mode = true
       end
       ret.model = loaded.getModel(ret.geometry, full_output, prefilter)
-      if loaded.getKernels and loaded.version ~= 5 then
-	 ret.getKernels = loaded.getKernels
-      else
-	 ret.getKernels = getKernelsLegacy
-      end
-      if loaded.version >= 5 then
-	 ret.score = loaded.score
-      end
+      ret.getKernels = loaded.getKernels
+      ret.score = loaded.score
       if prefilter == true then
-	 if loaded.version < 2 then
-	    error("loadModel: prefilter didn't exist before version 2")
-	 end
 	 if ret.geometry.multiscale then
 	    print('No multiscale prefilter anymore! (TODO implement)')
 	    local filter = loaded.getFilter(ret.geometry)
@@ -267,69 +182,28 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
 	 else
 	    ret.filter = loaded.getFilter(ret.geometry)
 	 end
-	 if loaded.version == 2 then
-	    local parameters = ret.filter:getParameters()
-	    parameters:copy(loaded.parameters)
-	 elseif loaded.version == 3 then
-	    ret.filter:getParameters():copy(loaded.filter_parameters)
-	    if loaded.cascad_parameters then
-	       ret.model:getParameters():copy(loaded.cascad_parameters)
-	    end
-	 elseif loaded.version >= 4  and loaded.version < 6 then
-	    local weights = ret.filter:getWeights()
-	    if ret.geometry.share_filters then
-	       for k,v in pairs(weights) do
-		  local kloaded = 'scale1_'..k
-		  weights[k]:copy(loaded.weights[kloaded])
-	       end
-	    else
-	       for k,v in pairs(weights) do
-		  weights[k]:copy(loaded.weights[k])
-	       end
-	    end
-	    weights = ret.model:getWeights()
-	    for k,v in pairs(weights) do
-	       weights[k]:copy(loaded.weights[k])
-	    end
-	 elseif loaded.version >= 6 then
-	    local weights = ret.filter:getWeights()
-	    for k,v in pairs(weights) do
-	       weights[k]:copy(loaded.weights[k])
-	    end
-	    weights = ret.model:getWeights()
-	    for k,v in pairs(weights) do
-	       weights[k]:copy(loaded.weights[k])
-	    end
+	 local weights = ret.filter:getWeights()
+	 for k,v in pairs(weights) do
+	    weights[k]:copy(loaded.weights[k])
 	 end
-	 if loaded.version < 8 and ret.geometry.multiscale then
-	    local nFeatures = ret.geometry.layers[#ret.geometry.layers][4]
-	    for i = 1,#ret.model.modules[2].processors do
-	       ret.model.modules[2].processors[i].modules[1].modules[1].modules[1].length = nFeatures
-	       ret.model.modules[2].processors[i].modules[1].modules[2].modules[1].index = nFeatures+1
-	       ret.model.modules[2].processors[i].modules[1].modules[2].modules[1].length = nFeatures
-	    end
+	 weights = ret.model:getWeights()
+	 for k,v in pairs(weights) do
+	    weights[k]:copy(loaded.weights[k])
 	 end
       else
-	 if loaded.version < 4 then
-	    local parameters = ret.model:getParameters()
-	    parameters:copy(loaded.parameters)
-	 else
-	    local weights = ret.model:getWeights()
-	    for k,v in pairs(weights) do
-	       weights[k]:copy(loaded.weights[k])
-	    end
+	 local weights = ret.model:getWeights()
+	 for k,v in pairs(weights) do
+	    weights[k]:copy(loaded.weights[k])
 	 end
       end
-   else
-      error('loadModel: wrong version')
    end
    return ret
 end
 
 function loadWeightsFrom(model, filename)
    local loaded = torch.load(filename)
-   if loaded.version < 4 then
-      error("Can't load weights from file before version 4")
+   if loaded.version < 9 then
+      error("Can't load weights from file before version 9")
    end
    local weights = model:getWeights()
    for k,v in pairs(loaded.weights) do

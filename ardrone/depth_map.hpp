@@ -159,10 +159,13 @@ DepthMap::Map DepthMap::Map::clone() const {
 // DepthMap
 
 size_t DepthMap::getIRhoFromRho(float rho) const {
+  return std::max((float)nBinsRho() - 1.0f - (float)floor(maxDepth/rho), 0.0f);
+  /*
   if (rho > maxDepth)
     return nBinsRho()-1;
   else
     return floor(rho / maxDepth * (float)nBinsRho());
+  */
 }
 
 size_t DepthMap::getIThetaFromTheta(float theta) const {
@@ -173,25 +176,28 @@ size_t DepthMap::getIThetaFromTheta(float theta) const {
 }
 
 float DepthMap::getRhoFromIRho(size_t iRho) const {
-  return ((float)iRho + 0.5f) * maxDepth/(float)nBinsRho();
+  return 0.5f*(getRho1FromIRho(iRho) + getRho2FromIRho(iRho));
+  //return ((float)iRho + 0.5f) * maxDepth/(float)nBinsRho();
 }
 
 float DepthMap::getRho1FromIRho(size_t iRho) const {
-  return (float)iRho * maxDepth/(float)nBinsRho();
+  if (iRho == 0)
+    return 0.0f;
+  else
+    return maxDepth/((float)nBinsRho() - (float)iRho);
+  //return (float)iRho * maxDepth/(float)nBinsRho();
 }
 
 float DepthMap::getRho2FromIRho(size_t iRho) const {
-  return ((float)iRho + 1.0f) * maxDepth/(float)nBinsRho();
+  if (iRho == nBinsRho()-1)
+    return 2.0f*maxDepth;
+  else
+    return maxDepth/((float)nBinsRho() - 1.0f - (float)iRho);
+  //return ((float)iRho + 1.0f) * maxDepth/(float)nBinsRho();
 }
 
 float DepthMap::getThetaFromITheta(size_t iTheta) const {
   return getTheta1FromITheta(iTheta) + 1.0f*PI/(float)nBinsTheta();
-  /*
-  float theta = (((float)iTheta + 0.5f) / (float)nBinsTheta() - 0.5f) * 2.0f * PI -theta_sight;
-  if (theta < -PI)
-    return theta + 2.0f * PI;
-  else
-  return theta;*/
 }
 
 float DepthMap::getTheta1FromITheta(size_t iTheta) const {
