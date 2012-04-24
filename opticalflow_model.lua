@@ -367,8 +367,7 @@ function getModelMultiscale(geometry, full_image, prefiltered)
    if geometry.training_mode then
       model:add(nn.SmartReshape(1,1,-2))
    else
-      model:add(nn.SmartReshape(geometry.hImg-geometry.hPatch2+1,
-				geometry.wImg-geometry.wPatch2+1,-2))
+      model:add(nn.SmartReshape(geometry.hImg, geometry.wImg,-2))
    end
 
    function model:focus(x, y)

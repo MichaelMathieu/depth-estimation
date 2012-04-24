@@ -176,7 +176,6 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       ret.score = loaded.score
       if prefilter == true then
 	 if ret.geometry.multiscale then
-	    print('No multiscale prefilter anymore! (TODO implement)')
 	    local filter = loaded.getFilter(ret.geometry)
 	    ret.filter = getMultiscalePrefilter(ret.geometry, filter)
 	 else
