@@ -273,6 +273,9 @@ for iEpoch = 1,opt.n_epochs do
 		       else
 			  nBad = nBad + 1
 		       end
+		       if sys.isNaN(gradParameters:sum()) then
+			  error('stopped in main')
+		       end
 		       return err, gradParameters
 		    end
 
