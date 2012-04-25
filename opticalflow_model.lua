@@ -243,7 +243,8 @@ function getModel(geometry, full_image, prefiltered)
    if geometry.training_mode then
       model:add(nn.SmartReshape(1,1,-2))
    else
-      model:add(nn.SmartReshape(geometry.hImg, geometry.wImg,-2))
+      model:add(nn.SmartReshape(geometry.hImg-geometry.hPatch2+1,
+				geometry.wImg-geometry.wPatch2+1,-2))
    end
 
    function model:getWeights()
@@ -431,14 +432,17 @@ function getOutputConfidences(geometry, input)
    end
    image.display(entropy:gt(25000))
    --]]
-   m, ret.index = output:max(3)[{{},{},1}]
-   error('Cf processOutput')
+   timer = torch.Timer()
+   local m, indices = input:max(3)
+   m = m:select(3,1)
+   indices = indices:select(3,1)
    local h = m:size(1)
    local w = m:size(2)
    local middleIndex = getMiddleIndex(geometry)
-   local flatPixels = torch.LongTensor(h, w):copy(m:eq(input[middleIndex]))
-   local indices = flatPixels * middleIndex + (-flatPixels+1):cmul(idx:reshape(h, w))
+   local flatPixels = torch.LongTensor(h, w):copy(m:eq(input:select(3,middleIndex)))
+   local indices = flatPixels * middleIndex + (-flatPixels+1):cmul(indices:reshape(h, w))
    local confidences = torch.Tensor(indices:size()):fill(1)
+   print("confs:   : " .. timer:time()['real'])
    return indices, confidences
 end
 

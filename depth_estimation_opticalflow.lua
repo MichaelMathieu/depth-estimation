@@ -92,8 +92,8 @@ while true do
    total_timer:reset()
    print('--')
    local frame, im = filterNext()
-   local warped_frame = motion_correction(last_frame, frame)
-   local warped = filter:forward(warped_frame)
+   --local warped_frame = motion_correction(last_frame, frame)
+   --local warped = filter:forward(warped_frame)
    --warped = im
    if im == nil then
       break
@@ -105,7 +105,8 @@ while true do
 	 input[i] = {last_im[i], im[i]}
       end
    else
-      input = prepareInput(geometry, last_im, warped)
+      --input = prepareInput(geometry, last_im, warped)
+      input = prepareInput(geometry, last_im, im)
    end
    timer:reset()
    local moutput = model:forward(input)
@@ -116,8 +117,10 @@ while true do
       --output_window = image.display{image=flow2hsv(geometry, output.full), win=output_window, legend='output'}
       local m = -math.ceil(geometry.maxhGT/2)+1
       local M = math.floor(geometry.maxhGT/2)
-      im_window = image.display{image={last_frame, warped_frame, frame}, win=im_window}
-      im_window2 = image.display{image={last_frame- warped_frame}, win=im_window2}
+      --im_window = image.display{image={last_frame, warped_frame, frame}, win=im_window}
+      --im_window2 = image.display{image={last_frame- warped_frame}, win=im_window2}
+      im_window = image.display{image={last_frame, frame, frame}, win=im_window}
+      im_window2 = image.display{image={last_frame- frame}, win=im_window2}
       --gt_window = image.display{image=loader:getCurrentGT(), win=gt_window,
       --legend='groundtruth', min=m, max=M}
       output_window = image.display{image=output.full, win=output_window,

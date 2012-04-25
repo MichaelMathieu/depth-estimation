@@ -38,7 +38,6 @@ function CascadingAddTable:__init(ratios, trainable, single_beta)
       local mul2
       if single_beta then
 	 mul2 = mul1:clone('weight', 'gradWeight')
-	 mul2.weight:set(mul1.weight:storage())
       else
 	 mul2 = nn.Mul2()
 	 self.muls[#self.muls+1] = mul2
@@ -54,7 +53,7 @@ function CascadingAddTable:__init(ratios, trainable, single_beta)
       self.transformers[i] = nn.Sequential()
       self.transformers[i]:add(parallel)
       self.transformers[i]:add(nn.CAddTable())
-      self.transformers[i]:add(nn.Log2(true))
+      self.transformers[i]:add(nn.Log2(1e-10))
       local mul3 = nn.Mul2()
       self.muls_normalizers[#self.muls_normalizers+1] = {mul3, mul1, mul2}
       --self.muls[#self.muls+1] = mul3
@@ -144,6 +143,12 @@ function CascadingAddTable:updateGradInput(input, gradOutput)
       lastGrad = self.transformers[i].gradInput[2]
    end
    self.gradInput[#input]:resizeAs(input[#input]):copy(gradOutput[#input]+lastGrad)
+   if sys.isNaN(self.gradInput[1]:sum()) or sys.isNaN(self.gradInput[2]:sum()) then
+      print(self.transformers[1].modules[2].output)
+      print(self.transformers[1].modules[3].gradInput)
+      print(self.transformers[1].modules[4].gradInput)
+      error('stopped in CascabingAddTable')
+   end
    return self.gradInput
 end
 

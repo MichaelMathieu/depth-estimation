@@ -166,7 +166,7 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       ret.geometry = loaded.geometry
       if wImg then ret.geometry.wImg = wImg end
       if hImg then ret.geometry.hImg = hImg end
-      if full_output and ret.geometry.training_mode then
+      if full_output then
 	 ret.geometry.training_mode = false
       else
 	 ret.geometry.training_mode = true
@@ -176,7 +176,6 @@ function loadModel(filename, full_output, prefilter, wImg, hImg)
       ret.score = loaded.score
       if prefilter == true then
 	 if ret.geometry.multiscale then
-	    print('No multiscale prefilter anymore! (TODO implement)')
 	    local filter = loaded.getFilter(ret.geometry)
 	    ret.filter = getMultiscalePrefilter(ret.geometry, filter)
 	 else

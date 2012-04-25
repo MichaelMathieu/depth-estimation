@@ -221,7 +221,7 @@ function motion_correction(imgL, imgR)
 	--local H = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
 	local inputImg = imgR:clone()
 	local warpImg = opencv.WarpAffine(inputImg, H)
-	print(timer:time()['real'])
+	--print(timer:time()['real'])
 	return warpImg
 end
 
