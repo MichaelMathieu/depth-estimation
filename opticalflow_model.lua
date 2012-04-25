@@ -5,6 +5,7 @@ require 'SmartReshape'
 require 'common'
 require 'CascadingAddTable'
 require 'OutputExtractor'
+require 'inline'
 require 'Tic'
 require 'Toc'
 
@@ -65,10 +66,11 @@ function yx2xMulti(geometry, y, x)
 end
 
 function x2yxMulti(geometry, x)
-   --todo : do a C module to speed up process
    if type(x) == 'number' then
       return x2yxMultiNumber(geometry, x)
    else
+      return x2yxMulti2(geometry, x)
+      --[[
       local retx = torch.Tensor(x:size())
       local rety = torch.Tensor(x:size())
       for i = 1,x:size(1) do
@@ -77,9 +79,21 @@ function x2yxMulti(geometry, x)
 	 end
       end
       return rety, retx
+      --]]
    end
 end
 
+function x2yxMulti2(geometry, x)
+   local file = io.open("x2yxMulti2.c")
+   local process = inline.load(file:read("*all"))
+   file:close()
+   local retx = torch.LongTensor():resizeAs(x)
+   local rety = torch.LongTensor():resizeAs(x)
+   print(rety:size())
+   process(x, geometry.maxh, geometry.maxw, geometry.ratios, retx, rety)
+   return rety, retx
+end
+	 
 function x2yxMultiNumber(geometry, x)
    assert(type(x) == 'number')
    if x <= geometry.maxh*geometry.maxw then

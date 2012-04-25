@@ -15,11 +15,12 @@ ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_
    imuAltitude(0.0f), batteryState(100.0f), droneState(0) {
   memset(controlFifoBuffer, 0, sizeof(char)*(controlFifoBufferLen+1));
   memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
+  printf("Getting control FIFO\n");
   control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
-  printf("Almost!\n");
+  printf("Getting navdata FIFO\n");
   navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
   //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY);
-  printf("OK!\n");
+  printf("All good!\n");
 }
 
 ARdroneAPI::~ARdroneAPI() {
@@ -78,7 +79,6 @@ int ARdroneAPI::getDroneState() const {
   return droneState;
 }
 
-
 void ARdroneAPI::takeoff() {
   sendOnFifo(TAKEOFF);
 }
@@ -86,7 +86,6 @@ void ARdroneAPI::takeoff() {
 void ARdroneAPI::land() {
   sendOnFifo(LAND);
 }
-
 
 void ARdroneAPI::setControl(float pitch, float gaz, float roll, float yaw) {
   sendOnFifo(CONTROL, pitch, gaz, roll, yaw);
