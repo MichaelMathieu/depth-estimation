@@ -4,6 +4,7 @@
 #include<string>
 
 #include "drone_api.h"
+#include<luaT.h>
 
 const size_t controlFifoBufferLen = 33;
 const size_t navdataFifoBufferLen = 98;
@@ -38,6 +39,10 @@ private:
   
   char controlFifoBuffer[controlFifoBufferLen+1];
   char navdataFifoBuffer[navdataFifoBufferLen+1];
+
+  lua_State *L;
+  matf depthMap;
+
   enum Order {
     TAKEOFF, LAND, CONTROL,
   };
