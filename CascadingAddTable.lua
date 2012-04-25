@@ -26,15 +26,15 @@ function CascadingAddTable:__init(ratios, trainable, single_beta)
       local mul1 = nn.Mul2()
       self.muls[#self.muls+1] = mul1
       mul1.weight[1] = -beta
-      seq1:add(mul1)
-      seq1:add(nn.Exp())
+      --seq1:add(mul1)
+      seq1:add(nn.SmartReshape(-1,{-2,-3}))
       
       local seq2 = nn.Sequential()
-      self.padders[i] = nn.SmartZeroPadding(0,0,0,0, 3, 4)
+      self.padders[i] = nn.SmartZeroPadding(0,0,0,0, 2, 3)
       seq2:add(self.padders[i])
       seq2:add(nn.SmartReSampling{rwidth=self.ratios[i+1]/self.ratios[i],
 				  rheight=self.ratios[i+1]/self.ratios[i],
-				  yDim=3, xDim=4})
+				  yDim=2, xDim=3})
       local mul2
       if single_beta then
 	 mul2 = mul1:clone('weight', 'gradWeight')
@@ -43,22 +43,23 @@ function CascadingAddTable:__init(ratios, trainable, single_beta)
 	 self.muls[#self.muls+1] = mul2
 	 mul2.weight[1] = -beta
       end
-      seq2:add(mul2)
-      seq2:add(nn.Exp())
+      --seq2:add(mul2)
+      seq2:add(nn.SmartReshape(-1,{-2,-3}))
 
       local parallel = nn.ParallelTable()
       parallel:add(seq1)
       parallel:add(seq2)
       
       self.transformers[i] = nn.Sequential()
+      --self.transformers[i]:add(nn.Tic('cascad'..i))
       self.transformers[i]:add(parallel)
+      --self.transformers[i]:add(nn.Toc('cascad'..i, 'resample/reshape'))
       self.transformers[i]:add(nn.CAddTable())
-      self.transformers[i]:add(nn.Log2(1e-10))
-      local mul3 = nn.Mul2()
-      self.muls_normalizers[#self.muls_normalizers+1] = {mul3, mul1, mul2}
-      --self.muls[#self.muls+1] = mul3
-      mul3.weight[1] = -1./beta
-      self.transformers[i]:add(mul3)
+      --self.transformers[i]:add(nn.Toc('cascad'..i, 'caddtable'))
+      local pow = nn.Power(-1./beta)
+      self.muls_normalizers[#self.muls_normalizers+1] = {pow, mul1, mul2}
+      --self.transformers[i]:add(pow)
+      --self.transformers[i]:add(nn.Toc('cascad'..i, 'pow'))
    end
 end
 
@@ -92,7 +93,7 @@ end
 function CascadingAddTable:updateNormalizers()
    for i = 1,#self.muls_normalizers do
       local m = self.muls_normalizers[i]
-      m[1].weight[1] = -1. / math.sqrt(m[2].weight[1] * m[3].weight[1])
+      m[1].pow = -1. / math.sqrt(m[2].weight[1] * m[3].weight[1])
    end
 end
 
@@ -106,8 +107,8 @@ end
 
 function CascadingAddTable:updateOutput(input)
    for i = 1,#input do
-      if input[i]:nDimension() ~= 4 then
-	 error('nn.CascadingAddTable: input must be a table of Kh x Kw x H x W')
+      if input[i]:nDimension() ~= 3 then
+	 error('nn.CascadingAddTable: input must be a table of 3D-tensors (HxW) x Kh x Kw')
       end
    end
    if #input ~= #self.ratios then
@@ -117,12 +118,12 @@ function CascadingAddTable:updateOutput(input)
    for i = #input-1,1,-1 do
       local r = self.ratios[i]
       local r2 = self.ratios[i+1]
-      if ((math.mod(input[i]:size(3) * (r2-r), 2*r2) ~= 0) or
-       (math.mod(input[i]:size(4) * (r2-r), 2*r2) ~= 0)) then
+      if ((math.mod(input[i]:size(2) * (r2-r), 2*r2) ~= 0) or
+       (math.mod(input[i]:size(3) * (r2-r), 2*r2) ~= 0)) then
 	 error('nn.CascadingAddTable: ratios and input sizes not compatible')
       end
-      local dh = input[i]:size(3) * (r2-r) / (2*r2)
-      local dw = input[i]:size(4) * (r2-r) / (2*r2)
+      local dh = input[i]:size(2) * (r2-r) / (2*r2)
+      local dw = input[i]:size(3) * (r2-r) / (2*r2)
 
       self.padders[i].pad_t = -dh
       self.padders[i].pad_b = -dh

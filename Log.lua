@@ -13,8 +13,8 @@ end
 function Log2:updateOutput(input)
    if self.null_epsilon then
       self.bad = self.bad or torch.Tensor():resizeAs(input)
-      self.bad:copy(input:lt(null_epsilon))
-      input:set(self.bad:mul(null_epsilon) + (-self.bad+1):cmul(input))
+      self.bad:copy(input:lt(self.null_epsilon))
+      input:set(self.bad:mul(self.null_epsilon) + (-self.bad+1):cmul(input))
    end
    self.output:resizeAs(input)
    self.output:copy(input):log()

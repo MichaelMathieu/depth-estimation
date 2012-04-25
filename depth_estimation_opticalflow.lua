@@ -59,6 +59,7 @@ local timer = torch.Timer()
 local total_timer = torch.Timer()
 
 local time_filter = 0.
+local time_extract = 0.
 local time_matcher = 0.
 local total_time = 0.
 local time_load = 0.
@@ -111,7 +112,9 @@ while true do
    timer:reset()
    local moutput = model:forward(input)
    time_matcher = time_matcher + timer:time()['real']
+   timer:reset()
    local output = processOutput(geometry, moutput, true)
+   time_extract = time_extract + timer:time()['real']
    if opt.display_output then
       --gt_window = image.display{image=flow2hsv(geometry, loader:getCurrentGT()), win=gt_window, legend='groundtruth'}
       --output_window = image.display{image=flow2hsv(geometry, output.full), win=output_window, legend='output'}
@@ -138,9 +141,10 @@ while true do
       image.save(string.format('%s/%09d.png', opt.output_dir, i), im2)
    end
    total_time = total_time + total_timer:time()['real']
-   print('filter   : ' .. time_filter/(i+1))
-   print('min+match: ' .. time_matcher/(i+1))
    print('load     : ' .. time_load/(i+1))
+   print('filter   : ' .. time_filter/(i+1))
+   print('match    : ' .. time_matcher/(i+1))
+   print('extract  : ' .. time_extract/(i+1))
    print('total    : ' .. total_time/(i+1))
    last_im = im
    last_frame = frame

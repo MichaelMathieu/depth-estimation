@@ -5,6 +5,8 @@ require 'SmartReshape'
 require 'common'
 require 'CascadingAddTable'
 require 'OutputExtractor'
+require 'Tic'
+require 'Toc'
 
 function yx2x(geometry, y, x)
    return (y-1) * geometry.maxwGT + x
@@ -260,6 +262,9 @@ end
 
 function getModelMultiscale(geometry, full_image, prefiltered)
    local model = nn.Sequential()
+   if not geometry.training_mode then
+      model:add(nn.Tic('model'))
+   end
    if prefiltered == nil then prefiltered = false end
    assert(geometry.ratios[1] == 1)
    local rmax = geometry.ratios[#geometry.ratios]
@@ -322,30 +327,51 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       model:add(parallel)
    end
    model:add(pyramid)
+   if not geometry.training_mode then
+      model:add(nn.Toc('model', 'after pyramid'))
+   end
+
+   local cascad_preproc = nn.ParallelTable()
+   for i = 1,#geometry.ratios do
+      local seq = nn.Sequential()
+      cascad_preproc:add(seq)
+      seq:add(nn.SmartReshape({-1,-2},{-3,-4}))
+      seq:add(nn.Minus())
+      seq:add(nn.SoftMax())
+      seq:add(nn.SmartReshape(-1,geometry.maxh, geometry.maxw))
+   end
+   model:add(cascad_preproc)
+
+   if not geometry.training_mode then
+      model:add(nn.Toc('model', 'after cascad_preproc'))
+   end
+
    local cascad = nn.CascadingAddTable(geometry.ratios, geometry.cascad_trainable_weights,
 				      geometry.single_beta)
    model.cascad = cascad
    model:add(cascad)
+   if not geometry.training_mode then
+      model:add(nn.Toc('model', 'after cascad'))
+   end
    
-
    local postprocessors = nn.ParallelTable()
-   postprocessors:add(nn.SmartReshape(-1, -2, {-3, -4}))
+   postprocessors:add(nn.SmartReshape(-1, {-2, -3}))
    for i = 2,#geometry.ratios do
       local d = round(geometry.maxw*(geometry.ratios[i]-geometry.ratios[i-1])/(2*geometry.ratios[i]))
       local remover1 = nn.Sequential()
       local remover2 = nn.Sequential()
       local remover3 = nn.Sequential()
       local remover4 = nn.Sequential()
-      remover1:add(nn.Narrow(3, 1, d))
-      remover2:add(nn.Narrow(3, d+1, geometry.maxh-2*d))
-      remover2:add(nn.Narrow(4, 1, d))
-      remover3:add(nn.Narrow(3, d+1, geometry.maxh-2*d))
-      remover3:add(nn.Narrow(4, geometry.maxw-d+1, d))
-      remover4:add(nn.Narrow(3, geometry.maxh-d+1, d))
-      remover1:add(nn.SmartReshape(-1, -2, {-3, -4}))
-      remover2:add(nn.SmartReshape(-1, -2, {-3, -4}))
-      remover3:add(nn.SmartReshape(-1, -2, {-3, -4}))
-      remover4:add(nn.SmartReshape(-1, -2, {-3, -4}))
+      remover1:add(nn.Narrow(2, 1, d))
+      remover2:add(nn.Narrow(2, d+1, geometry.maxh-2*d))
+      remover2:add(nn.Narrow(3, 1, d))
+      remover3:add(nn.Narrow(2, d+1, geometry.maxh-2*d))
+      remover3:add(nn.Narrow(3, geometry.maxw-d+1, d))
+      remover4:add(nn.Narrow(2, geometry.maxh-d+1, d))
+      remover1:add(nn.SmartReshape(-1, {-2, -3}))
+      remover2:add(nn.SmartReshape(-1, {-2, -3}))
+      remover3:add(nn.SmartReshape(-1, {-2, -3}))
+      remover4:add(nn.SmartReshape(-1, {-2, -3}))
       local removers = nn.ConcatTable()
       removers:add(remover1)
       removers:add(remover2)
@@ -354,20 +380,24 @@ function getModelMultiscale(geometry, full_image, prefiltered)
       
       local middleRemover = nn.Sequential()
       middleRemover:add(removers)
-      middleRemover:add(nn.JoinTable(3))
+      middleRemover:add(nn.JoinTable(2))
       postprocessors:add(middleRemover:clone())
    end
    
    model:add(postprocessors)
-   model:add(nn.JoinTable(3))
+   model:add(nn.JoinTable(2))
+   if not geometry.training_mode then
+      model:add(nn.Toc('model', 'after complex reshaping'))
+   end
    
-   model:add(nn.Minus())
-   model:add(nn.SmartReshape({-1,-2},-3))
-   model:add(nn.LogSoftMax())
    if geometry.training_mode then
       model:add(nn.SmartReshape(1,1,-2))
    else
       model:add(nn.SmartReshape(geometry.hImg, geometry.wImg,-2))
+   end
+
+   if geometry.training_mode then
+      model:add(nn.Log2(1e-10))
    end
 
    function model:focus(x, y)
@@ -432,7 +462,6 @@ function getOutputConfidences(geometry, input)
    end
    image.display(entropy:gt(25000))
    --]]
-   timer = torch.Timer()
    local m, indices = input:max(3)
    m = m:select(3,1)
    indices = indices:select(3,1)
@@ -442,7 +471,6 @@ function getOutputConfidences(geometry, input)
    local flatPixels = torch.LongTensor(h, w):copy(m:eq(input:select(3,middleIndex)))
    local indices = flatPixels * middleIndex + (-flatPixels+1):cmul(indices:reshape(h, w))
    local confidences = torch.Tensor(indices:size()):fill(1)
-   print("confs:   : " .. timer:time()['real'])
    return indices, confidences
 end
 
