@@ -95,7 +95,7 @@ void idle() {
   pMap->newFrame(frameDMap);
 
   cv::namedWindow("window");
-   cv::imshow("window", pMap->to2DMap());
+  cv::imshow("window", pMap->to2DMap());
   cvWaitKey(1);
   
   //cout << pMap->toString() << endl;
