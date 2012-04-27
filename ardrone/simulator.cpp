@@ -1,6 +1,7 @@
 #include "simulator.h"
 #include "common.h"
-#include<ostream>
+
+#include<iostream>
 #include<cstdio>
 #include<cmath>
 using namespace std;
@@ -55,11 +56,12 @@ matf SimulatedAPI::getDepthMap() const {
     float D2 = norm(v);
     float k2 = focal_length / D2;
     float r = k2 * radius;
+    printf("Map\n");
     printf("%f %f %f %f\n", r, radius, k2, D2);
     for (int ii = max(0,round2(a+hw-r)); ii < min(dmW, round2(a+hw+r)); ++ii)
       for (int jj = max(0, round2(b+hh-r)); jj < min(dmH, round2(b+hh+r)); ++jj)
-	if (D2 < map(jj, ii))
-	  map(jj, ii) = D2;
+        if (D2 < map(jj, ii))
+          map(jj, ii) = D2;
   }
   return map;
 }
@@ -70,9 +72,36 @@ matf SimulatedAPI::getIMUTranslation() const {
   matf up = getUp();
   matf v = dx * delta_t;
   matf ret(3,1);
-  ret(0,0) = v.dot(pray);
-  ret(1,0) = v.dot(npray);
-  ret(2,0) = v.dot(up);
+  ret(0,0) = v.dot(pray) + randn();
+  ret(1,0) = v.dot(npray) + randn();
+  ret(2,0) = v.dot(up) + randn();
+  return ret;
+}
+
+matf SimulatedAPI::getVisualOdometryTranslation() const {
+  matf pray = getPRay();
+  matf npray = getNPRay();
+  matf up = getUp();
+  matf v = dx * delta_t;
+  matf ret(3,1);
+  ret(0,0) = v.dot(pray) + randn();
+  ret(1,0) = v.dot(npray) + randn();
+  ret(2,0) = v.dot(up) + randn();
+  return ret;
+}
+
+matf SimulatedAPI::getFilteredTranslation() const {
+  matf imuTranslation = getIMUTranslation();
+  float imuVar = getIMUVariance();
+  matf voTranslation = getVisualOdometryTranslation();
+  float voVar = getVisualOdometryVariance();
+
+  float K = imuVar/(imuVar+voVar);
+
+  matf ret(3,1);
+  ret(0,0) = imuTranslation(0,0) + K*(voTranslation(0,0) - imuTranslation(0,0));
+  ret(1,0) = imuTranslation(1,0) + K*(voTranslation(1,0) - imuTranslation(1,0));
+  ret(2,0) = imuTranslation(2,0) + K*(voTranslation(2,0) - imuTranslation(2,0));
   return ret;
 }
 
@@ -90,6 +119,14 @@ float SimulatedAPI::getBatteryState() const {
 
 int SimulatedAPI::getDroneState() const {
   return 1; //not implemented (I don't know what are the states anyway)
+}
+
+float SimulatedAPI::getIMUVariance() const {
+  return 1.0f;
+}
+
+float SimulatedAPI::getVisualOdometryVariance() const {
+  return 1.0f;
 }
 
 void SimulatedAPI::takeoff() {
