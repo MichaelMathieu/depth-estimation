@@ -78,24 +78,33 @@ void keyboardUp2(int key, int, int) {
 
 #include "opencv/highgui.h"
 void idle() {
+  printf("avt next\n");
   pApi->next();
+  printf("apres next\n");
   cout << pitch << " " << roll << " " << dyaw << " " << gaz << endl;
   cout << pApi->toString() << endl;
   matf frameDMap = pApi->getDepthMap();
+  
   if ((frameDMap.size().height != win_h) || (frameDMap.size().width != win_w)) {
     win_w = frameDMap.size().width;
     win_h = frameDMap.size().height;
     printf("%d %d\n", win_h, win_w);
     glutReshapeWindow(win_w, win_h);
   }
-  glDrawPixels(win_w, win_h, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
-  glutSwapBuffers();
+  //glDrawPixels(win_w, win_h, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
+  //glutSwapBuffers();
   
   pMap->newDisplacement(pApi->getIMUTranslation(), pApi->getIMUGyro());
   pMap->newFrame(frameDMap);
 
-  cv::namedWindow("window");
-  cv::imshow("window", pMap->to2DMap());
+  cv::namedWindow("depth map");
+  double m;
+  minMaxLoc(frameDMap, NULL, &m);
+  //m = 100.;
+  cv::imshow("depth map", frameDMap / m);
+  
+  cv::namedWindow("2d map");
+  cv::imshow("2d map", pMap->to2DMap());
   cvWaitKey(1);
   
   //cout << pMap->toString() << endl;

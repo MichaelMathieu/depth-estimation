@@ -85,6 +85,8 @@ mat3b DepthMap::to2DMap() {
     for (int j = 0; j < size; ++j) {
       float x = ((float)i/(float)size-0.5f)*k;
       float y = ((float)j/(float)size-0.5f)*k;
+      if (x == 0 and y == 0)
+	continue;
       BinIndex bin = CartesianCoordinates(this, x, y).toBinIndex();
       ret(i, j)[0] = max(ret(i, j)[0], (unsigned char)(255.0f*bin.value()));
     }
