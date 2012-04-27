@@ -6,26 +6,37 @@
 #include<fcntl.h>
 #include<unistd.h>
 #include<ostream>
+#include<luaT.h>
+#include<lauxlib.h>
+#include<lualib.h>
+#include<TH/TH.h>
 using namespace std;
 
 ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_fifo_path)
   :DroneAPI(), control_fifo(0), navdata_fifo(0),
    last_time(getTimeInSec()), delta_t(0.0f),
    imuD(3, 1, 0.0f), imuGyro(3, 1, 0.0f),
-   imuAltitude(0.0f), batteryState(100.0f), droneState(0) {
+   imuAltitude(0.0f), batteryState(100.0f), droneState(0),
+   L(lua_open()), depthMap(0,0) {
   memset(controlFifoBuffer, 0, sizeof(char)*(controlFifoBufferLen+1));
   memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
+  printf("Getting control FIFO\n");
   control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
-  printf("Almost!\n");
+  printf("Getting navdata FIFO\n");
   navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
   //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY);
-  printf("OK!\n");
+  printf("All good!\n");
+  
+  luaL_openlibs(L);
+  luaL_dofile(L, "../depth_estimation_api.lua");
+  lua_pushnil(L);
 }
 
 ARdroneAPI::~ARdroneAPI() {
   land();
   close(control_fifo);
   close(navdata_fifo);
+  lua_close(L);
 }
 
 
@@ -48,6 +59,13 @@ void ARdroneAPI::next() {
     imuD(2,0) = vz;
   }
   imuD *= delta_t;
+
+  lua_pop(L, 1);
+  lua_getfield(L, LUA_GLOBALSINDEX, "nextFrameDepth");
+  lua_call(L, 0, 1);
+  THFloatTensor *depth_th = (THFloatTensor*)luaT_toudata(L,-1,luaT_checktypename2id(L, "torch.FloatTensor"));
+  depth_th = THFloatTensor_newContiguous(depth_th);
+  depthMap = matf(depth_th->size[0], depth_th->size[1], THFloatTensor_data(depth_th));
 }
 
 float ARdroneAPI::getDeltaT() const {
@@ -55,7 +73,7 @@ float ARdroneAPI::getDeltaT() const {
 }
 
 matf ARdroneAPI::getDepthMap() const {
-  return matf(320, 240, 0.0f);
+  return depthMap;
 }
 
 matf ARdroneAPI::getIMUTranslation() const {
@@ -78,7 +96,6 @@ int ARdroneAPI::getDroneState() const {
   return droneState;
 }
 
-
 void ARdroneAPI::takeoff() {
   sendOnFifo(TAKEOFF);
 }
@@ -86,7 +103,6 @@ void ARdroneAPI::takeoff() {
 void ARdroneAPI::land() {
   sendOnFifo(LAND);
 }
-
 
 void ARdroneAPI::setControl(float pitch, float gaz, float roll, float yaw) {
   sendOnFifo(CONTROL, pitch, gaz, roll, yaw);

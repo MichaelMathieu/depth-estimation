@@ -3,19 +3,9 @@
 #include <ardrone_tool/UI/ardrone_input.h>
 #include<ardrone_api.h>
 #include<fcntl.h>
-#include<string.h>
+#include<string.h> 
  
-gui_t *gui = NULL;
- 
-gui_t *get_gui()
-{
-  return gui;
-}
- 
- 
-static void buttons_callback( GtkWidget *widget,
-			      gpointer   data )
-{
+static void idle(gpointer data) {
   g_print("Waiting for instructions...\n");
   int pipe = open("control_pipe", O_RDONLY);
   int nRead;
@@ -54,43 +44,9 @@ static void buttons_callback( GtkWidget *widget,
   ardrone_tool_set_ui_pad_start(0); //landing (to be sure)
 }
  
-static void on_destroy(GtkWidget *widget, gpointer data)
-{
-  vp_os_free(gui);
-  gtk_main_quit();
-}
- 
-void init_gui(int argc, char **argv)
-{
-  gui = vp_os_malloc(sizeof (gui_t));
- 
+void init_gui(int argc, char **argv) {
   g_thread_init(NULL);
   gdk_threads_init();
   gtk_init(&argc, &argv);
- 
-  gui->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-  g_signal_connect(G_OBJECT(gui->window),
-		   "destroy",
-		   G_CALLBACK(on_destroy),
-		   NULL);
-  gui->box = gtk_vbox_new(FALSE, 10);
-  gtk_container_add(GTK_CONTAINER(gui->window),
-		    gui->box);
-  gui->cam = gtk_image_new();
-  gtk_box_pack_start(GTK_BOX(gui->box), gui->cam, FALSE, TRUE, 0);
- 
-  gui->start = gtk_button_new_with_label("Start");
-  g_signal_connect (gui->start, "clicked",
-		    G_CALLBACK (buttons_callback), NULL);
-  gui->stop = gtk_button_new_with_label("Stop");
-  g_signal_connect (gui->stop, "clicked",
-		    G_CALLBACK (buttons_callback), NULL);
-  gtk_widget_set_sensitive(gui->start, TRUE);
-  gtk_widget_set_sensitive(gui->stop, FALSE);
- 
-  gtk_box_pack_start(GTK_BOX(gui->box), gui->start, TRUE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(gui->box), gui->stop, TRUE, TRUE, 0);
- 
-  gtk_widget_show_all(gui->window);
-  
+  gtk_idle_add(idle, NULL);
 }

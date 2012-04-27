@@ -7,6 +7,7 @@
 using namespace std;
 
 int main_window_id;
+int win_w = 320, win_h = 180;
 float dyaw = 0.0f, pitch =0.0f, roll = 0.0f, gaz = 0.0f;
 bool flying = false;
 DroneAPI* pApi = NULL;
@@ -81,14 +82,20 @@ void idle() {
   cout << pitch << " " << roll << " " << dyaw << " " << gaz << endl;
   cout << pApi->toString() << endl;
   matf frameDMap = pApi->getDepthMap();
-  glDrawPixels(320, 240, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
+  if ((frameDMap.size().height != win_h) || (frameDMap.size().width != win_w)) {
+    win_w = frameDMap.size().width;
+    win_h = frameDMap.size().height;
+    printf("%d %d\n", win_h, win_w);
+    glutReshapeWindow(win_w, win_h);
+  }
+  glDrawPixels(win_w, win_h, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
   glutSwapBuffers();
   
   pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());
   pMap->newFrame(frameDMap);
 
   cv::namedWindow("window");
-   cv::imshow("window", pMap->to2DMap());
+  cv::imshow("window", pMap->to2DMap());
   cvWaitKey(1);
   
   //cout << pMap->toString() << endl;
@@ -100,15 +107,14 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  SimulatedAPI api(320, 240);
-  //ARdroneAPI api("API/Examples/Linux/Build/Release/control_pipe",
-  //"API/Examples/Linux/Build/Release/navdata_pipe");
+  //SimulatedAPI api(320, 240);
+  ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
-  DepthMap map(32, 64, 60, 0.9f, 320);
+  DepthMap map(32, 64, 60, 1.0f, 320);
   pMap = &map;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);
-  glutInitWindowSize(320, 240);
+  glutInitWindowSize(win_w, win_h);
   glutInitDisplayMode(GLUT_LUMINANCE | GLUT_DOUBLE);
   main_window_id = glutCreateWindow("depth");
   glutIdleFunc(idle);
