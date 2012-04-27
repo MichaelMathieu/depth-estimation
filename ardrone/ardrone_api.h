@@ -17,6 +17,8 @@ public:
   virtual float getDeltaT() const;
   virtual matf getDepthMap() const;
   virtual matf getIMUTranslation() const;
+  //virtual matf getVisualOdometryTranslation() const;
+  //virtual matf getFilteredTranslation() const;
   virtual matf getIMUGyro() const;
   virtual float getIMUAltitude() const;
   virtual float getBatteryState() const;

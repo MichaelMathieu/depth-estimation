@@ -7,6 +7,7 @@
 #include "drone_api.h"
 
 class SimulatedAPI : public DroneAPI {
+
 public:
   SimulatedAPI(int depthMapWidth = 320, int depthMapHeight = 240);
   virtual ~SimulatedAPI();
@@ -15,10 +16,14 @@ public:
   virtual float getDeltaT() const;
   virtual matf getDepthMap() const;
   virtual matf getIMUTranslation() const;
+  virtual matf getVisualOdometryTranslation() const;
+  virtual matf getFilteredTranslation() const;
   virtual matf getIMUGyro() const;
   virtual float getIMUAltitude() const;
   virtual float getBatteryState() const;
   virtual int getDroneState() const;
+  virtual float getIMUVariance() const;
+  virtual float getVisualOdometryVariance() const;
 
   virtual void takeoff();
   virtual void land();
@@ -36,6 +41,8 @@ public:
     Obstacle(float x, float y, float z, float radius)
       :center(3, 1), radius(radius) {center(0,0)=x;center(1,0)=y;center(2,0)=z;};
   };
+public:
+
 private:
   double last_time;
   float delta_t;

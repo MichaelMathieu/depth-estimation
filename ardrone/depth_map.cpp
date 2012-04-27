@@ -53,9 +53,9 @@ void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
       newBin.getPointsInside(5,5, coords_tmp);
       float value = 0.0f;
       for (size_t iPt = 0; iPt < coords_tmp.size(); ++iPt) {
-	CartesianCoordinates pt = coords_tmp[iPt].toCartesianCoordinates();
-	pt.add(pos(0,0), pos(1,0));
-	value += pt.toBinIndex().value();
+      	CartesianCoordinates pt = coords_tmp[iPt].toCartesianCoordinates();
+      	pt.add(pos(0,0), pos(1,0));
+      	value += pt.toBinIndex().value();
       }
       new_map(newBin.iTheta, newBin.iRho) = value/(float)coords_tmp.size()*unseenDecay;
     }

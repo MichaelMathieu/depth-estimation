@@ -84,7 +84,7 @@ void idle() {
   glDrawPixels(320, 240, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
   glutSwapBuffers();
   
-  pMap->newDisplacement(pApi->getIMUTranslation(), pApi->getIMUGyro());
+  pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());
   pMap->newFrame(frameDMap);
 
   cv::namedWindow("window");
