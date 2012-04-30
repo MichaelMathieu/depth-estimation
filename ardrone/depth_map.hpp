@@ -159,6 +159,7 @@ DepthMap::Map DepthMap::Map::clone() const {
 // DepthMap
 
 size_t DepthMap::getIRhoFromRho(float rho) const {
+  assert(rho > 0);
   return std::max((float)nBinsRho() - 1.0f - (float)floor(maxDepth/rho), 0.0f);
   /*
   if (rho > maxDepth)

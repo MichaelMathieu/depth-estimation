@@ -1,6 +1,7 @@
 require 'torch'
 require 'opencv'
 require 'common'
+require 'inline'
 
 w_center = 0
 h_center = 0
@@ -165,6 +166,37 @@ function lsq_trans_ransac(ptsin, ptsout, xcenter, ycenter)
 
 	maxinliers,idx = torch.max(inliers,1)
 	return Hs[idx[1]],maxinliers[1]
+     end
+
+function WarpAffine(image, H)
+   local output = torch.Tensor(image:size()):zero()
+   warp = inline.load [[
+	 const void* iddouble = luaT_checktypename2id(L, "torch.DoubleTensor");
+	 THDoubleTensor* input = (THDoubleTensor*)luaT_checkudata(L, 1, iddouble);
+	 THDoubleTensor* H = (THDoubleTensor*)luaT_checkudata(L, 2, iddouble);
+	 THDoubleTensor* output = (THDoubleTensor*)luaT_checkudata(L, 3, iddouble);
+
+	 int nchannels = input->size[0];
+	 int h = input->size[1];
+	 int w = input->size[2];
+	 double* input_p = THDoubleTensor_data(input);
+	 double* output_p = THDoubleTensor_data(output);
+	 double* H_p = THDoubleTensor_data(H);
+	 long* is = input->stride;
+	 long* os = output->stride;
+	 
+	 int i, j, k, x, y;
+	 for (i = 0; i < h; ++i)
+	   for (j = 0; j < w; ++j) {
+	      x = round(H_p[0] * j + H_p[1] * i + H_p[2]);
+	      y = round(H_p[3] * j + H_p[4] * i + H_p[5]);
+	      if ((x >= 0) && (y >= 0) && (x < w) && (y < h))
+	        for (k = 0; k < nchannels; ++k)
+	          output_p[k*os[0] + i*os[1] + j*os[2] ] = input_p[k*is[0] + y*is[1] + x*is[2] ];
+	    }
+   ]]
+   warp(image, H:contiguous(), output)
+   return output
 end
 
 function test_lsq_trans()
@@ -190,8 +222,8 @@ function test_lsq_trans()
 	print('H using all data:')
 	print('(using ' .. ptsin:size(1) .. ' points)')
 	print(H)
-
-	local warpimg = opencv.WarpAffine(imgR, H)
+	
+	local warpimg = WarpAffine(imgR, H)
 	local ptsoutw = opencv.TrackPyrLK{pair={imgL,warpimg},points_in=ptsin}
 	opencv.drawFlowlinesOnImage({ptsin,ptsoutw},warpimg)
 	image.display{image={imgL,warpimg},legend='Original'}
@@ -201,28 +233,28 @@ function test_lsq_trans()
 	print('(using ' .. m .. ' inliers)')
 	print(Hr)
 
-	local warpimgrsac = opencv.WarpAffine(imgR, Hr)
+	local warpimgrsac = WarpAffine(imgR, Hr)
 	local ptsoutwrsac = opencv.TrackPyrLK{pair={imgL,warpimgrsac},points_in=ptsin}
 	opencv.drawFlowlinesOnImage({ptsin,ptsoutwrsac},warpimgrsac)
 	image.display{image={imgL,warpimgrsac},legend='RANSAC'}
-
+	
 end
 
 function motion_correction(imgL, imgR)
    local timer = torch.Timer()
-	local w_imgs = imgL:size(3)
-	local h_imgs = imgL:size(2)
-	local w_center = w_imgs/2
-	local h_center = h_imgs/2
-
-	local ptsin = opencv.GoodFeaturesToTrack{image=imgL, count=200}
-	local ptsout = opencv.TrackPyrLK{pair={imgL, imgR}, points_in=ptsin}
-	local H = lsq_trans_ransac(ptsin, ptsout, w_imgs/2, h_imgs/2)
-	--local H = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
-	local inputImg = imgR:clone()
-	local warpImg = opencv.WarpAffine(inputImg, H)
-	--print(timer:time()['real'])
-	return warpImg
+   local w_imgs = imgL:size(3)
+   local h_imgs = imgL:size(2)
+   local w_center = w_imgs/2
+   local h_center = h_imgs/2
+   
+   local ptsin = opencv.GoodFeaturesToTrack{image=imgL, count=200}
+   local ptsout = opencv.TrackPyrLK{pair={imgL, imgR}, points_in=ptsin}
+   local H = lsq_trans_ransac(ptsin, ptsout, w_imgs/2, h_imgs/2)
+   --local H = lsq_trans(ptsin, ptsout, w_imgs/2, h_imgs/2)
+   local inputImg = imgR:clone()
+   local warpImg = WarpAffine(inputImg, H)
+   --print(timer:time()['real'])
+   return warpImg
 end
 
 function test_motion_correction()

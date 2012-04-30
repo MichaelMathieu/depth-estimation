@@ -6,8 +6,6 @@ require 'common'
 require 'CascadingAddTable'
 require 'OutputExtractor'
 require 'inline'
-require 'Tic'
-require 'Toc'
 
 function yx2x(geometry, y, x)
    return (y-1) * geometry.maxwGT + x

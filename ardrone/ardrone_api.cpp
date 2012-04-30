@@ -17,19 +17,20 @@ ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_
    last_time(getTimeInSec()), delta_t(0.0f),
    imuD(3, 1, 0.0f), imuGyro(3, 1, 0.0f),
    imuAltitude(0.0f), batteryState(100.0f), droneState(0),
-   L(lua_open()), depthMap(0,0) {
+   L(NULL), depthMap(0,0) {
   memset(controlFifoBuffer, 0, sizeof(char)*(controlFifoBufferLen+1));
   memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
   printf("Getting control FIFO\n");
-  control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
+  //control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
   printf("Getting navdata FIFO\n");
-  navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
+  //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
   //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY);
   printf("All good!\n");
-  
+
+  lua_executable_dir("./lua");
+  L = lua_open();
   luaL_openlibs(L);
   luaL_dofile(L, "../depth_estimation_api.lua");
-  lua_pushnil(L);
 }
 
 ARdroneAPI::~ARdroneAPI() {
@@ -39,16 +40,17 @@ ARdroneAPI::~ARdroneAPI() {
   lua_close(L);
 }
 
-
+#include<opencv/highgui.h>
 void ARdroneAPI::next() {
   float vx, vy, vz;
   int gx, gy, gz, bs, a;
   double time = getTimeInSec();
   delta_t = (float)(time - last_time);
   last_time = time;
+  /*
   while (read(navdata_fifo, navdataFifoBuffer, navdataFifoBufferLen) == navdataFifoBufferLen) {
     sscanf(navdataFifoBuffer, "%d %d %d %d %d %d %f %f %f", &droneState, &bs,
-	   &gx, &gy, &gz, &a, &vx, &vy, &vz);
+    	   &gx, &gy, &gz, &a, &vx, &vy, &vz);
     batteryState = bs;
     imuAltitude = a;
     imuGyro(0,0) = gx;
@@ -58,14 +60,35 @@ void ARdroneAPI::next() {
     imuD(1,0) = vy;
     imuD(2,0) = vz;
   }
+  */
   imuD *= delta_t;
-
-  lua_pop(L, 1);
+  
   lua_getfield(L, LUA_GLOBALSINDEX, "nextFrameDepth");
-  lua_call(L, 0, 1);
+  lua_call(L, 0, 2);
   THFloatTensor *depth_th = (THFloatTensor*)luaT_toudata(L,-1,luaT_checktypename2id(L, "torch.FloatTensor"));
-  depth_th = THFloatTensor_newContiguous(depth_th);
-  depthMap = matf(depth_th->size[0], depth_th->size[1], THFloatTensor_data(depth_th));
+  THFloatTensor *im_th = (THFloatTensor*)luaT_toudata(L,-2,luaT_checktypename2id(L, "torch.FloatTensor"));
+  lua_pop(L, 2);
+  matf flow = matf(depth_th->size[0], depth_th->size[1], THFloatTensor_data(depth_th));
+  cv::namedWindow("im");
+  cv::imshow("im", matf(im_th->size[0], im_th->size[1], THFloatTensor_data(im_th)));
+  cvWaitKey(1);
+
+  computeDepthMapFromFlow(flow);
+}
+
+void ARdroneAPI::computeDepthMapFromFlow(const matf & xflow) {
+  depthMap = matf(xflow.size()); //TODO not optimal
+  float m = 25.0f; //TODO. m = norm(displacement.dot(pray))
+  int middlex = xflow.size().width/2;
+  for (int i = 0; i < xflow.size().height; ++i)
+    for (int j = 0; j < xflow.size().width; ++j)
+      /*
+      if ((abs(xflow(i, j)) < 1e-10) or (j-middlex == 0))
+	depthMap(i, j) = 100.0f;
+      else
+	depthMap(i, j) = m * abs(j-middlex) / abs(xflow(i, j)); //TODO not perfect abs
+      */
+      depthMap(i, j) = (abs(xflow(i,j)) > 1e-10) ? (m*abs(xflow(i,j))) : 100.0f;
 }
 
 float ARdroneAPI::getDeltaT() const {
@@ -149,5 +172,5 @@ void ARdroneAPI::sendOnFifo(Order order, float pitch, float gaz,
     sprintf(controlFifoBuffer, "C%08d%08d%08d%08d", (char)roll, (char)pitch, (char)gaz, (char)yaw);
     break;
   }
-  write(control_fifo, controlFifoBuffer, controlFifoBufferLen);
+  //write(control_fifo, controlFifoBuffer, controlFifoBufferLen);
 }

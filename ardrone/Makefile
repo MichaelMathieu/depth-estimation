@@ -7,7 +7,7 @@ OBJ=$(CPP:.cpp=.o)
 all:	simulator ardroneSDK
 
 .cpp.o:
-	${CXX} -c $< -o $@
+	${CXX} ${FLAGS} -c $< -o $@
 
 simulator: ${CPP} ${OBJ} test_simulator.cpp test_simulator.o
 	${CXX} ${FLAGS} ${OBJ} test_simulator.cpp ${LINK} -o simulator
