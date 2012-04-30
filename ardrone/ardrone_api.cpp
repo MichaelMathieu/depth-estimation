@@ -80,6 +80,12 @@ matf ARdroneAPI::getIMUTranslation() const {
   return imuD;
 }
 
+matf ARdroneAPI::getFilteredTranslation() const {
+}
+
+matf ARdroneAPI::getVisualOdometryTranslation() const {
+}
+
 matf ARdroneAPI::getIMUGyro() const {
   return imuGyro;
 }
