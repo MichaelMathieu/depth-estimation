@@ -106,6 +106,8 @@ opt.learning_rate = tonumber(opt.learning_rate)
 opt.learning_rate_decay = tonumber(opt.learning_rate_decay)
 opt.weight_decay = tonumber(opt.weight_decay)
 
+if opt.root_directory:sub(-1) ~= '/' then opt.root_directory = opt.root_directory .. '/' end
+
 openmp.setDefaultNumThreads(opt.nThreads)
 
 local geometry = {}
