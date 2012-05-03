@@ -68,6 +68,32 @@ void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
   theta_sight = theta;
 }
 
+void DepthMap::newDisplacement2(const matf & pos, const matf & sight) {
+  // position
+  Map new_map(nBinsTheta(), nBinsRho());
+  double tx = pos(0,0), ty = pos(1,0);
+  vector<SphericCoordinates> coords_tmp;
+  for (int iTheta = 0; iTheta < nBinsTheta(); ++iTheta) {
+    for (int iRho = 0; iRho < nBinsRho(); ++iRho) {
+      BinIndex newBin = BinIndex(this, iRho, iTheta);
+      newBin.getPointsInside(5,5, coords_tmp);
+      float value = 0.0f;
+      for (size_t iPt = 0; iPt < coords_tmp.size(); ++iPt) {
+        CartesianCoordinates pt = coords_tmp[iPt].toCartesianCoordinates();
+        pt.add(pos(0,0), pos(1,0));
+        value += pt.toBinIndex().value();
+      }
+      new_map(newBin.iTheta, newBin.iRho) = value/(float)coords_tmp.size()*unseenDecay;
+    }
+  }
+  map = new_map;
+  // angle
+  float theta = atan2(sight(1,0), sight(0,0));
+  if (theta < 0.0f)
+    theta = theta + 2.0f*PI;
+  theta_sight = theta;
+}
+
 void DepthMap::newFrame(matf pixels) {
   int j = pixels.size().height/2;
   for (int i = 0; i < pixels.size().width; ++i)

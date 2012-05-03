@@ -1,7 +1,7 @@
 LINK=`pkg-config --libs opencv` -lglut -lGLU -lGL -lluaT -ltorch-lua -lTH
 FLAGS=-g -W -Wall -Wextra
 CXX=g++
-CPP=simulator.cpp common.cpp ardrone_api.cpp depth_map.cpp
+CPP=simulator.cpp common.cpp ardrone_api.cpp radial_depth_map.cpp depth_map.cpp
 OBJ=$(CPP:.cpp=.o)
 
 all:	simulator ardroneSDK
