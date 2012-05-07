@@ -111,8 +111,8 @@ if opt.root_directory:sub(-1) ~= '/' then opt.root_directory = opt.root_director
 openmp.setDefaultNumThreads(opt.nThreads)
 
 local geometry = {}
-geometry.wImg = 1226
-geometry.hImg = 370
+geometry.wImg = 320
+geometry.hImg = 240
 geometry.maxwGT = tonumber(opt.win_size)
 geometry.maxhGT = tonumber(opt.win_size)
 geometry.wKernelGT = 16

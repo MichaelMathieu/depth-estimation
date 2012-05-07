@@ -476,7 +476,11 @@ function getModelMultiscale(geometry, full_image, prefiltered)
 end
 
 function prepareInput(geometry, patch1, patch2)
-   assert(patch1:size(2) == patch2:size(2) and patch1:size(3) == patch2:size(3))
+   assert(sameSize(patch1, patch2))
+   if (geometry.layers[1][1] == 1) and (patch1:size(1) == 3) then
+      patch1 = image.rgb2y(patch1, patch2)
+   end
+   assert(patch1:size(1) == geometry.layers[1][1])
    if geometry.multiscale then
       return {patch1, patch2}
    else

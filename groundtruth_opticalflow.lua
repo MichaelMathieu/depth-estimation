@@ -39,7 +39,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.wKernel = geometry.wKernelGT
    geometryGT.multiscale = false
    geometryGT.training_mode = true
-
+   
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
    local nfeats = geometry.hKernelGT*geometry.wKernelGT*image1:size(1)
@@ -64,11 +64,12 @@ function getOpticalFlowFast(geometry, image1, image2)
 	 input2b:select(2,i):select(2,j):copy(input2:select(2,i):select(2,j):reshape(nfeats))
       end
    end
-   
+
    local net = nn.SpatialMatching(maxh, maxw, false)
    local output = net:forward({input1b, input2b})
    output = -output
-   output = output:reshape(output:size(3), output:size(4), maxh*maxw)
+   print(output:size())
+   output = output:reshape(output:size(1), output:size(2), maxh*maxw)
    local output2 = processOutput(geometryGT, output, true)
    return output2.full[1], output2.full[2]
 end

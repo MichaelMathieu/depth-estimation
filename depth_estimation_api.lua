@@ -39,7 +39,7 @@ local Kf = torch.FloatTensor(K:size()):copy(K)
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-cam:init(geometry, 'data2/ardroneII', 1, 1)
+cam:init(geometry, 'data2/ardrone1', 1, 1)
 
 local last_filtered = nil
 local last_im = cam:getNextFrame()
