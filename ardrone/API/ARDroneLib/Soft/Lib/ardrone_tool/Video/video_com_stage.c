@@ -96,11 +96,14 @@ C_RESULT video_com_stage_open(video_com_config_t *cfg)
 
 C_RESULT video_com_stage_transform(video_com_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
+  PRINT("video_com_stage_transform!!!!!!!\n");
   C_RESULT res;
   vp_os_mutex_lock(&out->lock);
+  PRINT("   mutex'ed\n");
 
   if(out->status == VP_API_STATUS_INIT)
   {
+    PRINT("   out->status\n");
     out->numBuffers = 1;
     out->size = cfg->buffer_size;
     out->buffers = (int8_t **) vp_os_malloc (sizeof(int8_t *)+out->size*sizeof(int8_t));
@@ -111,10 +114,17 @@ C_RESULT video_com_stage_transform(video_com_config_t *cfg, vp_api_io_data_t *in
     out->status = VP_API_STATUS_PROCESSING;
   }
 
+  PRINT("   alright\n");
   if(out->status == VP_API_STATUS_PROCESSING && cfg->read != NULL)
   {
+    PRINT("   out->status(2)\n");
     out->size = cfg->buffer_size;
+    char bufferdbg[128];
+    sprintf(bufferdbg, "   TRY TO READ: %d\n", out->size);
+    PRINT(bufferdbg);
     res = cfg->read(&cfg->socket, out->buffers[0], &out->size);
+    sprintf(bufferdbg, "\n\n\n   READ: %d\n\n\n\n", out->size);
+    PRINT(bufferdbg);
 
     if( cfg->protocol == VP_COM_UDP )
     {
@@ -129,9 +139,10 @@ C_RESULT video_com_stage_transform(video_com_config_t *cfg, vp_api_io_data_t *in
         cfg->write(&cfg->socket, (int8_t*) &flag, &len);
       }
     }
-
+    PRINT("   alright\n");
     if( VP_FAILED(res) )
     {
+      PRINT("   fial...\n");
       out->status = VP_API_STATUS_ERROR;
       out->size = 0;
     }

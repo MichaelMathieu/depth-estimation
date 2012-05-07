@@ -24,8 +24,9 @@ function ImageLoader:getNextFrame()
 	 return nil
       end
    end
-   local im = image.scale(image.load(impath), self.geometry.wImg, self.geometry.hImg)
-   return im
+   return image.load(impath)
+   --local im = image.scale(image.load(impath), self.geometry.wImg, self.geometry.hImg)
+   --return im
 end
 
 function ImageLoader:getCurrentGT()

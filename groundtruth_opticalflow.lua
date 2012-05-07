@@ -152,23 +152,24 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
        print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
          end
       end
-   else
-      error('groundtruth must be either liu or cross-correlation')
-   end
-   if not flow then
-      local previmagepath = dirbasename .. 'images/' .. previmagebasename .. ext
-      print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
+      if not flow then
+	 local previmagepath = dirbasename .. 'images/' .. previmagebasename .. ext
+	 print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
          if not paths.filep(previmagepath) then
 	    print("Image " .. previmagepath .. " not found.")
 	    return nil
 	 end
-      local previmage = image.scale(image.load(previmagepath), geometry.wImg, geometry.hImg)
-      local yflow, xflow = getOpticalFlowFast(geometry, previmage, im)
-      flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
-      flow[1]:copy(yflow)
-      flow[2]:copy(xflow)
-      torch.save(flowfilename, flow)
+	 local previmage = image.scale(image.load(previmagepath), geometry.wImg, geometry.hImg)
+	 local yflow, xflow = getOpticalFlowFast(geometry, previmage, im)
+	 flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
+	 flow[1]:copy(yflow)
+	 flow[2]:copy(xflow)
+	 torch.save(flowfilename, flow)
+      end
+   else
+      error('groundtruth must be either liu or cross-correlation')
    end
+   
 
    return im, flow
 end
@@ -226,7 +227,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
 end
 
-function loadDataOpticalFlow(geometry, learning, dirbasename)
+function loadDataOpticalFlowCCLiu(geometry, learning, dirbasename)
    local imagesdir = dirbasename .. 'images'
    raw_data = {}
    raw_data.images = {}
@@ -281,6 +282,28 @@ function loadDataOpticalFlow(geometry, learning, dirbasename)
    return raw_data
 end
 
+function loadDataOpticalFlowCVlibs(geometry, learning, dirbasename)
+   if not cvlibs_dataset then
+      require 'cvlibs_dataset'
+   end
+   local ret = {}
+   for i = learning.first_image,(learning.first_image+learning.num_images),learning.delta do
+      local flowobj = cvlibs_dataset.readFlowObject(dirbasename, i)
+      table.insert(ret, flowobj)
+   end
+   return ret
+end
+
+function loadDataOpticalFlow(geometry, learning, dirbasename)
+   if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') then
+      return loadDataOpticalFlowCCLiu(geometry, learning, dirbasename)
+   elseif learning.groundtruth == 'cvlibs' then
+      return loadDataOpticalFlowCVlibs(geometry, learning, dirbasename)
+   else
+      error('loadDataOpticalFlow: learning.groundtruth must be either liu, cvlibs or cross-correlation')
+   end
+end
+
 function check_borders(index, xPatch, yPatch, geometry)
    local im_index = index-1
    
@@ -327,7 +350,7 @@ function check_borders(index, xPatch, yPatch, geometry)
    return true
 end
 
-function generateDataOpticalFlow(geometry, raw_data, nSamples)
+function generateDataOpticalFlowCCLiu(geometry, learning, raw_data, nSamples)
    local dataset = {}
    dataset.raw_data = raw_data
    dataset.patches = torch.Tensor(nSamples, 6)
@@ -344,7 +367,7 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples)
 				       else
 					  image2 = self.raw_data.images[coords[2]]
 				       end
-                   local patch1 = image1:sub(1, image1:size(1),
+				       local patch1 = image1:sub(1, image1:size(1),
 								 coords[3], coords[4],
 								 coords[5], coords[6])
 				       local patch2 = image2:sub(1, image2:size(1),
@@ -392,4 +415,77 @@ function generateDataOpticalFlow(geometry, raw_data, nSamples)
    end
 
    return dataset
+end
+
+function generateDataOpticalFlowCVlibs(geometry, learning, raw_data, nSamples)
+   assert(not geometry.motion_correction)
+   local dataset = {}
+   dataset.raw_data = raw_data
+   dataset.patches = torch.Tensor(nSamples, 5)
+   dataset.targets = torch.Tensor(nSamples, 2)
+   function dataset:size()
+      return nSamples
+   end
+   setmetatable(dataset, {__index = function(self, index)
+				       local coords = self.patches[index]
+				       local image1 = self.raw_data[coords[1]].image1
+				       local image2 = self.raw_data[coords[1]].image2
+				       local patch1 = image1:sub(1, image1:size(1),
+								 coords[2], coords[3],
+								 coords[4], coords[5])
+				       local patch2 = image2:sub(1, image2:size(1),
+								 coords[2], coords[3],
+								 coords[4], coords[5])
+				       return {{patch1, patch2}, self.targets[index]}
+				    end})
+
+   local hoffset = math.ceil(geometry.maxhGT/2) + math.ceil(geometry.hKernelGT/2) - 2+1
+   local woffset = math.ceil(geometry.maxwGT/2) + math.ceil(geometry.wKernelGT/2) - 2+1
+   function dataset:getElemFovea(index)
+      local coords = self.patches[index]
+      return {{{self.raw_data[coords[1]].image1, self.raw_data[coords[1]].image2},
+	       {coords[2]+hoffset, coords[4]+woffset}}, self.targets[index]}
+   end
+
+   local iSample = 1
+   while iSample <= nSamples do
+      --modProgress(iSample, nSamples, 100)
+      local iImg = randInt(1, #raw_data+1)
+
+      local good = false
+      while not good do
+	 local yPatch = randInt(1, geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
+	 local xPatch = randInt(1, geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
+
+	 good = (raw_data[iImg].flow_noc_mask[yPatch+hoffset][xPatch+woffset] > 0.5)
+	 if good then
+	    
+	    local yFlow = raw_data[iImg].flow_noc[1][yPatch+hoffset][xPatch+woffset]
+	    local xFlow = raw_data[iImg].flow_noc[2][yPatch+hoffset][xPatch+woffset]
+	    
+	    dataset.patches[iSample][1] = iImg
+	    dataset.patches[iSample][2] = yPatch
+	    dataset.patches[iSample][3] = yPatch+geometry.hPatch2-1
+	    dataset.patches[iSample][4] = xPatch
+	    dataset.patches[iSample][5] = xPatch+geometry.wPatch2-1
+      
+	    dataset.targets[iSample][1] = yFlow
+	    dataset.targets[iSample][2] = xFlow
+      
+	    iSample = iSample+1
+	 end
+      end
+   end
+
+   return dataset   
+end
+
+function generateDataOpticalFlow(geometry, learning, raw_data, nSamples)
+   if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') then
+      return generateDataOpticalFlowCCLiu(geometry, learning, raw_data, nSamples)
+   elseif learning.groundtruth == 'cvlibs' then
+      return generateDataOpticalFlowCVlibs(geometry, learning, raw_data, nSamples)
+   else
+      error('generateDataOpticalFlow: learning.groundtruth must be either liu, cvlibs or cross-correlation')
+   end
 end

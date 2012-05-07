@@ -60,6 +60,7 @@ C_RESULT output_gtk_stage_open( void *cfg, vp_api_io_data_t *in, vp_api_io_data_
 
 C_RESULT output_gtk_stage_transform( void *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
+    exit(0);
   vp_os_mutex_lock(&video_update_lock);
  
   /* Get a reference to the last decoded picture */

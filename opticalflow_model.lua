@@ -5,6 +5,7 @@ require 'SmartReshape'
 require 'common'
 require 'CascadingAddTable'
 require 'OutputExtractor'
+require 'FunctionWrapper'
 require 'inline'
 
 function yx2x(geometry, y, x)
@@ -23,6 +24,8 @@ function x2yx(geometry, x)
 end
 
 function yx2xMulti(geometry, y, x)
+   x = round(x)
+   y = round(y)
    function isIn(size, x)
       return (x >= -math.ceil(size/2)+1) and (x <= math.floor(size/2))
    end
@@ -55,6 +58,7 @@ function yx2xMulti(geometry, y, x)
 	 itarget = d*geometry.maxw + (geometry.maxh-2*d)*d
             + (targety-d-1)*d + targetx-(geometry.maxw-d)
       else
+	 print(x, y)
 	 assert(false)
       end
       itarget = geometry.maxw*geometry.maxh
@@ -330,6 +334,29 @@ function getModelMultiscale(geometry, full_image, prefiltered)
 
    if not prefiltered then
       model:add(nn.JoinTable(1))
+      model:add(nn.FunctionWrapper(function(self)
+				      self.padder = nn.SpatialPadding(0,0,0,0)
+				   end,
+				   function(self, input)
+				      -- doesn't work if the ratios have weird ratios
+				      local r = geometry.ratios[#geometry.ratios]
+				      local targeth = r*math.ceil(input:size(2)/r)
+				      local targetw = r*math.ceil(input:size(3)/r)
+				      self.padder.pad_b = targeth-input:size(2)
+				      self.padder.pad_r = targetw-input:size(3)
+				      if (self.padder.pad_b~=0) or (self.padder.par_r~=0) then
+					 return self.padder:updateOutput(input)
+				      else
+					 return input
+				      end
+				   end,
+				   function(self, input, gradOutput)
+				      if (self.padder.pad_b~=0) or (self.padder.par_r~=0) then
+					 return self.padder:updateGradInput(input, gradOutput)
+				      else
+					 return gradOutput
+				      end
+				   end))
    else
       --todo: this is not smart
       local parallel = nn.ParallelTable()

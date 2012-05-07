@@ -30,7 +30,7 @@ function CascadingAddTable:__init(ratios, trainable, single_beta)
       seq1:add(nn.SmartReshape(-1,{-2,-3}))
       
       local seq2 = nn.Sequential()
-      self.padders[i] = nn.ZeroPadding(0,0,0,0, 2, 3)
+      self.padders[i] = nn.SpatialZeroPadding(0,0,0,0, 2, 3)
       seq2:add(self.padders[i])
       seq2:add(nn.SpatialReSamplingEx{rwidth=self.ratios[i+1]/self.ratios[i],
 				      rheight=self.ratios[i+1]/self.ratios[i],

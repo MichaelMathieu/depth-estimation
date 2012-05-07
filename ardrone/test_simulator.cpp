@@ -27,30 +27,30 @@ void keyboard(int key, bool special, bool down) {
       break;
     case GLUT_KEY_UP:
       //move up
-      if (down) gaz = 1.0f; else gaz = 0.0f;
+      if (down) gaz = 100.0f; else gaz = 0.0f;
       break;
     case GLUT_KEY_DOWN:
       //move down
-      if (down) gaz = -1.0f; else gaz = 0.0f;
+      if (down) gaz = -100.0f; else gaz = 0.0f;
       break;
     }
   } else {
     switch (key) {
     case 'a':
       //move left
-      if (down) roll = -1.0f; else roll = 0.0f;
+      if (down) roll = -100.0f; else roll = 0.0f;
       break;
     case 'd':
       //move right
-      if (down) roll = 1.0f; else roll = 0.0f;
+      if (down) roll = 100.0f; else roll = 0.0f;
       break;
     case 'w':
       //move forward
-      if (down) pitch = 1.0f; else pitch = 0.0f;
+      if (down) pitch = -100.0f; else pitch = 0.0f;
       break;
     case 's':
       //move backward
-      if (down) pitch = -1.0f; else pitch = 0.0f;
+      if (down) pitch = 100.0f; else pitch = 0.0f;
       break;
     case ' ':
       //takeoff/land
@@ -78,6 +78,7 @@ void keyboardUp2(int key, int, int) {
 
 #include "opencv/highgui.h"
 void idle() {
+  /*
   printf("avt next\n");
   pApi->next();
   printf("apres next\n");
@@ -94,8 +95,8 @@ void idle() {
   //glDrawPixels(win_w, win_h, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
   //glutSwapBuffers();
   
-  pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());
-  pMap->newFrame(frameDMap);
+  //pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());
+  //pMap->newFrame(frameDMap);
 
   cv::namedWindow("depth map");
   double m;
@@ -109,6 +110,7 @@ void idle() {
   
   //cout << pMap->toString() << endl;
   //usleep(100000);
+  */
 }
 
 void render() {

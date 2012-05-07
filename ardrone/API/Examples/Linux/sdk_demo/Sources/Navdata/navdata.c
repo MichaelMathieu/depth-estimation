@@ -13,7 +13,7 @@ char navdata_buffer[512];
 /* Initialization local variables before event loop  */
 inline C_RESULT demo_navdata_client_init( void* data )
 {
-  navdata_pipe = open("navdata_pipe", O_WRONLY);
+  //navdata_pipe = open("navdata_pipe", O_WRONLY);
   return C_OK;
 }
 
