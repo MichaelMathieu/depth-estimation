@@ -1,5 +1,6 @@
 #include "simulator.h"
 #include "ardrone_api.h"
+#include "radial_depth_map.h"
 #include "depth_map.h"
 #include <GL/glut.h>
 #include <iostream>
@@ -12,6 +13,7 @@ float dyaw = 0.0f, pitch =0.0f, roll = 0.0f, gaz = 0.0f;
 bool flying = false;
 DroneAPI* pApi = NULL;
 GLuint map_texture;
+//RadialDepthMap* pMap = NULL;
 DepthMap* pMap = NULL;
 
 void keyboard(int key, bool special, bool down) {
@@ -118,16 +120,17 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  //SimulatedAPI api(320, 240);
-  ARdroneAPI api("control_pipe", "navdata_pipe");
+  SimulatedAPI api(320, 240);
+  //ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
-  DepthMap map(32, 64, 60, 1.0f, 320);
+  //RadialDepthMap map(512, 100, 1.0f, 320);
+  DepthMap map(64, 64, 60, 1.0f, 320);
   pMap = &map;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);
   glutInitWindowSize(win_w, win_h);
   glutInitDisplayMode(GLUT_LUMINANCE | GLUT_DOUBLE);
-  main_window_id = glutCreateWindow("depth");
+  main_window_id = glutCreateWindow("depth map");
   glutIdleFunc(idle);
   glutDisplayFunc(render);
   glutKeyboardFunc(keyboardDown1);

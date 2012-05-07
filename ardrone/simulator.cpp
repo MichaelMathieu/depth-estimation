@@ -14,7 +14,10 @@ SimulatedAPI::SimulatedAPI(int depthMapWidth, int depthMapHeight)
    dmH(depthMapHeight), dmW(depthMapWidth),
    alpha_friction(0.5f), focal_length(depthMapWidth),
    obstacles() {
-  obstacles.push_back(Obstacle(10,0,0, 1.0f));
+  for (int i=0; i< 50; ++i) {
+    obstacles.push_back(Obstacle(10*(i+1), 5, 0, 1.0f));
+    obstacles.push_back(Obstacle(10*(i+1), -5, 0, 1.0f));
+  }
 }
 
 SimulatedAPI::~SimulatedAPI() {
@@ -49,15 +52,15 @@ matf SimulatedAPI::getDepthMap() const {
     float D = pray.dot(v);
     if (D <= epsilon) // the point is behind
       continue;
-    cout <<  pray << endl;
+    //cout <<  pray << endl;
     float k = focal_length / D;
     float a = k * npray.dot(v);
     float b = k * up.dot(v);
     float D2 = norm(v);
     float k2 = focal_length / D2;
     float r = k2 * radius;
-    printf("Map\n");
-    printf("%f %f %f %f\n", r, radius, k2, D2);
+    //printf("Map\n");
+    //printf("%f %f %f %f\n", r, radius, k2, D2);
     for (int ii = max(0,round2(a+hw-r)); ii < min(dmW, round2(a+hw+r)); ++ii)
       for (int jj = max(0, round2(b+hh-r)); jj < min(dmH, round2(b+hh+r)); ++jj)
         if (D2 < map(jj, ii))
@@ -72,9 +75,9 @@ matf SimulatedAPI::getIMUTranslation() const {
   matf up = getUp();
   matf v = dx * delta_t;
   matf ret(3,1);
-  ret(0,0) = v.dot(pray) + randn();
-  ret(1,0) = v.dot(npray) + randn();
-  ret(2,0) = v.dot(up) + randn();
+  ret(0,0) = v.dot(pray);// + randn(0, 0.2);
+  ret(1,0) = v.dot(npray);// + randn(0, 0.2);
+  ret(2,0) = v.dot(up);// + randn(0, 0.2);
   return ret;
 }
 
@@ -84,9 +87,9 @@ matf SimulatedAPI::getVisualOdometryTranslation() const {
   matf up = getUp();
   matf v = dx * delta_t;
   matf ret(3,1);
-  ret(0,0) = v.dot(pray) + randn();
-  ret(1,0) = v.dot(npray) + randn();
-  ret(2,0) = v.dot(up) + randn();
+  ret(0,0) = v.dot(pray);// + randn(0, 0.1);
+  ret(1,0) = v.dot(npray);// + randn(0, 0.1);
+  ret(2,0) = v.dot(up);// + randn(0, 0.1);
   return ret;
 }
 

@@ -68,7 +68,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    local net = nn.SpatialMatching(maxh, maxw, false)
    local output = net:forward({input1b, input2b})
    output = -output
-   output = output:reshape(maxh*maxw, output:size(3), output:size(4))
+   output = output:reshape(output:size(3), output:size(4), maxh*maxw)
    local output2 = processOutput(geometryGT, output, true)
    return output2.full[1], output2.full[2]
 end
@@ -122,6 +122,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
    local flowdir = dirbasename .. 'flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    local flowfilename
    local flow = nil
+   
    if groundtruth == 'liu' then
       flowdir = flowdir .. '/celiu'
       os.execute('mkdir -p ' .. flowdir)
@@ -139,7 +140,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
          print("Flow " .. flowfilename .. " not found.")
          return nil
       end
-
+      
    elseif groundtruth == 'cross-correlation' then
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
       flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
@@ -148,8 +149,8 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       if paths.filep(flowfilename) then
          flow = torch.load(flowfilename)
          if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
-       flow = nil
-       print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
+	    flow = nil
+	    print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
          end
       end
       if not flow then
@@ -211,10 +212,10 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
    if not flow then
       local previmagepath = dirbasename .. 'images/' .. previmagebasename .. '.jpg'
       print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
-         if not paths.filep(previmagepath) then
-       print("Image " .. previmagepath .. " not found.")
-       return nil
-    end
+      if not paths.filep(previmagepath) then
+	 print("Image " .. previmagepath .. " not found.")
+	 return nil
+      end
       local previmage = image.scale(image.load(previmagepath), geometry.wImg, geometry.hImg)
       local yflow, xflow = getOpticalFlowFast(geometry, previmage, im_rect)
       flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
