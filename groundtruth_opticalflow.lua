@@ -72,7 +72,6 @@ function getOpticalFlowFast(geometry, image1, image2)
    local net = nn.SpatialMatching(maxh, maxw, false)
    local output = net:forward({input1b, input2b})
    output = -output
-   print(output:size())
    output = output:reshape(output:size(1), output:size(2), maxh*maxw)
    local output2 = processOutput(geometryGT, output, true)
    return output2.full[1], output2.full[2]
@@ -293,7 +292,6 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
       flow[1]:copy(yflow)
       flow[2]:copy(xflow)
       torch.save(flowfilename, flow)
-      print("ok")
    end
 
    return last_im, warped_im, im, flow
