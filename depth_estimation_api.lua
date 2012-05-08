@@ -43,7 +43,7 @@ Khalf[3][3] = 1.0
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-cam:init(geometry, 'data2/ardrone1', 1, 1)
+cam:init(geometry, 'data2/ardrone1', 10, 1)
 
 local last_filtered = nil
 local last_im = cam:getNextFrame()
@@ -58,10 +58,10 @@ function nextFrameDepth()
    im = sfm2.undistortImage(im, K, distP)
    local R,T = sfm2.getEgoMotion(last_im, im, Kf, 400)
    im_scaled = image.scale(im, geometry.wImg, geometry.hImg)
-   last_filtered = sfm2.removeEgoMotion(last_filtered, Khalf, R)
+   last_filtered, mask = sfm2.removeEgoMotion(last_filtered, Khalf, R)
 
    dbg_last_im = last_im_scaled
-   dbg_last_warped = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
+   dbg_last_warped, mask = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
    
    local filtered = filter:forward(im_scaled)
    
