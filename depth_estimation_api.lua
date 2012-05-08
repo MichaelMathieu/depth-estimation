@@ -8,6 +8,7 @@ require 'openmp'
 require 'image_camera'
 require 'image_loader'
 require 'sfm2'
+require 'inline'
 
 openmp.setDefaultNumThreads(2)
 
@@ -53,6 +54,64 @@ last_filtered = filter:forward(last_im_scaled):clone()
 
 collectgarbage('stop')
 
+function enlargeMask(mask, ix, iy)
+   local f = inline.load [[
+	 #define min(a,b) (((a)<(b))?(a):(b))
+	 #define max(a,b) (((a)>(b))?(a):(b))
+	 const void* iddouble = luaT_checktypename2id(L, "torch.DoubleTensor");
+	 THDoubleTensor* mask = (THDoubleTensor*)luaT_checkudata(L, 1, iddouble);
+	 int ix = lua_tonumber(L, 2);
+	 int iy = lua_tonumber(L, 3);
+	 
+	 int h = mask->size[0];
+	 int w = mask->size[1];
+	 double* mask_p = THDoubleTensor_data(mask);
+	 long* ms = mask->stride;
+	 
+	 int i, j, k;
+	 for (i = 0; i < h; ++i) {
+	    for (j = 0; j < w; ++j) {
+	       if (mask_p[ms[0]*i + ms[1]*j] > 0.5) {
+		  for (k = j; k < min(j+ix, w); ++k) {
+		     mask_p[ms[0]*i + ms[1]*k] = 0.0;
+		  }
+		  break;
+	       }
+	    }
+	    for (j = w-1; j >= 0; j -= 1) {
+	       if (mask_p[ms[0]*i + ms[1]*j] > 0.5) {
+		  for (k = j; k >= max(j-ix+1, 0); k -= 1) {
+		     mask_p[ms[0]*i + ms[1]*k] = 0.0;
+		  }
+		  break;
+	       }
+	    }
+	 }
+	 for (j = 0; j < w; ++j) {
+	    for (i = 0; i < h; ++i) {
+	       if (mask_p[ms[0]*i + ms[1]*j] > 0.5) {
+		  for (k = i; k < min(i+iy, h); ++k) {
+		     mask_p[ms[0]*k + ms[1]*j] = 0.0;
+		  }
+		  break;
+	       }
+	    }
+	    for (i = h-1; i >= 0; i -= 1) {
+	       if (mask_p[ms[0]*i + ms[1]*j] > 0.5) {
+		  for (k = i; k >= max(i-iy+1, 0); k -= 1) {
+		     mask_p[ms[0]*k + ms[1]*j] = 0.0;
+		  }
+		  break;
+	       }
+	    }
+	 }
+	 #undef min
+	 #undef max
+   ]]
+   f(mask, ix, iy)
+   return mask
+end
+
 function nextFrameDepth()
    local im = cam:getNextFrame()
    im = sfm2.undistortImage(im, K, distP)
@@ -70,8 +129,13 @@ function nextFrameDepth()
    
    local input = prepareInput(geometry, last_filtered, filtered)
    local moutput = model:forward(input)
-   output = processOutput(geometry, moutput, true).full
+   local poutput = processOutput(geometry, moutput, true)
+   local output = poutput.full
+   enlargeMask(mask,
+	       math.ceil((geometry.wImg-poutput.y:size(2))/2),
+	       math.ceil((geometry.hImg-poutput.y:size(1))/2))
    output = output[1]*10.
+   output:cmul(mask)
    output = torch.FloatTensor():resize(output:size()):copy(output)
 
 
