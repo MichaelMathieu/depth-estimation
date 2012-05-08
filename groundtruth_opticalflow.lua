@@ -7,6 +7,7 @@ require 'common'
 require 'opencv'
 require 'opticalflow_model'
 require 'motion_correction'
+require 'sfm2'
 
 function findMax(geometry, of)
    local maxs, imax = of:reshape(of:size(1)*of:size(2), of:size(3),of:size(4)):max(1)
@@ -37,13 +38,16 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.maxhGT = geometry.maxhGT
    geometryGT.hKernel = geometry.hKernelGT
    geometryGT.wKernel = geometry.wKernelGT
+   geometryGT.layers = geometry.layers
    geometryGT.multiscale = false
    geometryGT.training_mode = true
    
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
    local nfeats = geometry.hKernelGT*geometry.wKernelGT*image1:size(1)
-   local input = prepareInput(geometryGT, image1, image2)
+   local input = prepareInput(geometryGT,
+			      image.scale(image1, geometry.wImg, geometry.hImg),
+			      image.scale(image2, geometry.wImg, geometry.hImg))
 
    local input1 = input[1]:unfold(2, geometry.hKernelGT, 1):unfold(3, geometry.wKernelGT, 1)
    local h1 = input1:size(2)
@@ -64,7 +68,7 @@ function getOpticalFlowFast(geometry, image1, image2)
 	 input2b:select(2,i):select(2,j):copy(input2:select(2,i):select(2,j):reshape(nfeats))
       end
    end
-
+   
    local net = nn.SpatialMatching(maxh, maxw, false)
    local output = net:forward({input1b, input2b})
    output = -output
@@ -210,6 +214,8 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
       end
    end
 
+   --TODO there is an error here: the corrected image should be the FIRST one
+   error("cf code")
    if not flow then
       local previmagepath = dirbasename .. 'images/' .. previmagebasename .. '.jpg'
       print('Computing groundtruth optical flow for images '..imagepath..' and '..previmagepath)
@@ -229,7 +235,71 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
 end
 
-function loadDataOpticalFlowCCLiu(geometry, learning, dirbasename)
+function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasename,
+					imagebasename, previmagebasename, delta)
+   if learning.groundtruth ~= 'cross-correlation' then
+      error('loadRectifiedImageOpticalFlow2: groundtruth must be cross-correlation')
+   end
+   local ext = '.jpg'
+   local impath = dirbasename .. 'images/' .. imagebasename .. ext
+   if not paths.filep(impath) then
+      ext = '.png'
+      impath = dirbasename .. 'images/' .. imagebasename .. ext
+      if not paths.filep(impath) then
+	 print("Image " .. impath .. " not found.")
+	 return nil
+      end
+   end
+
+   local im = image.scale(image.load(impath), correction.wImg, correction.hImg)
+   im = sfm2.undistortImage(im, correction.K, correction.distP)
+   if not previmagebasename then
+      return image.scale(im, geoemtry.wImg, geometry.hImg)
+   end
+
+   local previmpath = dirbasename .. 'images/' .. previmagebasename .. ext
+   if not paths.filep(previmpath) then
+      print("Image " .. previmpath .. " not found.")
+      return nil
+   end
+   local prev_im = image.scale(image.load(previmpath), correction.wImg, correction.hImg)
+   prev_im = sfm2.undistortImage(prev_im, correction.K, correction.distP)
+   
+   local R, T = sfm2.getEgoMotion{im1=prev_im, im2=im, K=correction.K, maxPoints=500}
+   local warped_im = sfm2.removeEgoMotion(prev_im, correction.K, R)
+
+   im = image.scale(im, geometry.wImg, geometry.hImg)
+   prev_im = image.scale(prev_im, geometry.wImg, geometry.hImg)
+   warped_im = image.scale(warped_im, geometry.wImg, geometry.hImg)
+   
+   local flowdir = dirbasename .. 'rectified_flow2/' .. geometry.wImg .. 'x' .. geometry.hImg
+   flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. 'x'
+   flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/' .. delta
+   sys.execute('mkdir -p ' .. flowdir)
+   local flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
+   local flow = nil
+   if paths.filep(flowfilename) then
+      flow = torch.load(flowfilename)
+      if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
+         flow = nil
+         print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
+      end
+   end
+
+   if not flow then
+      print('Computing groundtruth optical flow for images '..impath..' and '..previmpath)
+      local yflow, xflow = getOpticalFlowFast(geometry, warped_im, im)
+      flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
+      flow[1]:copy(yflow)
+      flow[2]:copy(xflow)
+      torch.save(flowfilename, flow)
+      print("ok")
+   end
+
+   return last_im, warped_im, im, flow
+end
+
+function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
    local imagesdir = dirbasename .. 'images'
    raw_data = {}
    raw_data.images = {}
@@ -249,12 +319,14 @@ function loadDataOpticalFlowCCLiu(geometry, learning, dirbasename)
       iLine = iLine + learning.delta
    end
 
-   if geometry.motion_correction then
+   if correction.motion_correction == 'mc' then
       raw_data.rectified_images = {}
       raw_data.H = {}
 
       file = torch.DiskFile(dirbasename .. 'rectified_data_H', 'r')
       raw_data.H = file:readObject()
+   elseif correction.motion_correction == 'sfm' then
+      raw_data.warped_images = {}
    end
 
    local im = loadImageOpticalFlow(geometry, dirbasename, imagepaths[1], nil, nil)
@@ -265,7 +337,14 @@ function loadDataOpticalFlowCCLiu(geometry, learning, dirbasename)
    end
 
    for i = 2,math.min(#imagepaths, learning.num_images) do
-      if geometry.motion_correction then
+      if correction.motion_correction == 'sfm' then
+	 local last_im, warped_im, im, flow = loadRectifiedImageOpticalFlow2(
+	    correction, geometry, learning, dirbasename, imagepaths[i],
+	    imagepaths[i-1], learning.delta)
+         raw_data.images       [i]   = im
+         raw_data.flow         [i-1] = flow
+         raw_data.warped_images[i-1] = warped_im
+      elseif correction.motion_correction then
          local im, flow, im_rect = loadRectifiedImageOpticalFlow(
 	    geometry, dirbasename, imagepaths[i], imagepaths[i-1],
 	    learning.delta, learning.groundtruth)
@@ -296,9 +375,9 @@ function loadDataOpticalFlowCVlibs(geometry, learning, dirbasename)
    return ret
 end
 
-function loadDataOpticalFlow(geometry, learning, dirbasename)
+function loadDataOpticalFlow(correction, geometry, learning, dirbasename)
    if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') then
-      return loadDataOpticalFlowCCLiu(geometry, learning, dirbasename)
+      return loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
    elseif learning.groundtruth == 'cvlibs' then
       return loadDataOpticalFlowCVlibs(geometry, learning, dirbasename)
    else
@@ -352,7 +431,7 @@ function check_borders(index, xPatch, yPatch, geometry)
    return true
 end
 
-function generateDataOpticalFlowCCLiu(geometry, learning, raw_data, nSamples)
+function generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, nSamples)
    local dataset = {}
    dataset.raw_data = raw_data
    dataset.patches = torch.Tensor(nSamples, 6)
@@ -362,11 +441,15 @@ function generateDataOpticalFlowCCLiu(geometry, learning, raw_data, nSamples)
    end
    setmetatable(dataset, {__index = function(self, index)
 				       local coords = self.patches[index]
-				       local image1 = self.raw_data.images[coords[1]]
-				       local image2
-				       if geometry.motion_correction then
+				       local image1, image2
+				       if geometry.motion_correction == 'sfm' then
+					  image1 = self.raw_data.warped_images[coords[1]]
+					  image2 = self.raw_data.images[coords[2]]
+				       elseif geometry.motion_correction == 'mc' then
+					  image1 = self.raw_data.images[coords[1]]
 					  image2 = self.raw_data.rectified_images[coords[1]]
 				       else
+					  image1 = self.raw_data.images[coords[1]]
 					  image2 = self.raw_data.images[coords[2]]
 				       end
 				       local patch1 = image1:sub(1, image1:size(1),
@@ -407,7 +490,7 @@ function generateDataOpticalFlowCCLiu(geometry, learning, raw_data, nSamples)
       dataset.targets[iSample][1] = yFlow
       dataset.targets[iSample][2] = xFlow
       
-      if geometry.motion_correction then
+      if geometry.motion_correction == 'mc' then
 	 if check_borders(iImg, xPatch, yPatch, geometry) then
 	    iSample = iSample+1
 	 end
@@ -482,9 +565,9 @@ function generateDataOpticalFlowCVlibs(geometry, learning, raw_data, nSamples)
    return dataset   
 end
 
-function generateDataOpticalFlow(geometry, learning, raw_data, nSamples)
+function generateDataOpticalFlow(correction, geometry, learning, raw_data, nSamples)
    if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') then
-      return generateDataOpticalFlowCCLiu(geometry, learning, raw_data, nSamples)
+      return generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, nSamples)
    elseif learning.groundtruth == 'cvlibs' then
       return generateDataOpticalFlowCVlibs(geometry, learning, raw_data, nSamples)
    else

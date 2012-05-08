@@ -5,7 +5,6 @@ require 'SmartReshape'
 require 'common'
 require 'CascadingAddTable'
 require 'OutputExtractor'
-require 'FunctionWrapper'
 require 'inline'
 
 function yx2x(geometry, y, x)
@@ -477,10 +476,14 @@ end
 
 function prepareInput(geometry, patch1, patch2)
    assert(sameSize(patch1, patch2))
-   if (geometry.layers[1][1] == 1) and (patch1:size(1) == 3) then
-      patch1 = image.rgb2y(patch1, patch2)
+   if geometry.prefilter then
+      assert(patch1:size(1) == geometry.layers[#geometry.layers][4])
+   else
+      if (geometry.layers[1][1] == 1) and (patch1:size(1) == 3) then
+	 patch1 = image.rgb2y(patch1, patch2)
+      end
+      assert(patch1:size(1) == geometry.layers[1][1])
    end
-   assert(patch1:size(1) == geometry.layers[1][1])
    if geometry.multiscale then
       return {patch1, patch2}
    else
