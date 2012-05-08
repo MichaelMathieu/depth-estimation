@@ -56,7 +56,10 @@ collectgarbage('stop')
 function nextFrameDepth()
    local im = cam:getNextFrame()
    im = sfm2.undistortImage(im, K, distP)
-   local R,T = sfm2.getEgoMotion(last_im, im, Kf, 400)
+   local R,T,nFound,nInliers = sfm2.getEgoMotion(last_im, im, Kf, 400)
+   if (nInliers/nFound < 0.2) then
+      print("BAD IMAGE !!! " .. nInliers .. " " .. nFound .. " " .. nInliers/nFound)
+   end
    im_scaled = image.scale(im, geometry.wImg, geometry.hImg)
    last_filtered, mask = sfm2.removeEgoMotion(last_filtered, Khalf, R)
 

@@ -265,7 +265,12 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    local prev_im = image.scale(image.load(previmpath), correction.wImg, correction.hImg)
    prev_im = sfm2.undistortImage(prev_im, correction.K, correction.distP)
    
-   local R, T = sfm2.getEgoMotion{im1=prev_im, im2=im, K=correction.K, maxPoints=500}
+   local R, T, nFound, nInliers = sfm2.getEgoMotion{im1=prev_im, im2=im,
+						    K=correction.K, maxPoints=500}
+   if nInliers/nFound < 0.2 then -- bad image
+      print('Image ' .. impath .. ' seems to be bad. Skipping...')
+      return nil, nil, nil, im, nil
+   end
    local warped_im, warped_mask = sfm2.removeEgoMotion(prev_im, correction.K, R)
 
    im = image.scale(im, geometry.wImg, geometry.hImg)
@@ -475,41 +480,43 @@ function generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, 
    while iSample <= nSamples do
       --modProgress(iSample, nSamples, 100)
       local iImg = randInt(2, #raw_data.images+1)
+      if raw_data.flow[iImg-1] then
+	 
+	 local yPatch = randInt(1, geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
+	 local xPatch = randInt(1, geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
+	 
+	 local yCenter = yPatch+hoffset
+	 local xCenter = xPatch+woffset
+	 
+	 local yFlow = raw_data.flow[iImg-1][1][yCenter][xCenter]
+	 local xFlow = raw_data.flow[iImg-1][2][yCenter][xCenter]
+	 
+	 dataset.patches[iSample][1] = iImg-1
+	 dataset.patches[iSample][2] = iImg
+	 dataset.patches[iSample][3] = yPatch
+	 dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
+	 dataset.patches[iSample][5] = xPatch
+	 dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+	 
+	 dataset.targets[iSample][1] = yFlow
+	 dataset.targets[iSample][2] = xFlow
       
-      local yPatch = randInt(1, geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
-      local xPatch = randInt(1, geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
-
-      local yCenter = yPatch+hoffset
-      local xCenter = xPatch+woffset
-      
-      local yFlow = raw_data.flow[iImg-1][1][yCenter][xCenter]
-      local xFlow = raw_data.flow[iImg-1][2][yCenter][xCenter]
-      
-      dataset.patches[iSample][1] = iImg-1
-      dataset.patches[iSample][2] = iImg
-      dataset.patches[iSample][3] = yPatch
-      dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
-      dataset.patches[iSample][5] = xPatch
-      dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
-      
-      dataset.targets[iSample][1] = yFlow
-      dataset.targets[iSample][2] = xFlow
-      
-      if geometry.motion_correction == 'mc' then
-	 if check_borders(iImg, xPatch, yPatch, geometry) then
+	 if geometry.motion_correction == 'mc' then
+	    if check_borders(iImg, xPatch, yPatch, geometry) then
+	       iSample = iSample+1
+	    end
+	 elseif geometry.motion_correction == 'sfm' then
+	    local hk = math.ceil(geometry.hKernel/2)
+	    local wk = math.ceil(geometry.wKernel/2)
+	    if (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter-wk] > 0.5) and
+	       (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter-wk] > 0.5) and
+	       (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter+wk] > 0.5) and
+	       (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter+wk] > 0.5) then
+	       iSample = iSample+1
+	    end
+	 else
 	    iSample = iSample+1
 	 end
-      elseif geometry.motion_correction == 'sfm' then
-	 local hk = math.ceil(geometry.hKernel/2)
-	 local wk = math.ceil(geometry.wKernel/2)
-	 if (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter-wk] > 0.5) and
-	    (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter-wk] > 0.5) and
-	    (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter+wk] > 0.5) and
-	    (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter+wk] > 0.5) then
-	    iSample = iSample+1
-	 end
-      else
-	 iSample = iSample+1
       end
    end
 
