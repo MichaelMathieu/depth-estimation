@@ -266,7 +266,7 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    prev_im = sfm2.undistortImage(prev_im, correction.K, correction.distP)
    
    local R, T = sfm2.getEgoMotion{im1=prev_im, im2=im, K=correction.K, maxPoints=500}
-   local warped_im = sfm2.removeEgoMotion(prev_im, correction.K, R)
+   local warped_im, warped_mask = sfm2.removeEgoMotion(prev_im, correction.K, R)
 
    im = image.scale(im, geometry.wImg, geometry.hImg)
    prev_im = image.scale(prev_im, geometry.wImg, geometry.hImg)
@@ -296,7 +296,7 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
       print("ok")
    end
 
-   return last_im, warped_im, im, flow
+   return last_im, warped_im, warped_mask, im, flow
 end
 
 function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
@@ -327,6 +327,7 @@ function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
       raw_data.H = file:readObject()
    elseif correction.motion_correction == 'sfm' then
       raw_data.warped_images = {}
+      raw_data.warped_masks = {}
    end
 
    local im = loadImageOpticalFlow(geometry, dirbasename, imagepaths[1], nil, nil)
@@ -338,12 +339,13 @@ function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
 
    for i = 2,math.min(#imagepaths, learning.num_images) do
       if correction.motion_correction == 'sfm' then
-	 local last_im, warped_im, im, flow = loadRectifiedImageOpticalFlow2(
+	 local last_im, warped_im, warped_mask, im, flow = loadRectifiedImageOpticalFlow2(
 	    correction, geometry, learning, dirbasename, imagepaths[i],
 	    imagepaths[i-1], learning.delta)
          raw_data.images       [i]   = im
          raw_data.flow         [i-1] = flow
          raw_data.warped_images[i-1] = warped_im
+         raw_data.warped_masks [i-1] = warped_mask
       elseif correction.motion_correction then
          local im, flow, im_rect = loadRectifiedImageOpticalFlow(
 	    geometry, dirbasename, imagepaths[i], imagepaths[i-1],
@@ -476,9 +478,12 @@ function generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, 
       
       local yPatch = randInt(1, geometry.hImg-geometry.maxhGT-geometry.hKernelGT-1)
       local xPatch = randInt(1, geometry.wImg-geometry.maxwGT-geometry.wKernelGT-1)
+
+      local yCenter = yPatch+hoffset
+      local xCenter = xPatch+woffset
       
-      local yFlow = raw_data.flow[iImg-1][1][yPatch+hoffset][xPatch+woffset]
-      local xFlow = raw_data.flow[iImg-1][2][yPatch+hoffset][xPatch+woffset]
+      local yFlow = raw_data.flow[iImg-1][1][yCenter][xCenter]
+      local xFlow = raw_data.flow[iImg-1][2][yCenter][xCenter]
       
       dataset.patches[iSample][1] = iImg-1
       dataset.patches[iSample][2] = iImg
@@ -492,6 +497,15 @@ function generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, 
       
       if geometry.motion_correction == 'mc' then
 	 if check_borders(iImg, xPatch, yPatch, geometry) then
+	    iSample = iSample+1
+	 end
+      elseif geometry.motion_correction == 'sfm' then
+	 local hk = math.ceil(geometry.hKernel/2)
+	 local wk = math.ceil(geometry.wKernel/2)
+	 if (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter-wk] > 0.5) and
+	    (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter-wk] > 0.5) and
+	    (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter+wk] > 0.5) and
+	    (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter+wk] > 0.5) then
 	    iSample = iSample+1
 	 end
       else
