@@ -17,6 +17,7 @@ local camera_idx = 1
 
 local loaded = loadModel(input_model, true, true)
 local model = loaded.model
+model.modules[4] = nn.SoftMax()
 local filter = loaded.filter
 local geometry = loaded.geometry
 geometry.prefilter = true
@@ -44,7 +45,7 @@ Khalf[3][3] = 1.0
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-cam:init(geometry, 'data2/ardrone1', 10, 1)
+cam:init(geometry, 'data2/ardrone1', 1, 1)
 
 local last_filtered = nil
 local last_im = cam:getNextFrame()
@@ -116,28 +117,39 @@ function nextFrameDepth()
    local im = cam:getNextFrame()
    im = sfm2.undistortImage(im, K, distP)
    local R,T,nFound,nInliers = sfm2.getEgoMotion(last_im, im, Kf, 400)
-   if (nInliers/nFound < 0.2) then
-      print("BAD IMAGE !!! " .. nInliers .. " " .. nFound .. " " .. nInliers/nFound)
-   end
+   print(T/T:norm())
    im_scaled = image.scale(im, geometry.wImg, geometry.hImg)
+   --these 2 lines have to stay in this order, or filtered has to be cloned another way
    last_filtered, mask = sfm2.removeEgoMotion(last_filtered, Khalf, R)
+   local filtered = filter:forward(im_scaled)
 
    dbg_last_im = last_im_scaled
-   dbg_last_warped, mask = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
-   
-   local filtered = filter:forward(im_scaled)
-   
-   local input = prepareInput(geometry, last_filtered, filtered)
-   local moutput = model:forward(input)
-   local poutput = processOutput(geometry, moutput, true)
-   local output = poutput.full
-   enlargeMask(mask,
-	       math.ceil((geometry.wImg-poutput.y:size(2))/2),
-	       math.ceil((geometry.hImg-poutput.y:size(1))/2))
-   output = output[1]*10.
-   output:cmul(mask)
-   output = torch.FloatTensor():resize(output:size()):copy(output)
+   dbg_last_warped, dbg_mask = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
 
+   local output
+   if (nInliers/nFound < 0.2) then
+      print("BAD IMAGE !!! " .. nInliers .. " " .. nFound .. " " .. nInliers/nFound)
+      mask = torch.Tensor(im[1]:size()):zero()
+      output = torch.Tensor(im[1]:size()):zero()
+   else
+      local input = prepareInput(geometry, last_filtered, filtered)
+      local moutput = model:forward(input)
+      local poutput = processOutput(geometry, moutput, true)
+      output = poutput.full
+      enlargeMask(mask,
+		  math.ceil((geometry.wImg-poutput.y:size(2))/2),
+		  math.ceil((geometry.hImg-poutput.y:size(1))/2))
+      output = output[1]
+      
+      local mask2 = torch.Tensor(geometry.hImg, geometry.wImg):zero()
+      mask2:narrow(
+	 1, math.floor((geometry.hImg-mask:size(1))/2), mask:size(1)):narrow(
+	 2, math.floor((geometry.wImg-mask:size(2))/2), mask:size(2)):copy(mask)
+      mask = mask2
+      
+      mask:cmul(poutput.full_confidences)
+      output:cmul(mask)
+   end
 
    last_im = im
    last_im_scaled = im_scaled
@@ -146,5 +158,5 @@ function nextFrameDepth()
    --output = torch.FloatTensor():resize(im:size(2), im:size(3)):copy(im[1])*100
    output = output:contiguous()
    --im2 = torch.FloatTensor(warped_im[1]:size()):copy(warped_im[1])
-   return im_scaled, dbg_last_im, dbg_last_warped, output
+   return im_scaled, dbg_last_im, dbg_last_warped, output, mask
 end

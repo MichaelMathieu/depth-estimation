@@ -266,7 +266,7 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    
    local R, T, nFound, nInliers = sfm2.getEgoMotion{im1=prev_im, im2=im,
 						    K=correction.K, maxPoints=500}
-   if nInliers/nFound < 0.2 then -- bad image
+   if nInliers/nFound < correction.bad_image_threshold then -- bad image
       print('Image ' .. impath .. ' seems to be bad. Skipping...')
       return nil, nil, nil, im, nil
    end

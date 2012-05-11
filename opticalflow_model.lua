@@ -6,6 +6,7 @@ require 'common'
 require 'CascadingAddTable'
 require 'OutputExtractor'
 require 'inline'
+require 'extractoutput'
 
 function yx2x(geometry, y, x)
    return (y-1) * geometry.maxwGT + x
@@ -256,10 +257,11 @@ function getModel(geometry, full_image, prefiltered)
 
    --model:add(nn.SmartReshape({-1,-2},-3))
    model:add(nn.Minus())
-   model:add(nn.LogSoftMax())
    if geometry.training_mode then
+      model:add(nn.LogSoftMax())
       model:add(nn.SmartReshape(1,1,-2))
    else
+      model:add(nn.SoftMax())
       model:add(nn.SmartReshape(geometry.hImg-geometry.hPatch2+1,
 				geometry.wImg-geometry.wPatch2+1,-2))
    end
@@ -498,26 +500,47 @@ end
 
 function getOutputConfidences(geometry, input)
    --[[
-   local entropy = torch.Tensor(input[1]:size()):zero()
-   local tmp = torch.Tensor(input[1]:size())
-   print(input:size(1))
-   for i = 1,input:size(1) do
-      tmp:copy(input[1]:lt(1e-20):mul(1e-20)):add(input[1])
-      tmp:log():cmul(input[i])
+   local entropy = torch.Tensor(input:size(1), input:size(2)):zero()
+   local tmp = torch.Tensor(entropy:size())
+   for i = 1,input:size(3) do
+      tmp:copy(input[{{},{},{i}}]:lt(1e-20):mul(1e-20)):add(-input[{{},{},{i}}])
+      tmp:log():cmul(-input[{{},{},{i}}])
       entropy:add(tmp)
    end
-   image.display(entropy:gt(25000))
+   --print(input[{{30,40},{30,40},{1}}])
+   wine = image.display{image=entropy,win=wine}--:gt(25000))
    --]]
+   --[[
+   local t = torch.Timer()
+   local Ex  = input:sum(3):select(3,1):mul(1.0/input:size(3))
+   local Exx = torch.Tensor(input:size()):copy(input):cmul(input):sum(3):select(3,1):mul(1.0/input:size(3))
+   local variance = Exx - Ex:cmul(Ex)
+   wine = image.display{image=variance:gt(100),win=wine}
+   print(t:time()['real'])
+   --]]
+
+   local t = torch.Timer()
+   local imaxs = torch.LongTensor(input:size(1), input:size(2))
+   local gds   = torch.LongTensor(input:size(1), input:size(2))
+   extractoutput.extractOutput(input, 0.25, 0.33, imaxs, gds)
+   print(t:time()['real'])
+   return imaxs, gds
+   --[[
+   t = torch.Timer()
    local m, indices = input:max(3)
    m = m:select(3,1)
    indices = indices:select(3,1)
+   confidences = m:gt(-1)
+   --wine = image.display{image=m:gt(-1), win=wine}
    local h = m:size(1)
    local w = m:size(2)
    local middleIndex = getMiddleIndex(geometry)
    local flatPixels = torch.LongTensor(h, w):copy(m:eq(input:select(3,middleIndex)))
    local indices = flatPixels * middleIndex + (-flatPixels+1):cmul(indices:reshape(h, w))
-   local confidences = torch.Tensor(indices:size()):fill(1)
+   --local confidences = torch.Tensor(indices:size()):fill(1)
+   print(t:time()['real'])
    return indices, confidences
+   --]]
 end
 
 function processOutput(geometry, output, process_full)
@@ -531,7 +554,7 @@ function processOutput(geometry, output, process_full)
       local flatPixels = torch.LongTensor(m:size(1), m:size(2)):copy(m:eq(output[{{},{},middleIndex}]))
       ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(1), ret.index:size(2)))
    else
-      ret.index, confidences = getOutputConfidences(geometry, output)
+      ret.index, ret.confidences = getOutputConfidences(geometry, output)
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then
@@ -561,6 +584,12 @@ function processOutput(geometry, output, process_full)
 	 ret.full:sub(2, 2,
 		      1 + hoffset, ret.x:size(1) + hoffset,
 		      1 + woffset, ret.x:size(2) + woffset):copy(ret.x)
+	 if ret.confidences then
+	    ret.full_confidences = torch.Tensor(geometry.hImg, geometry.wImg):zero()
+	    ret.full_confidences:sub(1 + hoffset, ret.y:size(1) + hoffset,
+				     1 + woffset, ret.y:size(2) + woffset):copy(
+	       ret.confidences)
+	 end
       end
    end
    return ret

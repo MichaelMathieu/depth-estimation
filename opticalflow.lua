@@ -114,6 +114,7 @@ local correction = {}
 correction.motion_correction = opt.motion_correction
 correction.wImg = 640
 correction.hImg = 480
+correction.bad_image_threshold = 0.2
 correction.K = torch.FloatTensor(3,3):zero()
 correction.K[1][1] = 293.824707
 correction.K[2][2] = 310.435730
