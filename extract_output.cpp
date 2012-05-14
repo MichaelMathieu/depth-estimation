@@ -1,19 +1,21 @@
 #include<cmath>
+#include<iostream>
 #include<cassert>
 extern "C" {
 #include<luaT.h>
 #include<TH/TH.h>
 }
+using namespace std;
 
 // sorting network-based sort
 template<typename T> inline void sortswap(T* a, T* b, long incr) {
-  if (*b < *a) {
+  if (*b > *a) {
     T tmp = *b;
     *b = *a;
     *a = tmp;
     tmp = *(b+incr);
     *(b+incr) = *(a+incr);
-    *(b+incr) = tmp;
+    *(a+incr) = tmp;
   }
 }
 template<typename T> inline void sort4(T* a, long incr) {
@@ -34,6 +36,7 @@ static int ExtractOutput(lua_State *L) {
   THLongTensor*   ret           = (THLongTensor*)luaT_checkudata(L, 4, idlong  );
   THLongTensor*   retgd         = (THLongTensor*)luaT_checkudata(L, 5, idlong  );
 
+  //THLongTensor_zero(ret);
   THLongTensor_zero(retgd);
 
   input = THDoubleTensor_newContiguous(input);
@@ -68,9 +71,11 @@ static int ExtractOutput(lua_State *L) {
 	if (*input_pe > threshold) {
 	  highs_pe = highs_p + hs[0]*i + hs[1]*j + n;
 	  *highs_pe = *input_pe;
-	  *(highs_pe + hs[2]) = (int)(input_pe - input_pe_begin);
+	  *(highs_pe + hs[2]) = (int)(input_pe - input_pe_begin)+1;
+	  //cout << *(highs_pe + hs[2]) << endl;
 	  ++n;
 	  if (n == maxhighs) { //TODO this might be removed
+	    input_pe = input_pe_end;
 	    break;
 	  }
 	}
