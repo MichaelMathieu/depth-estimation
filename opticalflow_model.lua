@@ -498,7 +498,8 @@ function prepareInput(geometry, patch1, patch2)
    end
 end
 
-function getOutputConfidences(geometry, input)
+function getOutputConfidences(geometry, input, threshold)
+   threshold = threshold or 0.5
    --[[
    local entropy = torch.Tensor(input:size(1), input:size(2)):zero()
    local tmp = torch.Tensor(entropy:size())
@@ -522,7 +523,7 @@ function getOutputConfidences(geometry, input)
    local t = torch.Timer()
    local imaxs = torch.LongTensor(input:size(1), input:size(2))
    local gds   = torch.LongTensor(input:size(1), input:size(2))
-   extractoutput.extractOutput(input, 0.25, 0.33, imaxs, gds)
+   extractoutput.extractOutput(input, 0.2, threshold, imaxs, gds)
    print(t:time()['real'])
    return imaxs, gds
    --[[
@@ -543,7 +544,7 @@ function getOutputConfidences(geometry, input)
    --]]
 end
 
-function processOutput(geometry, output, process_full)
+function processOutput(geometry, output, process_full, threshold)
    local ret = {}
    if geometry.training_mode then
       local m
@@ -554,7 +555,7 @@ function processOutput(geometry, output, process_full)
       local flatPixels = torch.LongTensor(m:size(1), m:size(2)):copy(m:eq(output[{{},{},middleIndex}]))
       ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(1), ret.index:size(2)))
    else
-      ret.index, ret.confidences = getOutputConfidences(geometry, output)
+      ret.index, ret.confidences = getOutputConfidences(geometry, output, threshold)
    end
    ret.index = ret.index:squeeze()
    if geometry.multiscale then

@@ -139,7 +139,6 @@ function nextFrameDepth()
       enlargeMask(mask,
 		  math.ceil((geometry.wImg-poutput.y:size(2))/2),
 		  math.ceil((geometry.hImg-poutput.y:size(1))/2))
-      output = output[1]
       
       local mask2 = torch.Tensor(geometry.hImg, geometry.wImg):zero()
       mask2:narrow(
@@ -148,7 +147,7 @@ function nextFrameDepth()
       mask = mask2
       
       mask:cmul(poutput.full_confidences)
-      output:cmul(mask)
+      --output:cmul(mask)
    end
 
    last_im = im
@@ -158,5 +157,5 @@ function nextFrameDepth()
    --output = torch.FloatTensor():resize(im:size(2), im:size(3)):copy(im[1])*100
    output = output:contiguous()
    --im2 = torch.FloatTensor(warped_im[1]:size()):copy(warped_im[1])
-   return im_scaled, dbg_last_im, dbg_last_warped, output, mask
+   return im_scaled, dbg_last_im, dbg_last_warped, output[1], output[2], mask
 end

@@ -235,7 +235,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 end
 
 function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasename,
-					imagebasename, previmagebasename, delta)
+					imagebasename, previmagebasename)
    if learning.groundtruth ~= 'cross-correlation' then
       error('loadRectifiedImageOpticalFlow2: groundtruth must be cross-correlation')
    end
@@ -278,7 +278,7 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    
    local flowdir = dirbasename .. 'rectified_flow2/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. 'x'
-   flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/' .. delta
+   flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/' ..learning.delta
    sys.execute('mkdir -p ' .. flowdir)
    local flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
    local flow = nil
@@ -343,8 +343,7 @@ function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
    for i = 2,math.min(#imagepaths, learning.num_images) do
       if correction.motion_correction == 'sfm' then
 	 local last_im, warped_im, warped_mask, im, flow = loadRectifiedImageOpticalFlow2(
-	    correction, geometry, learning, dirbasename, imagepaths[i],
-	    imagepaths[i-1], learning.delta)
+	    correction, geometry, learning, dirbasename, imagepaths[i], imagepaths[i-1])
          raw_data.images       [i]   = im
          raw_data.flow         [i-1] = flow
          raw_data.warped_images[i-1] = warped_im
