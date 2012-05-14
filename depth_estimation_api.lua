@@ -1,5 +1,5 @@
-package.path = "./?.lua;../?.lua;/home/myrhev/local/share/torch/lua/?.lua;/home/myrhev/local/share/torch/lua/?/init.lua;/home/myrhev/local/lib/torch/?.lua;/home/myrhev/local/lib/torch/?/init.lua"
-package.cpath = "./?.so;/home/myrhev/local/lib/torch/?.so;/home/myrhev/local/lib/torch/loadall.so"
+--package.path = "./?.lua;../?.lua;~/local/share/torch/lua/?.lua;~/local/share/torch/lua/?/init.lua;~/local/lib/torch/?.lua;~/local/lib/torch/?/init.lua"
+--package.cpath = "./?.so;~/local/lib/torch/?.so;~/local/lib/torch/loadall.so"
 
 require 'torch'
 require 'opticalflow_model'
@@ -45,7 +45,7 @@ Khalf[3][3] = 1.0
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-cam:init(geometry, 'data2/ardrone1', 1, 1)
+cam:init(geometry, 'data/ardrone1', 1, 1)
 
 local last_filtered = nil
 local last_im = cam:getNextFrame()
