@@ -4,9 +4,9 @@ require 'xlua'
 require 'common'
 require 'image'
 require 'common'
-require 'opencv'
+--require 'opencv'
 require 'opticalflow_model'
-require 'motion_correction'
+--require 'motion_correction'
 require 'sfm2'
 
 function findMax(geometry, of)
