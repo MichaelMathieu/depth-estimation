@@ -6,7 +6,14 @@ function sameSize(a, b)
    if a:nDimension() ~= b:nDimension() then
       return false
    else
-      return (a:size()-b:size()):sum() == 0
+      local sa = a:size()
+      local sb = b:size()
+      for i = 1,#sa do
+	 if sa[i] ~= sb[i] then
+	    return false
+	 end
+      end
+      return true
    end
 end
 

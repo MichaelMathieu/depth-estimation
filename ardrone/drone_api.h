@@ -12,8 +12,8 @@ public:
   virtual float getDeltaT() const =0;
   virtual matf getDepthMap() const =0;
   virtual matf getIMUTranslation() const =0;
-  virtual matf getVisualOdometryTranslation() const =0;
-  virtual matf getFilteredTranslation() const =0;
+  //virtual matf getVisualOdometryTranslation() const =0;
+  //virtual matf getFilteredTranslation() const =0;
   virtual matf getIMUGyro() const =0;
   virtual float getIMUAltitude() const =0;
   virtual float getBatteryState() const =0;

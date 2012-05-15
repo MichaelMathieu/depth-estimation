@@ -82,10 +82,10 @@ op:option{'-d', '--delta', action='store', dest='delta', default=1,
 	  help='Delta between two consecutive frames'}
 op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
 	  default=10, help='Number of annotated images used'}
-op:option{'-mc', '--motion-correction', action='store_true', dest='motion_correction',
-	  default=false, help='Eliminate panning, tilting and rotation camera movements'}
-op:option{'-lg', '--liu-grountruth', action='store_true', dest='use_liu_groundtruth',
-	  default=false, help='Use Liu groundtruth'}
+op:option{'-mc', '--motion-correction', action='store', dest='motion_correction',default=false,
+	  help='Eliminate panning, tilting and rotation camera movements (mc | sfm)'}
+op:option{'-gt', '--grountruth', action='store', dest='groundtruth',
+	  default='cross-correlation', help='Groundtruth : cross-correlation | liu | cvlibs'}
 op:option{'-nci', '--n-channels-in', action='store', dest='n_channels_in',
 	  default=3, help='Number of channels of the input images'}
 
@@ -110,9 +110,27 @@ if opt.root_directory:sub(-1) ~= '/' then opt.root_directory = opt.root_director
 
 openmp.setDefaultNumThreads(opt.nThreads)
 
+local correction = {}
+correction.motion_correction = opt.motion_correction
+correction.wImg = 640
+correction.hImg = 480
+correction.bad_image_threshold = 0.2
+correction.K = torch.FloatTensor(3,3):zero()
+correction.K[1][1] = 293.824707
+correction.K[2][2] = 310.435730
+correction.K[1][3] = 300.631012
+correction.K[2][3] = 251.624924
+correction.K[3][3] = 1.0
+correction.distP = torch.FloatTensor(5)
+correction.distP[1] = -0.379940
+correction.distP[2] = 0.212737
+correction.distP[3] = 0.003098
+correction.distP[4] = 0.000870
+correction.distP[5] = -0.069770
+
 local geometry = {}
 geometry.wImg = 320
-geometry.hImg = 180
+geometry.hImg = 240
 geometry.maxwGT = tonumber(opt.win_size)
 geometry.maxhGT = tonumber(opt.win_size)
 geometry.wKernelGT = 16
@@ -160,6 +178,7 @@ geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
 geometry.motion_correction = opt.motion_correction
 geometry.share_filters = opt.share_filters
 geometry.training_mode = true
+geometry.prefilter = false
 if geometry.multiscale then
    geometry.cascad_trainable_weights = opt.ms_trainable_weights
    geometry.single_beta = opt.ms_single_beta
@@ -175,11 +194,7 @@ learning.weight_decay = opt.weight_decay
 learning.renew_train_set = opt.renew_train_set
 learning.soft_targets = opt.soft_targets ~= nil
 learning.st_sigma2 = tonumber(opt.soft_targets)
-if opt.use_liu_groundtruth then
-   learning.groundtruth = 'liu'
-else
-   learning.groundtruth = 'cross-correlation'
-end
+learning.groundtruth = opt.groundtruth
 
 if learning.groundtruth == 'liu' then
    geometry.hKernelGT = geometry.hKernel
@@ -215,13 +230,16 @@ end
 
 print('Loading images...')
 print(opt.root_directory)
-local raw_data = loadDataOpticalFlow(geometry, learning, opt.root_directory)
+local raw_data = loadDataOpticalFlow(correction, geometry, learning, opt.root_directory)
 print('Generating training set...')
-local trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
+local trainData = generateDataOpticalFlow(correction, geometry, learning,
+					  raw_data, opt.n_train_set)
 print('Generating test set...')
-local testData = generateDataOpticalFlow(geometry, raw_data, opt.n_test_set)
+local testData = generateDataOpticalFlow(correction, geometry, learning,
+					 raw_data, opt.n_test_set)
 
-local score = score_epoch(geometry, learning, model, criterion, testData, raw_data, opt.n_images_test_set)
+local score = score_epoch(geometry, learning, model, criterion, testData,
+			  raw_data, opt.n_images_test_set)
 saveModel(opt.output_models_dir, 'model_of_', geometry, learning, model, 0, score)
 
 config = {learningRate = learning.rate,
@@ -240,7 +258,8 @@ for iEpoch = 1,opt.n_epochs do
    local meanErr = 0
 
    if learning.renew_train_set then
-      trainData = generateDataOpticalFlow(geometry, raw_data, opt.n_train_set)
+      trainData = generateDataOpticalFlow(correction, geometry, learning,
+					  raw_data, opt.n_train_set)
    end
    
    for t = 1,trainData:size() do
@@ -257,6 +276,7 @@ for iEpoch = 1,opt.n_epochs do
 	 input = prepareInput(geometry, sample[1][1], sample[1][2])
 	 itarget, target = prepareTarget(geometry, learning, sample[2])
       end
+
       
       local feval = function(x)
 		       if x ~= parameters then

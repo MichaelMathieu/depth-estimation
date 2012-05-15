@@ -21,7 +21,7 @@ ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_
   memset(controlFifoBuffer, 0, sizeof(char)*(controlFifoBufferLen+1));
   memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
   printf("Getting control FIFO\n");
-  //control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
+  control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
   printf("Getting navdata FIFO\n");
   //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
   //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY);
@@ -172,5 +172,5 @@ void ARdroneAPI::sendOnFifo(Order order, float pitch, float gaz,
     sprintf(controlFifoBuffer, "C%08d%08d%08d%08d", (char)roll, (char)pitch, (char)gaz, (char)yaw);
     break;
   }
-  //write(control_fifo, controlFifoBuffer, controlFifoBufferLen);
+  write(control_fifo, controlFifoBuffer, controlFifoBufferLen);
 }
