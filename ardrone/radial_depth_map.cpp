@@ -86,15 +86,15 @@ mat3b RadialDepthMap::to2DMap() {
   float k = 2.0f*maxDepth;
   mat3b ret(size, size, cv::Vec3b(0.0f, 0.0f, 0.0f));
   for (int i = 1; i < 5; ++i)
-    ret(150+i, 150)[1] = 255;
-  ret(150, 150)[2] = 255;
+    ret(size/2+i, size/2)[1] = 255;
+  ret(size/2, size/2)[2] = 255;
 
   for (int iTheta = 0; iTheta < nBinsTheta(); ++iTheta) {
     float theta = getThetaFromITheta(iTheta);
     float rho = map(iTheta);
 
-    float x = rho*cos(theta)+150;
-    float y = rho*sin(theta)+150;
+    float x = rho*cos(theta) + size/2;
+    float y = rho*sin(theta) + size/2;
 
     if (x<size && y<size && x>0 && y>0) {
       ret(x, y)[0] = 255*(1-map.getVariance(iTheta)/MAX_VARIANCE);

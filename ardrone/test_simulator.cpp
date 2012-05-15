@@ -1,7 +1,10 @@
+#include "depth_map.h"
+// #include "radial_map.h"
+// #include "bin_map.h"
+// #include "point_map.h"
+
 #include "simulator.h"
 #include "ardrone_api.h"
-#include "radial_depth_map.h"
-#include "depth_map.h"
 #include <GL/glut.h>
 #include <iostream>
 #include <ctime>
@@ -13,19 +16,20 @@ float dyaw = 0.0f, pitch =0.0f, roll = 0.0f, gaz = 0.0f;
 bool flying = false;
 DroneAPI* pApi = NULL;
 GLuint map_texture;
-//RadialDepthMap* pMap = NULL;
 DepthMap* pMap = NULL;
+// BinMap* pMap = NULL;
+// PointMap* pMap = NULL;
 
 void keyboard(int key, bool special, bool down) {
   if (special) {
     switch(key) {
     case GLUT_KEY_LEFT:
       //turn left
-      if (down) dyaw = -1.0f; else dyaw = 0.0f;
+      if (down) dyaw = -0.3f; else dyaw = 0.0f;
       break;
     case GLUT_KEY_RIGHT:
       //turn right
-      if (down) dyaw = 1.0f; else dyaw = 0.0f;
+      if (down) dyaw = 0.3f; else dyaw = 0.0f;
       break;
     case GLUT_KEY_UP:
       //move up
@@ -40,15 +44,15 @@ void keyboard(int key, bool special, bool down) {
     switch (key) {
     case 'a':
       //move left
-      if (down) roll = -1.0f; else roll = 0.0f;
+      if (down) roll = -0.5f; else roll = 0.0f;
       break;
     case 'd':
       //move right
-      if (down) roll = 1.0f; else roll = 0.0f;
+      if (down) roll = 0.5f; else roll = 0.0f;
       break;
     case 'w':
       //move forward
-      if (down) pitch = 1.0f; else pitch = 0.0f;
+      if (down) pitch = 0.3f; else pitch = 0.0f;
       break;
     case 's':
       //move backward
@@ -80,6 +84,27 @@ void keyboardUp2(int key, int, int) {
 
 #include "opencv/highgui.h"
 void idle() {
+
+  float safeTheta = pMap->getSafeTheta(32);
+  printf("safeTheta = %f\n", safeTheta);
+
+  keyboard('w', false, true);
+  //roll = safeTheta*0.1f;
+  if (safeTheta>0) {
+    keyboard('d', false, true);
+    keyboard(GLUT_KEY_RIGHT, true, true);
+  }
+  if (safeTheta<0) {
+    keyboard('a', false, true);
+    keyboard(GLUT_KEY_LEFT, true, true);
+  }
+  if (safeTheta == 0) {
+    keyboard('a', false, false);
+    keyboard('d', false, false);
+    keyboard(GLUT_KEY_RIGHT, true, false);
+    keyboard(GLUT_KEY_LEFT, true, false);
+  }
+
   printf("avt next\n");
   pApi->next();
   printf("apres next\n");
@@ -93,10 +118,14 @@ void idle() {
     printf("%d %d\n", win_h, win_w);
     glutReshapeWindow(win_w, win_h);
   }
+
+
+
   //glDrawPixels(win_w, win_h, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
   //glutSwapBuffers();
-  
-  pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());
+  // Displacement disp(pApi->getFilteredTranslation(), pApi->getIMUGyro());
+  // pMap->newDisplacement(disp);
+  pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());  
   pMap->newFrame(frameDMap);
 
   cv::namedWindow("depth map");
@@ -104,11 +133,9 @@ void idle() {
   minMaxLoc(frameDMap, NULL, &m);
   //m = 100.;
   cv::imshow("depth map", frameDMap / m);
-  
   cv::namedWindow("2d map");
   cv::imshow("2d map", pMap->to2DMap());
   cvWaitKey(1);
-  
   //cout << pMap->toString() << endl;
   //usleep(100000);
 }
@@ -121,8 +148,9 @@ int main(int argc, char* argv[]) {
   SimulatedAPI api(320, 240);
   //ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
-  //RadialDepthMap map(512, 100, 1.0f, 320);
-  DepthMap map(64, 64, 60, 1.0f, 320);
+  
+  DepthMap map(64, 128, 100, 0.9f, 320);
+  //PointMap map(16, 16, 100, 0.9f, 320);
   pMap = &map;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);

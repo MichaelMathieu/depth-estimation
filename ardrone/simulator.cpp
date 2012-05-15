@@ -14,9 +14,9 @@ SimulatedAPI::SimulatedAPI(int depthMapWidth, int depthMapHeight)
    dmH(depthMapHeight), dmW(depthMapWidth),
    alpha_friction(0.5f), focal_length(depthMapWidth),
    obstacles() {
-  for (int i=0; i< 50; ++i) {
-    obstacles.push_back(Obstacle(10*(i+1), 5, 0, 1.0f));
-    obstacles.push_back(Obstacle(10*(i+1), -5, 0, 1.0f));
+  for (int i=0; i< 100; ++i) {
+    obstacles.push_back(Obstacle(5*(i+1), -10+sin(i*0.5)*2*i, 0, 1.0f));
+    obstacles.push_back(Obstacle(5*(i+1), +10+sin(i*0.5)*2*i, 0, 1.0f));
   }
 }
 
