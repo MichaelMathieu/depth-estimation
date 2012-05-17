@@ -44,7 +44,7 @@ private:
 
   lua_State *L;
   matf depthMap;
-  void computeDepthMapFromFlow(const matf & xflow);
+  void computeDepthMapFromFlow(const matf & xflow, const matf & mask);
 
   enum Order {
     TAKEOFF, LAND, CONTROL,
