@@ -61,6 +61,7 @@ float DepthMap::getSafeTheta(size_t fov) {
   float safeTheta = 0;
   int iniTheta = floor((nBinsTheta()-fov)/2);
   int endTheta = iniTheta+fov;
+  size_t closestBin = nBinsRho()-1;
   for (int iTheta=iniTheta; iTheta<endTheta; iTheta++) {
     // printf("iTheta = %d\n", iTheta);
     float maxConfidence = 1e-1;
@@ -73,16 +74,19 @@ float DepthMap::getSafeTheta(size_t fov) {
         maxConfidenceBin = iRho;
       }
     }
-    if (maxConfidenceBin < 5) {
-      float theta = ((float)(iTheta) / (float)(nBinsTheta()-1) - 0.5f) * 2.0f * PI;
-      return -theta; 
+    if (maxConfidenceBin < closestBin) {
+      closestBin = maxConfidenceBin;
+      safeTheta = -((float)(iTheta) / (float)(nBinsTheta()-1) - 0.5f) * 2.0f * PI;
     }
     // float theta = ((float)(iTheta) / (float)(nBinsTheta()-1) - 0.5f) * 2.0f * PI;
     // printf("theta = %f, maxBin = %d\n", theta, maxConfidenceBin);
     // safeTheta += theta*maxConfidenceBin/nBinsRho();
 
   }
-  return 0;
+  if (closestBin<8)
+    return safeTheta;
+  else
+    return 0;
 }
 
 void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
@@ -96,9 +100,11 @@ void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
       BinIndex newBin = BinIndex(this, iRho, iTheta);
       newBin.getPointsInside(5, 5, coords_tmp);
       float value = 0.0f;
+      // printf("iTheta = %d, iRho = %d\n", iTheta, iRho);
       for (size_t iPt = 0; iPt < coords_tmp.size(); ++iPt) {
       	CartesianCoordinates pt = coords_tmp[iPt].toCartesianCoordinates();
       	pt.add(pos(0,0), pos(1,0));
+        // printf("iPt = %d\n", iPt);
       	value += pt.toBinIndex().value();
       }
       new_map(newBin.iTheta, newBin.iRho) = value/(float)coords_tmp.size();//*unseenDecay;

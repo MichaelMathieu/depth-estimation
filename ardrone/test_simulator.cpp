@@ -44,19 +44,19 @@ void keyboard(int key, bool special, bool down) {
     switch (key) {
     case 'a':
       //move left
-      if (down) roll = -100.0f; else roll = 0.0f;
+      if (down) roll = -0.3f; else roll = 0.0f;
       break;
     case 'd':
       //move right
-      if (down) roll = 100.0f; else roll = 0.0f;
+      if (down) roll = 0.3f; else roll = 0.0f;
       break;
     case 'w':
       //move forward
-      if (down) pitch = -100.0f; else pitch = 0.0f;
+      if (down) pitch = 0.5f; else pitch = 0.0f;
       break;
     case 's':
       //move backward
-      if (down) pitch = 100.0f; else pitch = 0.0f;
+      if (down) pitch = -0.3f; else pitch = 0.0f;
       break;
     case ' ':
       //takeoff/land
@@ -85,7 +85,7 @@ void keyboardUp2(int key, int, int) {
 #include "opencv/highgui.h"
 void idle() {
 
-  float safeTheta = pMap->getSafeTheta(32);
+  float safeTheta = pMap->getSafeTheta(16);
   printf("safeTheta = %f\n", safeTheta);
 
   keyboard('w', false, true);
@@ -139,7 +139,6 @@ void idle() {
   cvWaitKey(1);
   //cout << pMap->toString() << endl;
   //usleep(100000);
-  */
 }
 
 void render() {
@@ -148,7 +147,7 @@ void render() {
 
 int main(int argc, char* argv[]) {
   SimulatedAPI api(320, 240);
-  //ARdroneAPI api("control_pipe", "navdata_pipe");
+  // ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
   
   DepthMap map(64, 128, 100, 0.9f, 320);

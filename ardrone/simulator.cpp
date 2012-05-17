@@ -75,9 +75,9 @@ matf SimulatedAPI::getIMUTranslation() const {
   matf up = getUp();
   matf v = dx * delta_t;
   matf ret(3,1);
-  ret(0,0) = v.dot(pray);// + randn(0, 0.2);
-  ret(1,0) = v.dot(npray);// + randn(0, 0.2);
-  ret(2,0) = v.dot(up);// + randn(0, 0.2);
+  ret(0,0) = v.dot(pray) + randn(0, 0.2);
+  ret(1,0) = v.dot(npray) + randn(0, 0.2);
+  ret(2,0) = v.dot(up) + randn(0, 0.2);
   return ret;
 }
 
@@ -87,9 +87,9 @@ matf SimulatedAPI::getVisualOdometryTranslation() const {
   matf up = getUp();
   matf v = dx * delta_t;
   matf ret(3,1);
-  ret(0,0) = v.dot(pray);// + randn(0, 0.1);
-  ret(1,0) = v.dot(npray);// + randn(0, 0.1);
-  ret(2,0) = v.dot(up);// + randn(0, 0.1);
+  ret(0,0) = v.dot(pray) + randn(0, 0.1);
+  ret(1,0) = v.dot(npray) + randn(0, 0.1);
+  ret(2,0) = v.dot(up) + randn(0, 0.1);
   return ret;
 }
 

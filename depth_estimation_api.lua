@@ -45,7 +45,7 @@ Khalf[3][3] = 1.0
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-cam:init(geometry, 'data/ardrone1', 1, 1)
+cam:init(geometry, './ardrone1', 1, 1)
 
 local last_filtered = nil
 local last_im = cam:getNextFrame()
@@ -147,9 +147,6 @@ function nextFrameDepth()
       local poutput = processOutput(geometry, moutput, true)
       print("processOutput: " .. timer:time()['real'])
       output = poutput.full
-      enlargeMask(mask,
-		  math.ceil((geometry.wImg-poutput.y:size(2))/2),
-		  math.ceil((geometry.hImg-poutput.y:size(1))/2))
       print("enlargeMask  : " .. timer:time()['real'])
       
       local mask2 = torch.Tensor(geometry.hImg, geometry.wImg):zero()
