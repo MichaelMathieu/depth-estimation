@@ -80,7 +80,6 @@ void keyboardUp2(int key, int, int) {
 
 #include "opencv/highgui.h"
 void idle() {
-  /*
   printf("avt next\n");
   pApi->next();
   printf("apres next\n");
@@ -112,7 +111,6 @@ void idle() {
   
   //cout << pMap->toString() << endl;
   //usleep(100000);
-  */
 }
 
 void render() {
@@ -120,8 +118,8 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  SimulatedAPI api(320, 240);
-  //ARdroneAPI api("control_pipe", "navdata_pipe");
+  //SimulatedAPI api(320, 240);
+  ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
   //RadialDepthMap map(512, 100, 1.0f, 320);
   DepthMap map(64, 64, 60, 1.0f, 320);

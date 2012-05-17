@@ -17,8 +17,8 @@ control: ${CPP} ${OBJ} simple_control_svg.cpp simple_control_svg.o
 
 ardroneSDK:
 	cd API/Examples/Linux/ && make && cd - && cp API/Examples/Linux/Build/Release/linux_sdk_demo ardrone_sdk
-	rm control_pipe && mkfifo control_pipe
-	rm navdata_pipe && mkfifo navdata_pipe
+	rm -f control_pipe && mkfifo control_pipe
+	rm -f navdata_pipe && mkfifo navdata_pipe
 
 clean:
 	rm -rf simulator test_simulator.o ${OBJ}

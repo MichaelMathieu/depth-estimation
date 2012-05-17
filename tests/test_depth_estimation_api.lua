@@ -7,6 +7,8 @@ require 'sys'
 
 local masked = torch.Tensor()
 
+debug_display = true
+
 while true do
    sys.tic()
    local im, last_im, w_im, flowx, flowy, mask = nextFrameDepth()

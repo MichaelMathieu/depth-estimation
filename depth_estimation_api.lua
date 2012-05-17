@@ -1,7 +1,10 @@
---package.path = "./?.lua;../?.lua;~/local/share/torch/lua/?.lua;~/local/share/torch/lua/?/init.lua;~/local/lib/torch/?.lua;~/local/lib/torch/?/init.lua"
---package.cpath = "./?.so;~/local/lib/torch/?.so;~/local/lib/torch/loadall.so"
+home='/home/nyu'
+package.path = "./?.lua;../?.lua;"..home.."/local/share/torch/lua/?.lua;"..home.."/local/share/torch/lua/?/init.lua;"..home.."/local/lib/torch/?.lua;"..home.."/local/lib/torch/?/init.lua"
+package.cpath = "./?.so;../?.so;"..home.."/local/lib/torch/?.so;"..home.."/local/lib/torch/loadall.so"
 
 require 'torch'
+torch.setdefaulttensortype('torch.FloatTensor')
+require 'image'
 require 'opticalflow_model'
 require 'opticalflow_model_io'
 require 'openmp'
@@ -45,7 +48,16 @@ Khalf[3][3] = 1.0
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-cam:init(geometry, 'data/ardrone1', 1, 1)
+local impaths = {'../data/ardrone1', 'data/ardrone1'}
+local impath
+for i = 1,#impaths do
+   if isdir(impaths[i]) then
+      impath = impaths[i]
+      break
+   end
+end
+if not impath then error('image folder not found.') end
+cam:init(geometry, impath, 1, 1)
 
 local last_filtered = nil
 local last_im = cam:getNextFrame()
@@ -53,7 +65,7 @@ last_im = sfm2.undistortImage(last_im, K, distP)
 last_im_scaled = image.scale(last_im, geometry.wImg, geometry.hImg)
 last_filtered = filter:forward(last_im_scaled):clone()
 
-collectgarbage('stop')
+--collectgarbage('stop')
 
 function enlargeMask(mask, ix, iy)
    local f = inline.load [[
@@ -114,6 +126,7 @@ function enlargeMask(mask, ix, iy)
 end
 
 function nextFrameDepth()
+   print("ARFAFSD")
    local timer = torch.Timer()
    local im = cam:getNextFrame()
    print("Next frame   : " .. timer:time()['real'])
@@ -130,9 +143,11 @@ function nextFrameDepth()
    local filtered = filter:forward(im_scaled)
    print("filter       : " .. timer:time()['real'])
 
-   dbg_last_im = last_im_scaled
-   dbg_last_warped, dbg_mask = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
-   print("rmEgoMotion2 : " .. timer:time()['real'])
+   if debug_display then
+      dbg_last_im = last_im_scaled
+      dbg_last_warped, dbg_mask = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
+      print("rmEgoMotion2 : " .. timer:time()['real'])
+   end
 
    local output
    if (nInliers/nFound < 0.2) then
@@ -166,10 +181,12 @@ function nextFrameDepth()
    last_im = im
    last_im_scaled = im_scaled
    last_filtered = filtered
-   --output = torch.FloatTensor():resize(filtered:size(2), filtered:size(3)):copy(filtered[1])
-   --output = torch.FloatTensor():resize(im:size(2), im:size(3)):copy(im[1])*100
    output = output:contiguous()
    print("Copies       : " .. timer:time()['real'])
-   --im2 = torch.FloatTensor(warped_im[1]:size()):copy(warped_im[1])
-   return im_scaled, dbg_last_im, dbg_last_warped, output[1], output[2], mask
+
+   if debug_display then
+      return im_scaled, dbg_last_im, dbg_last_warped, output[1], output[2], mask
+   else
+      return im_scaled, output[1], mask
+   end
 end

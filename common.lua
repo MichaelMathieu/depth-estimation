@@ -176,4 +176,8 @@ function lsR(dir, filter, dirfilter, return_dir_filter)
    end
    return ret
 end
-   
+
+function isdir(path)
+   local a = sys.execute('if [ -d '..path..' ]; then echo 1; else echo 0; fi')
+   return a:sub(1,1) == '1'
+end
