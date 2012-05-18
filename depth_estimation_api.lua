@@ -1,7 +1,10 @@
-package.path = "./?.lua;../?.lua;/home/myrhev/local/share/torch/lua/?.lua;/home/myrhev/local/share/torch/lua/?/init.lua;/home/myrhev/local/lib/torch/?.lua;/home/myrhev/local/lib/torch/?/init.lua"
-package.cpath = "./?.so;/home/myrhev/local/lib/torch/?.so;/home/myrhev/local/lib/torch/loadall.so"
+home='/home/myrhev'
+package.path = "./?.lua;../?.lua;"..home.."/local/share/torch/lua/?.lua;"..home.."/local/share/torch/lua/?/init.lua;"..home.."/local/lib/torch/?.lua;"..home.."/local/lib/torch/?/init.lua"
+package.cpath = "./?.so;../?.so;"..home.."/local/lib/torch/?.so;"..home.."/local/lib/torch/loadall.so"
 
 require 'torch'
+torch.setdefaulttensortype('torch.FloatTensor')
+require 'image'
 require 'opticalflow_model'
 require 'opticalflow_model_io'
 require 'openmp'
@@ -45,7 +48,17 @@ Khalf[3][3] = 1.0
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-cam:init(geometry, 'data2/ardrone1', 1, 1)
+
+local impaths = {'../data/ardrone1', 'data/ardrone1', 'data2/ardrone1', '../data2/ardrone1'}
+local impath
+for i = 1,#impaths do
+   if isdir(impaths[i]) then
+      impath = impaths[i]
+      break
+   end
+end
+if not impath then error('image folder not found.') end
+cam:init(geometry, impath, 1, 1)
 
 local last_filtered = nil
 local last_im = cam:getNextFrame()
@@ -53,20 +66,20 @@ last_im = sfm2.undistortImage(last_im, K, distP)
 last_im_scaled = image.scale(last_im, geometry.wImg, geometry.hImg)
 last_filtered = filter:forward(last_im_scaled):clone()
 
-collectgarbage('stop')
+--collectgarbage('stop')
 
 function enlargeMask(mask, ix, iy)
    local f = inline.load [[
 	 #define min(a,b) (((a)<(b))?(a):(b))
 	 #define max(a,b) (((a)>(b))?(a):(b))
-	 const void* iddouble = luaT_checktypename2id(L, "torch.DoubleTensor");
-	 THDoubleTensor* mask = (THDoubleTensor*)luaT_checkudata(L, 1, iddouble);
+	 const void* idfloat = luaT_checktypename2id(L, "torch.FloatTensor");
+	 THFloatTensor* mask = (THFloatTensor*)luaT_checkudata(L, 1, idfloat);
 	 int ix = lua_tonumber(L, 2);
 	 int iy = lua_tonumber(L, 3);
 	 
 	 int h = mask->size[0];
 	 int w = mask->size[1];
-	 double* mask_p = THDoubleTensor_data(mask);
+	 float* mask_p = THFloatTensor_data(mask);
 	 long* ms = mask->stride;
 	 
 	 int i, j, k;
@@ -114,31 +127,43 @@ function enlargeMask(mask, ix, iy)
 end
 
 function nextFrameDepth()
+   print("ARFAFSD")
+   local timer = torch.Timer()
    local im = cam:getNextFrame()
+   print("Next frame   : " .. timer:time()['real'])
    im = sfm2.undistortImage(im, K, distP)
+   print("Undistort    : " .. timer:time()['real'])
    local R,T,nFound,nInliers = sfm2.getEgoMotion(last_im, im, Kf, 400)
-   print(T/T:norm())
+   print("getEgoMotion : " .. timer:time()['real'])
+   --print(T/T:norm())
    im_scaled = image.scale(im, geometry.wImg, geometry.hImg)
+   print("Scale image  : " .. timer:time()['real'])
    --these 2 lines have to stay in this order, or filtered has to be cloned another way
    last_filtered, mask = sfm2.removeEgoMotion(last_filtered, Khalf, R)
+   print("rmEgoMotion  : " .. timer:time()['real'] .. ' (debug)')
    local filtered = filter:forward(im_scaled)
+   print("filter       : " .. timer:time()['real'])
 
-   dbg_last_im = last_im_scaled
-   dbg_last_warped, dbg_mask = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
+   if debug_display then
+      dbg_last_im = last_im_scaled
+      dbg_last_warped, dbg_mask = sfm2.removeEgoMotion(last_im_scaled, Khalf, R)
+      print("rmEgoMotion2 : " .. timer:time()['real'])
+   end
 
    local output
    if (nInliers/nFound < 0.2) then
       print("BAD IMAGE !!! " .. nInliers .. " " .. nFound .. " " .. nInliers/nFound)
       mask = torch.Tensor(im[1]:size()):zero()
-      output = torch.Tensor(im[1]:size()):zero()
+      output = torch.Tensor(2, im:size(2), im:size(3)):zero()
    else
       local input = prepareInput(geometry, last_filtered, filtered)
+      print("prepareInput : " .. timer:time()['real'])
       local moutput = model:forward(input)
+      print("Match        : " .. timer:time()['real'])
       local poutput = processOutput(geometry, moutput, true)
+      print("processOutput: " .. timer:time()['real'])
       output = poutput.full
-      enlargeMask(mask,
-		  math.ceil((geometry.wImg-poutput.y:size(2))/2),
-		  math.ceil((geometry.hImg-poutput.y:size(1))/2))
+      print("enlargeMask  : " .. timer:time()['real'])
       
       local mask2 = torch.Tensor(geometry.hImg, geometry.wImg):zero()
       mask2:narrow(
@@ -147,15 +172,19 @@ function nextFrameDepth()
       mask = mask2
       
       mask:cmul(poutput.full_confidences)
+      print("Mask mul     : " .. timer:time()['real'])
       --output:cmul(mask)
    end
 
    last_im = im
    last_im_scaled = im_scaled
    last_filtered = filtered
-   --output = torch.FloatTensor():resize(filtered:size(2), filtered:size(3)):copy(filtered[1])
-   --output = torch.FloatTensor():resize(im:size(2), im:size(3)):copy(im[1])*100
    output = output:contiguous()
-   --im2 = torch.FloatTensor(warped_im[1]:size()):copy(warped_im[1])
-   return im_scaled, dbg_last_im, dbg_last_warped, output[1], output[2], mask
+   print("Copies       : " .. timer:time()['real'])
+
+   if debug_display then
+      return im_scaled, dbg_last_im, dbg_last_warped, output[1], output[2], mask
+   else
+      return im_scaled, output[1], mask
+   end
 end

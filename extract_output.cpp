@@ -7,6 +7,12 @@ extern "C" {
 }
 using namespace std;
 
+typedef THFloatTensor Tensor;
+#define ID_TENSOR_STRING "torch.FloatTensor"
+#define Tensor_(a) THFloatTensor_##a
+typedef float real;
+typedef double accreal;
+
 // sorting network-based sort
 template<typename T> inline void sortswap(T* a, T* b, long incr) {
   if (*b > *a) {
@@ -28,9 +34,9 @@ template<typename T> inline void sort4(T* a, long incr) {
     
 
 static int ExtractOutput(lua_State *L) {
-  const void* iddouble = luaT_checktypename2id(L, "torch.DoubleTensor");
+  const void* iddouble = luaT_checktypename2id(L, ID_TENSOR_STRING);
   const void* idlong   = luaT_checktypename2id(L, "torch.LongTensor"  );
-  THDoubleTensor* input         = (THDoubleTensor*)luaT_checkudata(L, 1, iddouble);
+  Tensor*     input         = (Tensor*)luaT_checkudata(L, 1, iddouble);
   double          threshold     = lua_tonumber   (L, 2);
   double          threshold_acc = lua_tonumber   (L, 3);
   THLongTensor*   ret           = (THLongTensor*)luaT_checkudata(L, 4, idlong  );
@@ -39,10 +45,10 @@ static int ExtractOutput(lua_State *L) {
   //THLongTensor_zero(ret);
   THLongTensor_zero(retgd);
 
-  input = THDoubleTensor_newContiguous(input);
-  double* input_p = THDoubleTensor_data(input);
-  long*   ret_p   = THLongTensor_data  (ret  );
-  long*   retgd_p = THLongTensor_data  (retgd);
+  input = Tensor_(newContiguous)(input);
+  real* input_p = Tensor_(data)(input);
+  long* ret_p   = THLongTensor_data  (ret  );
+  long* retgd_p = THLongTensor_data  (retgd);
 
   int nvalues = input->size[2];
   int h = input->size[0];
@@ -52,15 +58,15 @@ static int ExtractOutput(lua_State *L) {
   long* rgs = retgd->stride;
 
   const int maxhighs = 4;
-  THDoubleTensor* highs  = THDoubleTensor_newWithSize4d(h, w, 2, maxhighs);
-  assert(THDoubleTensor_isContiguous(highs));
-  double* highs_p  = THDoubleTensor_data(highs );
-  long*  hs =  highs->stride;
+  Tensor* highs  = Tensor_(newWithSize4d)(h, w, 2, maxhighs);
+  assert(Tensor_(isContiguous)(highs));
+  real* highs_p  = Tensor_(data)(highs );
+  long* hs =  highs->stride;
 
-  THDoubleTensor_zero(highs);
+  Tensor_(zero)(highs);
 
   int i, j, k, n;
-  double *highs_pe, *highs_pe_end, *input_pe, *input_pe_begin, *input_pe_end;
+  real *highs_pe, *highs_pe_end, *input_pe, *input_pe_begin, *input_pe_end;
   input_pe = input_p;
   for (i = 0; i < h; ++i) {
     for (j = 0; j < w; ++j) {
@@ -83,14 +89,14 @@ static int ExtractOutput(lua_State *L) {
     }
   }
 
-  double acc;
+  accreal acc;
   //double vmax;
   //int imax;
   for (i = 0; i < h; ++i) {
     for (j = 0; j < w; ++j) {
       highs_pe = highs_p + hs[0]*i + hs[1]*j;
       if (*highs_pe > 0) {
-	sort4<double>(highs_pe, hs[2]);
+	sort4<real>(highs_pe, hs[2]);
 	ret_p  [rs[0]*i  + rs[1]*j ] = *(highs_pe+hs[2]);
 	for(k = 1; k < maxhighs; ++k)
 	  highs_pe[k] += highs_pe[k-1];
@@ -116,8 +122,8 @@ static int ExtractOutput(lua_State *L) {
     }
   }
   
-  THDoubleTensor_free( input);
-  THDoubleTensor_free( highs);
+  Tensor_(free)( input);
+  Tensor_(free)( highs);
 
   return 0;
 }

@@ -17,6 +17,7 @@ public:
   virtual void next();
   virtual float getDeltaT() const;
   virtual matf getDepthMap() const;
+  virtual matf getConfidenceMap() const;
   virtual matf getIMUTranslation() const;
   virtual matf getVisualOdometryTranslation() const;
   virtual matf getFilteredTranslation() const;
@@ -43,8 +44,8 @@ private:
   char navdataFifoBuffer[navdataFifoBufferLen+1];
 
   lua_State *L;
-  matf depthMap;
-  void computeDepthMapFromFlow(const matf & xflow);
+  matf depthMap, confidenceMap;
+  void computeDepthMapFromFlow(const matf & xflow, const matf & mask);
 
   enum Order {
     TAKEOFF, LAND, CONTROL,

@@ -1,7 +1,7 @@
 LINK=`pkg-config --libs opencv` -lglut -lGLU -lGL -lluaT -ltorch-lua -lTH
 FLAGS=-g -W -Wall -Wextra
 CXX=g++
-CPP=simulator.cpp common.cpp ardrone_api.cpp radial_depth_map.cpp depth_map.cpp
+CPP=simulator.cpp common.cpp ardrone_api.cpp depth_map.cpp
 OBJ=$(CPP:.cpp=.o)
 
 all:	simulator ardroneSDK
@@ -17,8 +17,10 @@ control: ${CPP} ${OBJ} simple_control_svg.cpp simple_control_svg.o
 
 ardroneSDK:
 	cd API/Examples/Linux/ && make && cd - && cp API/Examples/Linux/Build/Release/linux_sdk_demo ardrone_sdk
-	rm control_pipe && mkfifo control_pipe
-	rm navdata_pipe && mkfifo navdata_pipe
+	rm -f control_pipe && mkfifo control_pipe
+	rm -f navdata_pipe && mkfifo navdata_pipe
 
 clean:
 	rm -rf simulator test_simulator.o ${OBJ}
+	cd API/Examples/Linux/ && make clean && cd -
+	rm -rf ardrone_sdk

@@ -14,9 +14,9 @@ SimulatedAPI::SimulatedAPI(int depthMapWidth, int depthMapHeight)
    dmH(depthMapHeight), dmW(depthMapWidth),
    alpha_friction(0.5f), focal_length(depthMapWidth),
    obstacles() {
-  for (int i=0; i< 50; ++i) {
-    obstacles.push_back(Obstacle(10*(i+1), 5, 0, 1.0f));
-    obstacles.push_back(Obstacle(10*(i+1), -5, 0, 1.0f));
+  for (int i=0; i< 100; ++i) {
+    obstacles.push_back(Obstacle(5*(i+1), -10+sin(i*0.5)*2*i, 0, 1.0f));
+    obstacles.push_back(Obstacle(5*(i+1), +10+sin(i*0.5)*2*i, 0, 1.0f));
   }
 }
 
@@ -75,9 +75,9 @@ matf SimulatedAPI::getIMUTranslation() const {
   matf up = getUp();
   matf v = dx * delta_t;
   matf ret(3,1);
-  ret(0,0) = v.dot(pray);// + randn(0, 0.2);
-  ret(1,0) = v.dot(npray);// + randn(0, 0.2);
-  ret(2,0) = v.dot(up);// + randn(0, 0.2);
+  ret(0,0) = v.dot(pray) + randn(0, 0.2);
+  ret(1,0) = v.dot(npray) + randn(0, 0.2);
+  ret(2,0) = v.dot(up) + randn(0, 0.2);
   return ret;
 }
 
@@ -87,9 +87,9 @@ matf SimulatedAPI::getVisualOdometryTranslation() const {
   matf up = getUp();
   matf v = dx * delta_t;
   matf ret(3,1);
-  ret(0,0) = v.dot(pray);// + randn(0, 0.1);
-  ret(1,0) = v.dot(npray);// + randn(0, 0.1);
-  ret(2,0) = v.dot(up);// + randn(0, 0.1);
+  ret(0,0) = v.dot(pray) + randn(0, 0.1);
+  ret(1,0) = v.dot(npray) + randn(0, 0.1);
+  ret(2,0) = v.dot(up) + randn(0, 0.1);
   return ret;
 }
 

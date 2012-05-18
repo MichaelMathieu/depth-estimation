@@ -17,7 +17,7 @@ ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_
    last_time(getTimeInSec()), delta_t(0.0f),
    imuD(3, 1, 0.0f), imuGyro(3, 1, 0.0f),
    imuAltitude(0.0f), batteryState(100.0f), droneState(0),
-   L(NULL), depthMap(0,0) {
+   L(NULL), depthMap(0,0), confidenceMap(0,0) {
   memset(controlFifoBuffer, 0, sizeof(char)*(controlFifoBufferLen+1));
   memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
   printf("Getting control FIFO\n");
@@ -31,6 +31,7 @@ ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_
   L = lua_open();
   luaL_openlibs(L);
   luaL_dofile(L, "../depth_estimation_api.lua");
+  puts("Loaded");
 }
 
 ARdroneAPI::~ARdroneAPI() {
@@ -62,33 +63,37 @@ void ARdroneAPI::next() {
   }
   */
   imuD *= delta_t;
-  
+
   lua_getfield(L, LUA_GLOBALSINDEX, "nextFrameDepth");
-  lua_call(L, 0, 2);
-  THFloatTensor *depth_th = (THFloatTensor*)luaT_toudata(L,-1,luaT_checktypename2id(L, "torch.FloatTensor"));
-  THFloatTensor *im_th = (THFloatTensor*)luaT_toudata(L,-2,luaT_checktypename2id(L, "torch.FloatTensor"));
+  lua_call(L, 0, 3);
+  THFloatTensor *mask_th = (THFloatTensor*)luaT_toudata(L,-1, luaT_checktypename2id(L, "torch.FloatTensor"));
+  THFloatTensor *depth_th = (THFloatTensor*)luaT_toudata(L,-2,luaT_checktypename2id(L, "torch.FloatTensor"));
+  THFloatTensor *im_th = (THFloatTensor*)luaT_toudata(L,-3,luaT_checktypename2id(L, "torch.FloatTensor"));
   lua_pop(L, 2);
   matf flow = matf(depth_th->size[0], depth_th->size[1], THFloatTensor_data(depth_th));
+  matf mask = matf(mask_th->size[0], mask_th->size[1], THFloatTensor_data(mask_th));
   cv::namedWindow("im");
-  cv::imshow("im", matf(im_th->size[0], im_th->size[1], THFloatTensor_data(im_th)));
-  cvWaitKey(1);
+  cv::imshow("im", matf(im_th->size[1], im_th->size[2], THFloatTensor_data(im_th)));
 
-  computeDepthMapFromFlow(flow);
+  computeDepthMapFromFlow(flow, mask);
 }
 
-void ARdroneAPI::computeDepthMapFromFlow(const matf & xflow) {
+void ARdroneAPI::computeDepthMapFromFlow(const matf & xflow, const matf & mask) {
   depthMap = matf(xflow.size()); //TODO not optimal
-  float m = 25.0f; //TODO. m = norm(displacement.dot(pray))
+  confidenceMap = matf(xflow.size()); //same
+  float m = getIMUTranslation()(0,0);
   int middlex = xflow.size().width/2;
   for (int i = 0; i < xflow.size().height; ++i)
     for (int j = 0; j < xflow.size().width; ++j)
-      /*
-      if ((abs(xflow(i, j)) < 1e-10) or (j-middlex == 0))
-	depthMap(i, j) = 100.0f;
-      else
-	depthMap(i, j) = m * abs(j-middlex) / abs(xflow(i, j)); //TODO not perfect abs
-      */
-      depthMap(i, j) = (abs(xflow(i,j)) > 1e-10) ? (m*abs(xflow(i,j))) : 100.0f;
+      if ((mask(i,j) > 0.5f) && (j-middlex != 0)) {
+	if (abs(xflow(i, j)) < 1.1f)
+	  depthMap(i, j) = 100.0f;
+	else
+	  depthMap(i, j) = m * abs(j-middlex) / abs(xflow(i, j)); //TODO not perfect abs
+	confidenceMap(i, j) = 1.0f;
+      } else {
+	confidenceMap(i, j) = 0.0f;
+      }
 }
 
 float ARdroneAPI::getDeltaT() const {
@@ -99,14 +104,23 @@ matf ARdroneAPI::getDepthMap() const {
   return depthMap;
 }
 
+matf ARdroneAPI::getConfidenceMap() const {
+  return confidenceMap;
+}
+
 matf ARdroneAPI::getIMUTranslation() const {
-  return imuD;
+  //return imuD;
+  matf ret(3,1, 0.0f);
+  ret(0,0) = 1.0f;
+  return ret;
 }
 
 matf ARdroneAPI::getFilteredTranslation() const {
+  return getIMUTranslation();
 }
 
 matf ARdroneAPI::getVisualOdometryTranslation() const {
+  return matf(0,0);
 }
 
 matf ARdroneAPI::getIMUGyro() const {

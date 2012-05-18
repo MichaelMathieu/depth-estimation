@@ -1,9 +1,18 @@
+torch.setdefaulttensortype('torch.FloatTensor')
+
 require 'depth_estimation_api'
+require 'opencv'
+require 'sys'
+
 
 local masked = torch.Tensor()
 
+debug_display = true
+
 while true do
+   sys.tic()
    local im, last_im, w_im, flowx, flowy, mask = nextFrameDepth()
+   print("FPS: " .. 1./sys.toc())
 
    masked:resize(3, flowx:size(1), flowx:size(2))
    masked[1]:copy(flowx:cmul(mask))
