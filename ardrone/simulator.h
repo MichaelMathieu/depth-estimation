@@ -15,6 +15,7 @@ public:
   virtual void next();
   virtual float getDeltaT() const;
   virtual matf getDepthMap() const;
+  virtual matf getConfidenceMap() const;
   virtual matf getIMUTranslation() const;
   virtual matf getVisualOdometryTranslation() const;
   virtual matf getFilteredTranslation() const;

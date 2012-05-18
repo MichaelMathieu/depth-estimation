@@ -146,8 +146,8 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  SimulatedAPI api(320, 240);
-  // ARdroneAPI api("control_pipe", "navdata_pipe");
+  //SimulatedAPI api(320, 240);
+  ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
   //RadialDepthMap map(512, 100, 1.0f, 320);
   DepthMap map(64, 128, 100, 0.9f, 320);

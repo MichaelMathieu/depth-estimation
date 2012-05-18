@@ -69,6 +69,11 @@ matf SimulatedAPI::getDepthMap() const {
   return map;
 }
 
+matf SimulatedAPI::getConfidenceMap() const {
+  //matf map(dmH, dmW, 1e30f);
+  return matf(dmH, dmW, 1.0f);
+}
+
 matf SimulatedAPI::getIMUTranslation() const {
   matf pray = getPRay();
   matf npray = getNPRay();
