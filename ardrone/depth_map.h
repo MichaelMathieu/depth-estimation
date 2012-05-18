@@ -78,12 +78,15 @@ public:
   inline size_t getIRhoFromRho(float rho) const;
   inline size_t getIRhoFromRho2(float rho) const;
   inline size_t getIThetaFromTheta(float theta) const;
+  
   inline float getRhoFromIRho(size_t iRho) const;
   inline float getRho1FromIRho(size_t iRho) const;
   inline float getRho2FromIRho(size_t iRho) const;
+  
   inline float getRhoFromIRho2(size_t iRho) const;
   inline float getRho1FromIRho2(size_t iRho) const;
   inline float getRho2FromIRho2(size_t iRho) const;
+
   inline float getThetaFromITheta(size_t iTheta) const; //can be > PI (by small amount)
   inline float getTheta1FromITheta(size_t iTheta) const; //never > PI
   inline float getTheta2FromITheta(size_t iTheta) const; //can be > PI (by small amount)
@@ -95,11 +98,9 @@ public:
 public:
   void newPixel(float x, float y, float depth, float confidence, float WImg, float hImg);
   void newDisplacement(const matf & pos, const matf & sight); 
-  void newDisplacement2(const matf & pos, const matf & sight); 
   void newFrame(matf pixels);
   std::string toString();
   mat3b to2DMap();
-  mat3b to2DMap2();
 private:
   float maxDepth, focalLength, unseenDecay;
   Map map;

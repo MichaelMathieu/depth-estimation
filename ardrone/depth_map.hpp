@@ -1,5 +1,4 @@
 
-
 // BinIndex
 
 DepthMap::BinIndex::BinIndex(DepthMap* map, size_t iRho, size_t iTheta)

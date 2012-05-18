@@ -86,7 +86,7 @@ void keyboardUp2(int key, int, int) {
 void idle() {
 
   float safeTheta = pMap->getSafeTheta(16);
-  printf("safeTheta = %f\n", safeTheta);
+  //printf("safeTheta = %f\n", safeTheta);
 
   keyboard('w', false, true);
   //roll = safeTheta*0.1f;
@@ -119,8 +119,6 @@ void idle() {
     glutReshapeWindow(win_w, win_h);
   }
 
-
-
   //glDrawPixels(win_w, win_h, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
   //glutSwapBuffers();
 
@@ -146,8 +144,8 @@ void render() {
 }
 
 int main(int argc, char* argv[]) {
-  //SimulatedAPI api(320, 240);
-  ARdroneAPI api("control_pipe", "navdata_pipe");
+  SimulatedAPI api(320, 240);
+  // ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
   
   DepthMap map(64, 128, 100, 0.9f, 320);
