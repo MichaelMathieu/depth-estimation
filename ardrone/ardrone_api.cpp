@@ -22,9 +22,11 @@ ARdroneAPI::ARdroneAPI(const string & control_fifo_path, const string & navdata_
   memset(navdataFifoBuffer, 0, sizeof(char)*(navdataFifoBufferLen+1));
   printf("Getting control FIFO\n");
   control_fifo = open(control_fifo_path.c_str(), O_WRONLY);
+#ifdef READ_NAVDATA
   printf("Getting navdata FIFO\n");
-  //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
-  //navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY);
+  navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY | O_NDELAY);
+  navdata_fifo = open(navdata_fifo_path.c_str(), O_RDONLY);
+#endif
   printf("All good!\n");
 
   lua_executable_dir("./lua");
@@ -48,7 +50,7 @@ void ARdroneAPI::next() {
   double time = getTimeInSec();
   delta_t = (float)(time - last_time);
   last_time = time;
-  /*
+#if READ_NAVDATA
   while (read(navdata_fifo, navdataFifoBuffer, navdataFifoBufferLen) == navdataFifoBufferLen) {
     sscanf(navdataFifoBuffer, "%d %d %d %d %d %d %f %f %f", &droneState, &bs,
     	   &gx, &gy, &gz, &a, &vx, &vy, &vz);
@@ -61,7 +63,10 @@ void ARdroneAPI::next() {
     imuD(1,0) = vy;
     imuD(2,0) = vz;
   }
-  */
+#else
+  imuD(0,0) = 1.0f;
+  imuD(1,0) = imuD(2,0) = 0.0f;
+#end
   imuD *= delta_t;
 
   lua_getfield(L, LUA_GLOBALSINDEX, "nextFrameDepth");
@@ -109,10 +114,7 @@ matf ARdroneAPI::getConfidenceMap() const {
 }
 
 matf ARdroneAPI::getIMUTranslation() const {
-  //return imuD;
-  matf ret(3,1, 0.0f);
-  ret(0,0) = 1.0f;
-  return ret;
+  return imuD;
 }
 
 matf ARdroneAPI::getFilteredTranslation() const {

@@ -4,7 +4,7 @@ local str = file:read("*all")
 file:close()
 local home=str:gsub('\n$', '')
 package.path = "./?.lua;../?.lua;"..home.."/local/share/torch/lua/?.lua;"..home.."/local/share/torch/lua/?/init.lua;"..home.."/local/lib/torch/?.lua;"..home.."/local/lib/torch/?/init.lua"
-package.cpath = "./?.so;../?.so;"..home.."/local/lib/torch/?.so;"..home.."/local/lib/torch/loadall.so"
+package.cpath = "./?.so;../?.so;"..home.."/local/lib/torch/?.so;"..home.."/local/lib/torch/loadall.so;"..home.."/local/lib/torch/lib?.so"
 
 require 'torch'
 torch.setdefaulttensortype('torch.FloatTensor')

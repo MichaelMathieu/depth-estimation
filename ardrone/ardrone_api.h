@@ -6,6 +6,8 @@
 #include "drone_api.h"
 #include<luaT.h>
 
+//#define READ_NAVDATA
+
 const size_t controlFifoBufferLen = 33;
 const size_t navdataFifoBufferLen = 98;
 
