@@ -48,7 +48,8 @@ Khalf[3][3] = 1.0
 --local cam = ImageCamera
 --cam:init(geometry, camera_idx)
 local cam = ImageLoader
-local impaths = {'../data/ardrone2', 'data/ardrone2'}
+
+local impaths = {'../data/ardrone1', 'data/ardrone1'}
 local impath
 for i = 1,#impaths do
    if isdir(impaths[i]) then
@@ -162,9 +163,6 @@ function nextFrameDepth()
       local poutput = processOutput(geometry, moutput, true)
       print("processOutput: " .. timer:time()['real'])
       output = poutput.full
-      enlargeMask(mask,
-		  math.ceil((geometry.wImg-poutput.y:size(2))/2),
-		  math.ceil((geometry.hImg-poutput.y:size(1))/2))
       print("enlargeMask  : " .. timer:time()['real'])
       
       local mask2 = torch.Tensor(geometry.hImg, geometry.wImg):zero()

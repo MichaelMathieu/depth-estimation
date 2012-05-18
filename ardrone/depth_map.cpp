@@ -42,6 +42,39 @@ void DepthMap::newPixel(float x, float y, float depth, float confidence,
   ray[iBin].value() = 0.5f * (ray[iBin].value() + confidence);
 }
 
+float DepthMap::getSafeTheta(size_t fov) {
+  assert(fov<nBinsTheta());
+  float safeTheta = 0;
+  int iniTheta = floor((nBinsTheta()-fov)/2);
+  int endTheta = iniTheta+fov;
+  size_t closestBin = nBinsRho()-1;
+  for (int iTheta=iniTheta; iTheta<endTheta; iTheta++) {
+    // printf("iTheta = %d\n", iTheta);
+    float maxConfidence = 1e-1;
+    size_t maxConfidenceBin = nBinsRho()-1;
+    for (int iRho=0; iRho<nBinsRho(); iRho++) {
+      // printf("iRho = %d\n", iRho);
+      float confidence = map(iTheta, iRho);
+      if (confidence>maxConfidence) {
+        maxConfidence = confidence;
+        maxConfidenceBin = iRho;
+      }
+    }
+    if (maxConfidenceBin < closestBin) {
+      closestBin = maxConfidenceBin;
+      safeTheta = -((float)(iTheta) / (float)(nBinsTheta()-1) - 0.5f) * 2.0f * PI;
+    }
+    // float theta = ((float)(iTheta) / (float)(nBinsTheta()-1) - 0.5f) * 2.0f * PI;
+    // printf("theta = %f, maxBin = %d\n", theta, maxConfidenceBin);
+    // safeTheta += theta*maxConfidenceBin/nBinsRho();
+
+  }
+  if (closestBin<8)
+    return safeTheta;
+  else
+    return 0;
+}
+
 void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
   // position
   Map new_map(nBinsTheta(), nBinsRho());
@@ -49,41 +82,18 @@ void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
   vector<SphericCoordinates> coords_tmp;
   for (int iTheta = 0; iTheta < nBinsTheta(); ++iTheta) {
     for (int iRho = 0; iRho < nBinsRho(); ++iRho) {
+     
       BinIndex newBin = BinIndex(this, iRho, iTheta);
-      newBin.getPointsInside(5,5, coords_tmp);
+      newBin.getPointsInside(5, 5, coords_tmp);
       float value = 0.0f;
+      // printf("iTheta = %d, iRho = %d\n", iTheta, iRho);
       for (size_t iPt = 0; iPt < coords_tmp.size(); ++iPt) {
       	CartesianCoordinates pt = coords_tmp[iPt].toCartesianCoordinates();
       	pt.add(pos(0,0), pos(1,0));
+        // printf("iPt = %d\n", iPt);
       	value += pt.toBinIndex().value();
       }
-      new_map(newBin.iTheta, newBin.iRho) = value/(float)coords_tmp.size()*unseenDecay;
-    }
-  }
-  map = new_map;
-  // angle
-  float theta = atan2(sight(1,0), sight(0,0));
-  if (theta < 0.0f)
-    theta = theta + 2.0f*PI;
-  theta_sight = theta;
-}
-
-void DepthMap::newDisplacement2(const matf & pos, const matf & sight) {
-  // position
-  Map new_map(nBinsTheta(), nBinsRho());
-  double tx = pos(0,0), ty = pos(1,0);
-  vector<SphericCoordinates> coords_tmp;
-  for (int iTheta = 0; iTheta < nBinsTheta(); ++iTheta) {
-    for (int iRho = 0; iRho < nBinsRho(); ++iRho) {
-      BinIndex newBin = BinIndex(this, iRho, iTheta);
-      newBin.getPointsInside(5,5, coords_tmp);
-      float value = 0.0f;
-      for (size_t iPt = 0; iPt < coords_tmp.size(); ++iPt) {
-        CartesianCoordinates pt = coords_tmp[iPt].toCartesianCoordinates();
-        pt.add(pos(0,0), pos(1,0));
-        value += pt.toBinIndex().value();
-      }
-      new_map(newBin.iTheta, newBin.iRho) = value/(float)coords_tmp.size()*unseenDecay;
+      new_map(newBin.iTheta, newBin.iRho) = value/(float)coords_tmp.size();//*unseenDecay;
     }
   }
   map = new_map;

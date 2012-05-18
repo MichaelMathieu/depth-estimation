@@ -1,5 +1,4 @@
 
-
 // BinIndex
 
 DepthMap::BinIndex::BinIndex(DepthMap* map, size_t iRho, size_t iTheta)
@@ -7,7 +6,7 @@ DepthMap::BinIndex::BinIndex(DepthMap* map, size_t iRho, size_t iTheta)
 }
 
 DepthMap::SphericCoordinates DepthMap::BinIndex::toSphericCoordinates() const {
-  return SphericCoordinates(map, map->getRhoFromIRho(iRho), map->getThetaFromITheta(iTheta));
+  return SphericCoordinates(map, map->getRhoFromIRho2(iRho), map->getThetaFromITheta(iTheta));
 }
 
 DepthMap::CartesianCoordinates DepthMap::BinIndex::toCartesianCoordinates() const {
@@ -15,11 +14,11 @@ DepthMap::CartesianCoordinates DepthMap::BinIndex::toCartesianCoordinates() cons
 }
 
 float DepthMap::BinIndex::getRho1() const {
-  return map->getRho1FromIRho(iRho);
+  return map->getRho1FromIRho2(iRho);
 }
 
 float DepthMap::BinIndex::getRho2() const {
-  return map->getRho2FromIRho(iRho);
+  return map->getRho2FromIRho2(iRho);
 }
 
 float DepthMap::BinIndex::getTheta1() const {
@@ -45,7 +44,7 @@ DepthMap::SphericCoordinates::SphericCoordinates(DepthMap* map, float rho, float
 }
  
 DepthMap::BinIndex DepthMap::SphericCoordinates::toBinIndex() const {
-  return BinIndex(map, map->getIRhoFromRho(rho), map->getIThetaFromTheta(theta));
+  return BinIndex(map, map->getIRhoFromRho2(rho), map->getIThetaFromTheta(theta));
 }
 
 DepthMap::CartesianCoordinates DepthMap::SphericCoordinates::toCartesianCoordinates() const {
@@ -79,7 +78,7 @@ DepthMap::BinRay::BinRay(DepthMap* map, float theta)
 }
  
 size_t DepthMap::BinRay::getIBinFromDepth(float depth) const {
-  return map->getIRhoFromRho(depth);
+  return map->getIRhoFromRho2(depth);
 }
  
 const DepthMap::BinIndex DepthMap::BinRay::operator[] (size_t i) const {
@@ -169,6 +168,14 @@ size_t DepthMap::getIRhoFromRho(float rho) const {
   */
 }
 
+size_t DepthMap::getIRhoFromRho2(float rho) const {
+  assert(rho > 0);
+  if (rho > maxDepth)
+    return nBinsRho()-1;
+  else
+    return floor(rho / maxDepth * (float)nBinsRho());
+}
+
 size_t DepthMap::getIThetaFromTheta(float theta) const {
   float theta_rectified = theta + theta_sight;
   if (theta_rectified > PI)
@@ -178,6 +185,11 @@ size_t DepthMap::getIThetaFromTheta(float theta) const {
 
 float DepthMap::getRhoFromIRho(size_t iRho) const {
   return 0.5f*(getRho1FromIRho(iRho) + getRho2FromIRho(iRho));
+  //return ((float)iRho + 0.5f) * maxDepth/(float)nBinsRho();
+}
+
+float DepthMap::getRhoFromIRho2(size_t iRho) const {
+  return 0.5f*(getRho1FromIRho2(iRho) + getRho2FromIRho2(iRho));
   //return ((float)iRho + 0.5f) * maxDepth/(float)nBinsRho();
 }
 
@@ -195,6 +207,14 @@ float DepthMap::getRho2FromIRho(size_t iRho) const {
   else
     return maxDepth/((float)nBinsRho() - 1.0f - (float)iRho);
   //return ((float)iRho + 1.0f) * maxDepth/(float)nBinsRho();
+}
+
+float DepthMap::getRho1FromIRho2(size_t iRho) const {
+  return maxDepth/((float)nBinsRho()) * (float)iRho;
+}
+
+float DepthMap::getRho2FromIRho2(size_t iRho) const {
+  return maxDepth/((float)nBinsRho()) * ((float)iRho+1);
 }
 
 float DepthMap::getThetaFromITheta(size_t iTheta) const {

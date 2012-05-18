@@ -76,15 +76,23 @@ public:
   // if possible, do not use these functions outside BinIndex, SphericCoordinates and BinRay
   // (so that it will be easier to add features)
   inline size_t getIRhoFromRho(float rho) const;
+  inline size_t getIRhoFromRho2(float rho) const;
   inline size_t getIThetaFromTheta(float theta) const;
+  
   inline float getRhoFromIRho(size_t iRho) const;
   inline float getRho1FromIRho(size_t iRho) const;
   inline float getRho2FromIRho(size_t iRho) const;
+  
+  inline float getRhoFromIRho2(size_t iRho) const;
+  inline float getRho1FromIRho2(size_t iRho) const;
+  inline float getRho2FromIRho2(size_t iRho) const;
+
   inline float getThetaFromITheta(size_t iTheta) const; //can be > PI (by small amount)
   inline float getTheta1FromITheta(size_t iTheta) const; //never > PI
   inline float getTheta2FromITheta(size_t iTheta) const; //can be > PI (by small amount)
   
   BinRay getRayFromPixel(float x, float y, float wImg, float hImg);
+  float getSafeTheta(size_t fov);
   inline size_t nBinsRho () const;
   inline size_t nBinsTheta () const;
 public:

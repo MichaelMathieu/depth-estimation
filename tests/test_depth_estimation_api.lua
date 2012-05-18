@@ -19,7 +19,7 @@ while true do
    masked[2]:copy(flowx:cmul(mask))
    masked[3]:copy(flowx:cmul(mask)+(-mask+1):mul(8))
    
-   win  = image.display{win=win, image={masked}, min=-8, max=8}
-   win2 = image.display{win=win2, image={last_im, im, w_im}, min=0, max=1}
-   win3 = image.display{image={last_im - im, w_im - im}, win=win3, min=-1, max=1}
+   win  = opencv.display{win=win, image={masked}, min=-8, max=8}
+   win2 = opencv.display{win=win2, image={last_im, im, w_im}, min=0, max=1}
+   win3 = opencv.display{image={last_im - im, w_im - im}, win=win3, min=-1, max=1}
 end
