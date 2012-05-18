@@ -89,9 +89,9 @@ public:
   inline size_t nBinsTheta () const;
 public:
   void newPixel(float x, float y, float depth, float confidence, float WImg, float hImg);
-  void newDisplacement(const matf & pos, const matf & sight); 
+  void newDisplacement(const matf & pos, const matf & sight);
   void newDisplacement2(const matf & pos, const matf & sight); 
-  void newFrame(matf pixels);
+  void newFrame(const matf & depth, const matf & confidence);
   std::string toString();
   mat3b to2DMap();
 private:

@@ -22,3 +22,5 @@ ardroneSDK:
 
 clean:
 	rm -rf simulator test_simulator.o ${OBJ}
+	cd API/Examples/Linux/ && make clean && cd -
+	rm -rf ardrone_sdk

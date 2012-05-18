@@ -80,12 +80,11 @@ void keyboardUp2(int key, int, int) {
 
 #include "opencv/highgui.h"
 void idle() {
-  printf("avt next\n");
   pApi->next();
-  printf("apres next\n");
   cout << pitch << " " << roll << " " << dyaw << " " << gaz << endl;
   cout << pApi->toString() << endl;
   matf frameDMap = pApi->getDepthMap();
+  matf frameCMap = pApi->getConfidenceMap();
   
   if ((frameDMap.size().height != win_h) || (frameDMap.size().width != win_w)) {
     win_w = frameDMap.size().width;
@@ -95,19 +94,22 @@ void idle() {
   }
   //glDrawPixels(win_w, win_h, GL_LUMINANCE, GL_FLOAT, (float*)((matf)(0.01f*frameDMap)).data);
   //glutSwapBuffers();
-  
-  //pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());
-  //pMap->newFrame(frameDMap);
+
+  pMap->newDisplacement(pApi->getFilteredTranslation(), pApi->getIMUGyro());
+  pMap->newFrame(frameDMap, frameCMap);
 
   cv::namedWindow("depth map");
-  double m;
-  minMaxLoc(frameDMap, NULL, &m);
-  //m = 100.;
+  //double m;
+  //minMaxLoc(frameDMap, NULL, &m);
+  double m = 100.;
   cv::imshow("depth map", frameDMap / m);
   
+  cv::namedWindow("confidence map");
+  cv::imshow("confidence map", frameCMap);
+
   cv::namedWindow("2d map");
   cv::imshow("2d map", pMap->to2DMap());
-  cvWaitKey(1);
+  cvWaitKey(10);
   
   //cout << pMap->toString() << endl;
   //usleep(100000);
@@ -122,7 +124,7 @@ int main(int argc, char* argv[]) {
   ARdroneAPI api("control_pipe", "navdata_pipe");
   pApi = &api;
   //RadialDepthMap map(512, 100, 1.0f, 320);
-  DepthMap map(64, 64, 60, 1.0f, 320);
+  DepthMap map(64, 64, 60, 0.9f, 320);
   pMap = &map;
   glutInit(&argc, argv);
   glutInitWindowPosition(0,0);

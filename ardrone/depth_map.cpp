@@ -94,10 +94,11 @@ void DepthMap::newDisplacement2(const matf & pos, const matf & sight) {
   theta_sight = theta;
 }
 
-void DepthMap::newFrame(matf pixels) {
-  int j = pixels.size().height/2;
+void DepthMap::newFrame(const matf & pixels, const matf & confidence) {
+  int j = pixels.size().height/4;
   for (int i = 0; i < pixels.size().width; ++i)
-    newPixel(i, j, pixels(j, i), 1, pixels.size().width, pixels.size().height);
+    if (confidence(j, i) > 0.5f)
+      newPixel(i, j, pixels(j, i), 1, pixels.size().width, pixels.size().height);
 }
 
 mat3b DepthMap::to2DMap() {
