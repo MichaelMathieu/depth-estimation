@@ -152,6 +152,7 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
       if paths.filep(flowfilename) then
          flow = torch.load(flowfilename)
+	 flow = torch.Tensor(flow:size()):copy(flow) -- cast
          if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
 	    flow = nil
 	    print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
@@ -207,6 +208,7 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
    local flow = nil
    if paths.filep(flowfilename) then
       flow = torch.load(flowfilename)
+      flow = torch.Tensor(flow:size()):copy(flow) -- cast
       if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
          flow = nil
          print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
@@ -284,6 +286,7 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    local flow = nil
    if paths.filep(flowfilename) then
       flow = torch.load(flowfilename)
+      flow = torch.Tensor(flow:size()):copy(flow) -- cast
       if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
          flow = nil
          print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
