@@ -302,7 +302,7 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
       torch.save(flowfilename, flow)
    end
 
-   return last_im, warped_im, warped_mask, im, flow
+   return prev_im, warped_im, warped_mask, im, flow
 end
 
 function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
