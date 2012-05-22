@@ -35,11 +35,12 @@ DepthMap::BinRay DepthMap::getRayFromPixel(float x, float y, float wImg, float h
 
 void DepthMap::newPixel(float x, float y, float depth, float confidence,
 			float wImg, float hImg) {
+  float lambda = 0.9f;
   BinRay ray = getRayFromPixel(x, y, wImg, hImg);
   size_t iBin = ray.getIBinFromDepth(depth);
   for (size_t i = 0; i < iBin; ++i)
-    ray[i].value() = 0.5f * (ray[i].value() + 1.0f - confidence);
-  ray[iBin].value() = 0.5f * (ray[iBin].value() + confidence);
+    ray[i].value() = lambda * ray[i].value() + (1.0f - lambda) * (1.0f - confidence);
+  ray[iBin].value() = lambda * ray[iBin].value() + (1.0f - lambda) * confidence;
 }
 
 float DepthMap::getSafeTheta(size_t fov) {
@@ -105,10 +106,14 @@ void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
 }
 
 void DepthMap::newFrame(const matf & pixels, const matf & confidence) {
-  int j = pixels.size().height/4;
-  for (int i = 0; i < pixels.size().width; ++i)
-    if (confidence(j, i) > 0.5f)
-      newPixel(i, j, pixels(j, i), 1, pixels.size().width, pixels.size().height);
+  int w = pixels.size().width, h = pixels.size().height;
+  
+  int jmin = h/4-20;
+  int jmax = h/4+20;
+  for (int j = jmin; j < jmax; ++j)
+    for (int i = 0; i < w; ++i)
+      if (confidence(j, i) > 0.5f)
+	newPixel(i, j, pixels(j, i), 1, pixels.size().width, pixels.size().height);
 }
 
 mat3b DepthMap::to2DMap() {

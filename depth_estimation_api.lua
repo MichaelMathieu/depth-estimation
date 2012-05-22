@@ -164,7 +164,7 @@ function nextFrameDepth()
       print("prepareInput : " .. timer:time()['real'])
       local moutput = model:forward(input)
       print("Match        : " .. timer:time()['real'])
-      local poutput = processOutput(geometry, moutput, true)
+      local poutput = processOutput(geometry, moutput, true, 5)
       print("processOutput: " .. timer:time()['real'])
       output = poutput.full
       print("enlargeMask  : " .. timer:time()['real'])
