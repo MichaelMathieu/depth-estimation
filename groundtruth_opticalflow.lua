@@ -283,19 +283,29 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. 'x'
       flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/'
    else
-      flowdir = flowdir .. '/celiu'
+      flowdir = flowdir .. '/celiu/'
    end
    flowdir = flowdir ..learning.delta .. '/'
    sys.execute('mkdir -p ' .. flowdir)
-   local flowfilename = flowdir .. imagebasename .. '.flow'
+   local flowfilename
+   if learning.groundtruth == 'cross-correlation' then
+      flowfilename = flowdir .. imagebasename .. '.flow'
+   else
+      flowfilename = flowdir .. imagebasename .. '.png'
+   end
    local flow = nil
    if paths.filep(flowfilename) then
-      flow = torch.load(flowfilename)
+      if learning.groundtruth == 'cross-correlation' then
+	 flow = torch.load(flowfilename)
+      else
+	 flow = image.load(flowfilename)
+	 flow = flow*255-128
+      end
       flow = torch.Tensor(flow:size()):copy(flow) -- cast
       if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
-         flow = nil
-         print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
-      end
+	 flow = nil
+	 print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
+      end	 
    end
 
    if not flow then
@@ -498,32 +508,34 @@ function generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, 
 	 
 	 local yFlow = raw_data.flow[iImg-1][1][yCenter][xCenter]
 	 local xFlow = raw_data.flow[iImg-1][2][yCenter][xCenter]
-	 
-	 dataset.patches[iSample][1] = iImg-1
-	 dataset.patches[iSample][2] = iImg
-	 dataset.patches[iSample][3] = yPatch
-	 dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
-	 dataset.patches[iSample][5] = xPatch
-	 dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
-	 
-	 dataset.targets[iSample][1] = yFlow
-	 dataset.targets[iSample][2] = xFlow
-      
-	 if geometry.motion_correction == 'mc' then
-	    if check_borders(iImg, xPatch, yPatch, geometry) then
+	 if (xFlow >= -math.ceil(geometry.maxwGT/2)) and (xFlow <= math.floor(geometry.maxwGT/2)) and (yFlow >= -math.ceil(geometry.maxhGT/2)) and (yFlow <= math.floor(geometry.maxhGT/2)) then
+	    
+	    dataset.patches[iSample][1] = iImg-1
+	    dataset.patches[iSample][2] = iImg
+	    dataset.patches[iSample][3] = yPatch
+	    dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
+	    dataset.patches[iSample][5] = xPatch
+	    dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+	    
+	    dataset.targets[iSample][1] = yFlow
+	    dataset.targets[iSample][2] = xFlow
+	    
+	    if geometry.motion_correction == 'mc' then
+	       if check_borders(iImg, xPatch, yPatch, geometry) then
+		  iSample = iSample+1
+	       end
+	    elseif geometry.motion_correction == 'sfm' then
+	       local hk = math.ceil(geometry.hKernel/2)
+	       local wk = math.ceil(geometry.wKernel/2)
+	       if (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter-wk] > 0.5) and
+		  (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter-wk] > 0.5) and
+		  (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter+wk] > 0.5) and
+		  (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter+wk] > 0.5) then
+		  iSample = iSample+1
+	       end
+	    else
 	       iSample = iSample+1
 	    end
-	 elseif geometry.motion_correction == 'sfm' then
-	    local hk = math.ceil(geometry.hKernel/2)
-	    local wk = math.ceil(geometry.wKernel/2)
-	    if (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter-wk] > 0.5) and
-	       (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter-wk] > 0.5) and
-	       (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter+wk] > 0.5) and
-	       (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter+wk] > 0.5) then
-	       iSample = iSample+1
-	    end
-	 else
-	    iSample = iSample+1
 	 end
       end
    end
