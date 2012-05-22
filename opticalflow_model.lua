@@ -499,49 +499,20 @@ function prepareInput(geometry, patch1, patch2)
 end
 
 function getOutputConfidences(geometry, input, threshold)
-   threshold = threshold or 0.5
-   --[[
-   local entropy = torch.Tensor(input:size(1), input:size(2)):zero()
-   local tmp = torch.Tensor(entropy:size())
-   for i = 1,input:size(3) do
-      tmp:copy(input[{{},{},{i}}]:lt(1e-20):mul(1e-20)):add(-input[{{},{},{i}}])
-      tmp:log():cmul(-input[{{},{},{i}}])
-      entropy:add(tmp)
+   if not threshold then
+      local m, idx = input:max(3)
+      m = m:select(3,1)
+      idx = idx:select(3,1)
+      local middleIndex = getMiddleIndex(geometry)
+      local flatPixels = torch.LongTensor(m:size(1), m:size(2)):copy(m:eq(input[{{},{},middleIndex}]))
+      idx = flatPixels*middleIndex + (-flatPixels+1):cmul(idx:reshape(idx:size(1),idx:size(2)))
+      return idx, torch.Tensor(idx:size()):fill(1)
+   else
+      local imaxs = torch.LongTensor(input:size(1), input:size(2))
+      local gds   = torch.LongTensor(input:size(1), input:size(2))
+      extractoutput.extractOutput(input, 0.11, threshold, imaxs, gds)
+      return imaxs, gds
    end
-   --print(input[{{30,40},{30,40},{1}}])
-   wine = image.display{image=entropy,win=wine}--:gt(25000))
-   --]]
-   --[[
-   local t = torch.Timer()
-   local Ex  = input:sum(3):select(3,1):mul(1.0/input:size(3))
-   local Exx = torch.Tensor(input:size()):copy(input):cmul(input):sum(3):select(3,1):mul(1.0/input:size(3))
-   local variance = Exx - Ex:cmul(Ex)
-   wine = image.display{image=variance:gt(100),win=wine}
-   print(t:time()['real'])
-   --]]
-
-   local t = torch.Timer()
-   local imaxs = torch.LongTensor(input:size(1), input:size(2))
-   local gds   = torch.LongTensor(input:size(1), input:size(2))
-   extractoutput.extractOutput(input, 0.2, threshold, imaxs, gds)
-   print(t:time()['real'])
-   return imaxs, gds
-   --[[
-   t = torch.Timer()
-   local m, indices = input:max(3)
-   m = m:select(3,1)
-   indices = indices:select(3,1)
-   confidences = m:gt(-1)
-   --wine = image.display{image=m:gt(-1), win=wine}
-   local h = m:size(1)
-   local w = m:size(2)
-   local middleIndex = getMiddleIndex(geometry)
-   local flatPixels = torch.LongTensor(h, w):copy(m:eq(input:select(3,middleIndex)))
-   local indices = flatPixels * middleIndex + (-flatPixels+1):cmul(indices:reshape(h, w))
-   --local confidences = torch.Tensor(indices:size()):fill(1)
-   print(t:time()['real'])
-   return indices, confidences
-   --]]
 end
 
 function processOutput(geometry, output, process_full, threshold)
