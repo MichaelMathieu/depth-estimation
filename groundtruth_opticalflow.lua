@@ -134,8 +134,8 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       if paths.filep(flowfilename) then
          flowpng = image.loadPNG(flowfilename)*255-128
          if (flowpng:size(2) ~= geometry.hImg) or (flowpng:size(3) ~= geometry.wImg) then
-       flow = nil
-       print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
+	    flow = nil
+	    error("Flow in file " .. flowfilename .. " has wrong size.")
          end
          flow = torch.Tensor(2, flowpng:size(2), flowpng:size(3)):fill(1)
          flow[1] = flowpng[1]
@@ -233,7 +233,6 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
    end
 
    return im, flow, im_rect
-
 end
 
 function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasename,

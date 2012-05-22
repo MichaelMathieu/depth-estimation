@@ -31,7 +31,34 @@ template<typename T> inline void sort4(T* a, long incr) {
   sortswap(a+2, a+3, incr);
   sortswap(a+1, a+2, incr);
 }
-    
+
+template<typename T> inline void sort8(T* a, long incr) {
+  sortswap(a  , a+1, incr);
+  sortswap(a+2, a+3, incr);
+  sortswap(a+4, a+5, incr);
+  sortswap(a+6, a+7, incr);
+  
+  sortswap(a  , a+2, incr);
+  sortswap(a+1, a+3, incr);
+  sortswap(a+4, a+6, incr);
+  sortswap(a+5, a+7, incr);
+  
+  sortswap(a+1, a+2, incr);
+  sortswap(a+5, a+6, incr);
+  sortswap(a  , a+4, incr);
+  sortswap(a+3, a+7, incr);
+  
+  sortswap(a+1, a+5, incr);
+  sortswap(a+2, a+6, incr);
+
+  sortswap(a+1, a+4, incr);
+  sortswap(a+3, a+6, incr);
+
+  sortswap(a+2, a+4, incr);
+  sortswap(a+3, a+5, incr);
+
+  sortswap(a+3, a+4, incr);
+}
 
 static int ExtractOutput(lua_State *L) {
   const void* iddouble = luaT_checktypename2id(L, ID_TENSOR_STRING);
@@ -49,15 +76,17 @@ static int ExtractOutput(lua_State *L) {
   real* input_p = Tensor_(data)(input);
   long* ret_p   = THLongTensor_data  (ret  );
   long* retgd_p = THLongTensor_data  (retgd);
-
+  
   int nvalues = input->size[2];
   int h = input->size[0];
   int w = input->size[1];
   long* is  = input->stride;
   long* rs  = ret->stride;
   long* rgs = retgd->stride;
-
-  const int maxhighs = 4;
+  
+  int maxhighs = 4;
+  if (threshold < 0.2)
+    maxhighs = 8;
   Tensor* highs  = Tensor_(newWithSize4d)(h, w, 2, maxhighs);
   assert(Tensor_(isContiguous)(highs));
   real* highs_p  = Tensor_(data)(highs );
@@ -78,7 +107,6 @@ static int ExtractOutput(lua_State *L) {
 	  highs_pe = highs_p + hs[0]*i + hs[1]*j + n;
 	  *highs_pe = *input_pe;
 	  *(highs_pe + hs[2]) = (int)(input_pe - input_pe_begin)+1;
-	  //cout << *(highs_pe + hs[2]) << endl;
 	  ++n;
 	  if (n == maxhighs) { //TODO this might be removed
 	    input_pe = input_pe_end;
@@ -90,34 +118,38 @@ static int ExtractOutput(lua_State *L) {
   }
 
   accreal acc;
-  //double vmax;
-  //int imax;
-  for (i = 0; i < h; ++i) {
-    for (j = 0; j < w; ++j) {
-      highs_pe = highs_p + hs[0]*i + hs[1]*j;
-      if (*highs_pe > 0) {
-	sort4<real>(highs_pe, hs[2]);
-	ret_p  [rs[0]*i  + rs[1]*j ] = *(highs_pe+hs[2]);
-	for(k = 1; k < maxhighs; ++k)
-	  highs_pe[k] += highs_pe[k-1];
-	acc = 0;
-	for (k = 0; k < maxhighs; ++k)
-	  acc += highs_pe[k];
-	if (acc >= threshold_acc)
-	  retgd_p[rgs[0]*i + rgs[1]*j] = 1;
-	/*
-	vmax = *highs_pe;
-	imax = *(highs_pe + hs[2]);
-	highs_pe_end = highs_pe + 4;
-	for (++highs_pe; highs_pe < highs_pe_end; ++highs_pe) {
-	  if (vmax < *highs_pe) {
-	    vmax = *highs_pe;
-	    imax = *(highs_pe + hs[2]);
-	  }
+  if (maxhighs == 4) {
+    for (i = 0; i < h; ++i) {
+      for (j = 0; j < w; ++j) {
+	highs_pe = highs_p + hs[0]*i + hs[1]*j;
+	if (*highs_pe > 0) {
+	  sort4<real>(highs_pe, hs[2]);
+	  ret_p  [rs[0]*i  + rs[1]*j ] = *(highs_pe+hs[2]);
+	  for(k = 1; k < maxhighs; ++k)
+	    highs_pe[k] += highs_pe[k-1];
+	  acc = 0;
+	  for (k = 0; k < maxhighs; ++k)
+	    acc += highs_pe[k];
+	  if (acc >= threshold_acc)
+	    retgd_p[rgs[0]*i + rgs[1]*j] = 1;
 	}
-	ret_p  [rs[0]*i + rs[1]*j] = imax;
-	retgd_p[rgs[0]*i + rgs[1]*j] = 1;
-	*/
+      }
+    }
+  } else {
+    for (i = 0; i < h; ++i) {
+      for (j = 0; j < w; ++j) {
+	highs_pe = highs_p + hs[0]*i + hs[1]*j;
+	if (*highs_pe > 0) {
+	  sort8<real>(highs_pe, hs[2]);
+	  ret_p  [rs[0]*i  + rs[1]*j ] = *(highs_pe+hs[2]);
+	  for(k = 1; k < maxhighs; ++k)
+	    highs_pe[k] += highs_pe[k-1];
+	  acc = 0;
+	  for (k = 0; k < maxhighs; ++k)
+	    acc += highs_pe[k];
+	  if (acc >= threshold_acc)
+	    retgd_p[rgs[0]*i + rgs[1]*j] = 1;
+	}
       }
     }
   }

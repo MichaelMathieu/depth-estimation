@@ -66,7 +66,7 @@ void ARdroneAPI::next() {
 #else
   imuD(0,0) = 1.0f;
   imuD(1,0) = imuD(2,0) = 0.0f;
-#end
+#endif
   imuD *= delta_t;
 
   lua_getfield(L, LUA_GLOBALSINDEX, "nextFrameDepth");
@@ -84,17 +84,42 @@ void ARdroneAPI::next() {
 }
 
 void ARdroneAPI::computeDepthMapFromFlow(const matf & xflow, const matf & mask) {
-  depthMap = matf(xflow.size()); //TODO not optimal
-  confidenceMap = matf(xflow.size()); //same
+  int w = xflow.size().width, h = xflow.size().height;  
+  //filtering
+  int k = 3;
+  vector<int> values(20);
+  matf xflowP = matf(xflow.size());
+  for (int i = 0; i < w; ++i)
+    for (int j = 0; j < h; ++j)
+      if (mask(j, i)) {
+	for (int iv = 0; iv < values.size(); ++iv)
+	  values[iv] = 0;
+	for (int i2 = max(0, i-k); i2 < min(w, i+k); ++i2)
+	  for (int j2 = max(0, j-k); j2 < min(h, j+k); ++j2)
+	    if (mask(j2, i2)) {
+	      int f = round(xflow(j2, i2));
+	      ++values[f+8];
+	    }
+	int m = 0, im = 0;
+	for (int iv = 0; iv < values.size(); ++iv)
+	  if (values[iv] > m) {
+	    m = values[iv];
+	    im = iv-8;
+	  }
+	xflowP(j, i) = im;
+      }
+
+  depthMap = matf(xflowP.size()); //TODO not optimal
+  confidenceMap = matf(xflowP.size()); //same
   float m = getIMUTranslation()(0,0);
-  int middlex = xflow.size().width/2;
-  for (int i = 0; i < xflow.size().height; ++i)
-    for (int j = 0; j < xflow.size().width; ++j)
+  int middlex = xflowP.size().width/2;
+  for (int i = 0; i < xflowP.size().height; ++i)
+    for (int j = 0; j < xflowP.size().width; ++j)
       if ((mask(i,j) > 0.5f) && (j-middlex != 0)) {
-	if (abs(xflow(i, j)) < 1.1f)
+	if (abs(xflowP(i, j)) < 1.1f)
 	  depthMap(i, j) = 100.0f;
 	else
-	  depthMap(i, j) = m * abs(j-middlex) / abs(xflow(i, j)); //TODO not perfect abs
+	  depthMap(i, j) = m * abs(j-middlex) / abs(xflowP(i, j)); //TODO not perfect abs
 	confidenceMap(i, j) = 1.0f;
       } else {
 	confidenceMap(i, j) = 0.0f;
