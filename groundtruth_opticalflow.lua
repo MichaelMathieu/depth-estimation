@@ -237,8 +237,8 @@ end
 
 function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasename,
 					imagebasename, previmagebasename)
-   if learning.groundtruth ~= 'cross-correlation' then
-      error('loadRectifiedImageOpticalFlow2: groundtruth must be cross-correlation')
+   if (learning.groundtruth ~= 'cross-correlation') and (learning.groundtruth ~= 'liu') then
+      error('loadRectifiedImageOpticalFlow2: groundtruth must be cross-correlation or liu')
    end
    local ext = '.jpg'
    local impath = dirbasename .. 'images/' .. imagebasename .. ext
@@ -278,10 +278,15 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    warped_im = image.scale(warped_im, geometry.wImg, geometry.hImg)
    
    local flowdir = dirbasename .. 'rectified_flow2/' .. geometry.wImg .. 'x' .. geometry.hImg
-   flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. 'x'
-   flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/' ..learning.delta
+   if learning.groundtruth == 'cross-correlation' then
+      flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. 'x'
+      flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/'
+   else
+      flowdir = flowdir .. '/celiu'
+   end
+   flowdir = flowdir ..learning.delta .. '/'
    sys.execute('mkdir -p ' .. flowdir)
-   local flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
+   local flowfilename = flowdir .. imagebasename .. '.flow'
    local flow = nil
    if paths.filep(flowfilename) then
       flow = torch.load(flowfilename)
@@ -293,6 +298,9 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    end
 
    if not flow then
+      if learning.groundtruth == 'liu' then
+	 error("Cannot recompute liu flow. Do it manually.")
+      end
       print('Computing groundtruth optical flow for images '..impath..' and '..previmpath)
       local yflow, xflow = getOpticalFlowFast(geometry, warped_im, im)
       flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
