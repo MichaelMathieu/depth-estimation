@@ -1,7 +1,8 @@
 % addpath('mex');
 
 use_rectified = 1;
-delta = 1
+delta = 1;
+use_full_image = 0;
 
 imdir = '~/robot/depth-estimation/data/ardrone1/';
 lst = dir([imdir 'images']);
@@ -16,19 +17,21 @@ for i=1:nImg
     if use_rectified
         im1 = im2double(imread([imdir 'rectified_images/' num2str(i,formatSpec) '.jpg']));
     else
-        im1 = im2double(imread([imdir 'rectified_images/' num2str(i,formatSpec) '.jpg']));
+        im1 = im2double(imread([imdir 'undistorted_images/' num2str(i,formatSpec) '.jpg']));
     end
-	im2 = im2double(imread([imdir 'images/' num2str(i+delta,formatSpec) '.jpg']));
+	im2 = im2double(imread([imdir 'undistorted_images/' num2str(i+delta,formatSpec) '.jpg']));
 
     w = 320;
     h = size(im1, 1)*w/size(im1, 2);
-	im1 = imresize(im1,[h w],'bicubic');
-	im2 = imresize(im2,[h w],'bicubic');
-
+    if use_full_image == 0
+        im1 = imresize(im1,[h w],'nearest');
+        im2 = imresize(im2,[h w],'nearest');
+    end
+    
 	% set optical flow parameters (see Coarse2FineTwoFrames.m for the definition of the parameters)
-	alpha = 0.012;
+	alpha = 0.033;
 	ratio = 0.75;
-	minWidth = 20;
+	minWidth = 40;
 	nOuterFPIterations = 7;
 	nInnerFPIterations = 1;
 	nSORIterations = 30;
@@ -40,6 +43,15 @@ for i=1:nImg
 	tic;
 	[vx,vy,warpI2] = Coarse2FineTwoFrames(im1,im2,para);
 	toc;
+    
+    if use_full_image
+        vx = imresize(vx, [h, w], 'bilinear');
+        vy = imresize(vy, [h, w], 'bilinear');
+        vx = double(w)/double(size(im1, 2))*vx;
+        vy = double(h)/double(size(im1, 1))*vy;
+        vx = round(vx);
+        vy = round(vy);
+    end
 
 	% visualize flow field
 	clear flow;
@@ -54,9 +66,9 @@ for i=1:nImg
 	% figure; imshow(flow(:,:,2));
 
     if use_rectified
-        output = sprintf('%srectified_flow2/%dx%d/celiu/%d', imdir, w, h, delta);
+        output = sprintf('%srectified_flow2/%dx%d/celiu/%d/', imdir, w, h, delta);
     else
-        output = sprintf('%sflow/%dx%d/celiu/%d', imdir, w, h, delta);
+        output = sprintf('%sflow/%dx%d/celiu/%d/', imdir, w, h, delta);
     end
     system(['mkdir -p ' output]);
 	imwrite(flow, [output num2str(i+delta,formatSpec) '.png'], 'png');
