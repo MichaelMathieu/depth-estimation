@@ -1,6 +1,9 @@
 % addpath('mex');
 
-imdir = '~/data/sfm/indoor/';
+use_rectified = 1;
+delta = 1
+
+imdir = '~/robot/depth-estimation/data/ardrone1/';
 lst = dir([imdir 'images']);
 
 formatSpec = '%09.0f';
@@ -8,13 +11,19 @@ h = waitbar(0,'Please wait..');
 
 nImg = size(lst,1)-5;
 
-for i=0:nImg
+for i=1:nImg
 	waitbar(i/nImg)
-	im1 = im2double(imread([imdir 'images/' num2str(i,formatSpec) '.png']));
-	im2 = im2double(imread([imdir 'images/' num2str(i+1,formatSpec) '.png']));
+    if use_rectified
+        im1 = im2double(imread([imdir 'rectified_images/' num2str(i,formatSpec) '.jpg']));
+    else
+        im1 = im2double(imread([imdir 'rectified_images/' num2str(i,formatSpec) '.jpg']));
+    end
+	im2 = im2double(imread([imdir 'images/' num2str(i+delta,formatSpec) '.jpg']));
 
-	im1 = imresize(im1,[180 320],'bicubic');
-	im2 = imresize(im2,[180 320],'bicubic');
+    w = 320;
+    h = size(im1, 1)*w/size(im1, 2);
+	im1 = imresize(im1,[h w],'bicubic');
+	im2 = imresize(im2,[h w],'bicubic');
 
 	% set optical flow parameters (see Coarse2FineTwoFrames.m for the definition of the parameters)
 	alpha = 0.012;
@@ -44,8 +53,13 @@ for i=0:nImg
 	% figure; imshow(flow(:,:,1));
 	% figure; imshow(flow(:,:,2));
 
-	output = [imdir 'flow/320x180/celiu/'];
-	imwrite(flow, [output num2str(i+1,formatSpec) '.png'], 'png');
+    if use_rectified
+        output = sprintf('%srectified_flow2/%dx%d/celiu/%d', imdir, w, h, delta);
+    else
+        output = sprintf('%sflow/%dx%d/celiu/%d', imdir, w, h, delta);
+    end
+    system(['mkdir -p ' output]);
+	imwrite(flow, [output num2str(i+delta,formatSpec) '.png'], 'png');
 end
 
 close(h)
