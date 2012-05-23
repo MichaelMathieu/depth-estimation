@@ -1,4 +1,5 @@
 require 'torch'
+torch.setdefaulttensortype('torch.FloatTensor')
 require 'xlua'
 require 'nnx'
 require 'image'

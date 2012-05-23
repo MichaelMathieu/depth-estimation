@@ -40,7 +40,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.wKernel = geometry.wKernelGT
    geometryGT.layers = geometry.layers
    geometryGT.multiscale = false
-   geometryGT.training_mode = true
+   geometryGT.training_mode = false
    
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
@@ -72,9 +72,24 @@ function getOpticalFlowFast(geometry, image1, image2)
    local net = nn.SpatialMatching(maxh, maxw, false)
    local output = net:forward({input1b, input2b})
    output = -output
-   output = output:reshape(output:size(1), output:size(2), maxh*maxw)
-   local output2 = processOutput(geometryGT, output, true)
-   return output2.full[1], output2.full[2]
+   local ho = output:size(1)
+   local wo = output:size(2)
+   output = output:reshape(ho*wo, maxh*maxw)
+   output = nn.SoftMax():forward(output)
+   output = output:reshape(ho, wo, maxh*maxw)
+   local output2 = processOutput(geometryGT, output, true, 0)
+   
+   --[[
+   local entropy = torch.Tensor(input[1]:size()):zero()
+   local tmp = torch.Tensor(input[1]:size())
+   for i = 1,input:size(1) do
+      tmp:copy(input[1]:lt(1e-20):mul(1e-20)):add(input[1])
+      tmp:log():cmul(input[i])
+      entropy:add(tmp)
+   end
+   --]]
+
+   return output2.full[1], output2.full[2], output2.full_confidences
 end
 
 function getOpticalFlow(geometry, image1, image2)
@@ -276,6 +291,7 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    im = image.scale(im, geometry.wImg, geometry.hImg)
    prev_im = image.scale(prev_im, geometry.wImg, geometry.hImg)
    warped_im = image.scale(warped_im, geometry.wImg, geometry.hImg)
+   warped_mask = image.scale(warped_mask, geometry.wImg, geometry.hImg, 'simple')
    
    local flowdir = dirbasename .. 'rectified_flow2/' .. geometry.wImg .. 'x' .. geometry.hImg
    if learning.groundtruth == 'cross-correlation' then
@@ -299,9 +315,10 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
       else
 	 flow = image.load(flowfilename)
 	 flow = flow*255-128
+	 flow[3]:fill(1)
       end
       flow = torch.Tensor(flow:size()):copy(flow) -- cast
-      if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
+      if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) or (flow:size(1) ~= 3) then
 	 flow = nil
 	 print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
       end	 
@@ -312,14 +329,15 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
 	 error("Cannot recompute liu flow. Do it manually.")
       end
       print('Computing groundtruth optical flow for images '..impath..' and '..previmpath)
-      local yflow, xflow = getOpticalFlowFast(geometry, warped_im, im)
-      flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
+      local yflow ,xflow, mask = getOpticalFlowFast(geometry, warped_im, im)
+      flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow)
       flow[2]:copy(xflow)
+      flow[3]:copy(mask)
       torch.save(flowfilename, flow)
    end
 
-   return prev_im, warped_im, warped_mask, im, flow
+   return prev_im, warped_im, warped_mask:cmul(flow[3]), im, flow[{{1,2}}]
 end
 
 function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
