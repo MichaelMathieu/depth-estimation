@@ -40,7 +40,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.wKernel = geometry.wKernelGT
    geometryGT.layers = geometry.layers
    geometryGT.multiscale = false
-   geometryGT.training_mode = false
+   geometryGT.training_mode = true
    
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
@@ -78,6 +78,8 @@ function getOpticalFlowFast(geometry, image1, image2)
    output = nn.SoftMax():forward(output)
    output = output:reshape(ho, wo, maxh*maxw)
    local output2 = processOutput(geometryGT, output, true, 0)
+   geometryGT.training_mode = false
+   local output3 = processOutput(geometryGT, output, true, 0)
    
    --[[
    local entropy = torch.Tensor(input[1]:size()):zero()
@@ -89,7 +91,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    end
    --]]
 
-   return output2.full[1], output2.full[2], output2.full_confidences
+   return output2.full[1], output2.full[2], output3.full_confidences
 end
 
 function getOpticalFlow(geometry, image1, image2)
