@@ -41,6 +41,7 @@ function getRecents(path)
 end
 
 function parseFilter(str)
+   --[[
    local s1 = split(str, '-')
    local kernels = s1[1]
    local multiscale = nil
@@ -70,6 +71,8 @@ function parseFilter(str)
       end
    end
    return {layers, multiscale, sf}
+   --]]
+   return {str, nil, nil}
 end
 
 function filterFilters(strs)

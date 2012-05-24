@@ -4,6 +4,21 @@ require 'image'
 require 'groundtruth_opticalflow'
 require 'opticalflow_model_io'
 
+require 'xlua'
+require 'download_model'
+
+op = xlua.OptionParser('%prog [options]')
+op:option{'-i', '--input-model', action='store', dest='input_model', default=nil,
+	  help='Trained convnet, this option isn\'t used if -dldir is used'}
+op:option{'-dldir', '--download-dir', action='store', dest='download_dir', default=nil,
+	  help='scp command to the models folder (eg. mfm352@access.cims.nyu.edu:depth-estimation/models)'}
+--op:option{'-rd', '--root-directory', action='store', dest='root_directory',
+--	  default='./data/', help='Root dataset directory'}
+opt=op:parse()
+
+if opt.input_model then input_model = opt.input_model end
+if opt.download_dir then input_model = downloadModel(opt.download_dir) end
+
 local correction = {}
 correction.motion_correction = 'sfm'
 correction.wImg = 640
@@ -22,7 +37,7 @@ correction.distP[3] = 0.003098
 correction.distP[4] = 0.000870
 correction.distP[5] = -0.069770
 
-local input_model = 'model'
+input_model = input_model or 'model'
 local loaded = loadModel(input_model, true, false)
 local filter = loaded.filter
 local model = loaded.model
@@ -34,7 +49,7 @@ geometry.motion_correction = correction.motion_correction
 
 local learning = {}
 learning.delta = 1
-learning.groundtruth = 'cross-correlation'
+learning.groundtruth = 'liu'
 
 function scoreOpticalFlow(flow, confs, gt)
    local y = (flow[1] - gt[1]):cmul(confs)
@@ -56,7 +71,7 @@ function scoreOpticalFlow(flow, confs, gt)
 end
 
 local last_im, warped_im, warped_mask, im, gt = loadRectifiedImageOpticalFlow2(
-   correction, geometry, learning, 'data2/ardrone1/', '000000015', '000000014')
+   correction, geometry, learning, 'data/ardrone1/', '000000015', '000000014')
 
 local input = prepareInput(geometry, warped_im, im)
 local moutput = model:forward(input)

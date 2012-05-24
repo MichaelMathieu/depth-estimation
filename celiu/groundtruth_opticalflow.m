@@ -29,9 +29,9 @@ for i=1:nImg
     end
     
 	% set optical flow parameters (see Coarse2FineTwoFrames.m for the definition of the parameters)
-	alpha = 0.033;
+	alpha = 0.05;
 	ratio = 0.75;
-	minWidth = 40;
+	minWidth = 60;
 	nOuterFPIterations = 7;
 	nInnerFPIterations = 1;
 	nSORIterations = 30;
