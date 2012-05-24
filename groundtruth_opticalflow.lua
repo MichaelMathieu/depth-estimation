@@ -527,8 +527,7 @@ function generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, 
 	 
 	 local yFlow = raw_data.flow[iImg-1][1][yCenter][xCenter]
 	 local xFlow = raw_data.flow[iImg-1][2][yCenter][xCenter]
-	 if (xFlow >= -math.ceil(geometry.maxwGT/2)) and (xFlow <= math.floor(geometry.maxwGT/2)) and (yFlow >= -math.ceil(geometry.maxhGT/2)) and (yFlow <= math.floor(geometry.maxhGT/2)) then
-	    
+	 if (xFlow >= -math.ceil(geometry.maxwHR/2)) and (xFlow <= math.floor(geometry.maxwHR/2)) and (yFlow >= -math.ceil(geometry.maxhHR/2)) and (yFlow <= math.floor(geometry.maxhHR/2)) then
 	    dataset.patches[iSample][1] = iImg-1
 	    dataset.patches[iSample][2] = iImg
 	    dataset.patches[iSample][3] = yPatch

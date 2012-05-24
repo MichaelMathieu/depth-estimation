@@ -9,16 +9,16 @@ require 'inline'
 require 'extractoutput'
 
 function yx2x(geometry, y, x)
-   return (y-1) * geometry.maxwGT + x
+   return (y-1) * geometry.maxw + x
 end
 
 function x2yx(geometry, x)
    if type(x) == 'number' then
-      return (math.floor((x-1)/geometry.maxwGT)+1), (math.mod(x-1, geometry.maxwGT)+1)
+      return (math.floor((x-1)/geometry.maxw)+1), (math.mod(x-1, geometry.maxw)+1)
    else
       local xdbl = torch.DoubleTensor(x:size()):copy(x)-1
-      local yout = (xdbl/geometry.maxwGT):floor()
-      local xout = xdbl - yout*geometry.maxwGT
+      local yout = (xdbl/geometry.maxw):floor()
+      local xout = xdbl - yout*geometry.maxw
       return (yout+1.5):floor(), (xout+1.5):floor() --(a+0.5):floor() is a:round()
    end
 end
@@ -592,10 +592,10 @@ end
 
 function prepareTarget(geometry, learning, targett)
    local itarget, target, xtarget, ytarget
-   local halfh1 = math.ceil(geometry.maxhGT/2)-1
-   local halfh2 = math.floor(geometry.maxhGT/2)
-   local halfw1 = math.ceil(geometry.maxwGT/2)-1
-   local halfw2 = math.floor(geometry.maxwGT/2)
+   local halfh1 = math.ceil(geometry.maxh/2)-1
+   local halfh2 = math.floor(geometry.maxh/2)
+   local halfw1 = math.ceil(geometry.maxw/2)-1
+   local halfw2 = math.floor(geometry.maxw/2)
    if (targett[1] < -halfh1) or (targett[1] > halfh2) or
       (targett[2] < -halfw1) or (targett[2] > halfw2) then
       xtarget = 0
@@ -609,10 +609,10 @@ function prepareTarget(geometry, learning, targett)
    else
       local xtargetO = xtarget + halfw1 + 1
       local ytargetO = ytarget + halfh1 + 1
-      itarget = (ytargetO-1) * geometry.maxwGT + xtargetO
+      itarget = (ytargetO-1) * geometry.maxw + xtargetO
    end
    if learning.soft_targets then
-      target = torch.Tensor(geometry.maxhGT*geometry.maxwGT)
+      target = torch.Tensor(geometry.maxh*geometry.maxw)
       local invsigma2 = 1./learning.st_sigma2
       for y = -halfh1, halfh2 do
 	 for x = -halfw1, halfw2 do
@@ -624,7 +624,7 @@ function prepareTarget(geometry, learning, targett)
 	    else
 	       local xO = x + halfw1 + 1
 	       local yO = y + halfh1 + 1
-	       i = (yO-1) * geometry.maxwGT + xO
+	       i = (yO-1) * geometry.maxw + xO
 	    end
 	    target[i] = g
 	 end
