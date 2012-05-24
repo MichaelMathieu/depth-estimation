@@ -102,6 +102,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
 	 kernel = kernel .. '_'
       end
    end
+   kernel = kernel .. '-' .. geometry.maxhHR .. 'x' .. geometry.maxwHR .. '-'
    if geometry.L2Pooling then kernel = kernel .. '_l2' end
    if geometry.share_filters then kernel = kernel .. '_sf' end
    if geometry.multiscale then
@@ -130,7 +131,8 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    if geometry.motion_correction then motion = '_mc' end
    if learning.soft_targets then targets = '_st'..learning.st_sigma2 end
    if learning.groundtruth == 'liu' then gt = '_liu' end
-   local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
+   local train_params = geometry.maxhGT .. 'x' .. geometry.maxwGT .. '-'
+   train_params = train_params .. 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew .. gt
    train_params = train_params .. train_cascad
    modeldir = modeldir .. '/' .. train_params

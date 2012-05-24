@@ -73,6 +73,8 @@ op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set
 	  default=false, help='Renew train set at each epoch'}
 op:option{'-st', '--soft-targets', action='store', dest='soft_targets',
 	  default=nil, help='Targets are gaussians, specify sigma2'}
+op:option{'-gtws', '--gt-window-size', action='store', dest='gt_win_size',
+	  default=16, help='Groundtruth window size maxw (and maxh)'}
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -132,8 +134,10 @@ correction.distP[5] = -0.069770
 local geometry = {}
 geometry.wImg = 320
 geometry.hImg = 240
-geometry.maxwGT = tonumber(opt.win_size)
-geometry.maxhGT = tonumber(opt.win_size)
+geometry.maxwHR = tonumber(opt.win_size) --high res in case of multiscale
+geometry.maxhHR = tonumber(opt.win_size) --high res in case of multiscale
+geometry.maxwGT = tonumber(opt.gt_win_size)
+geometry.maxhGT = tonumber(opt.gt_win_size)
 geometry.wKernelGT = 16
 geometry.hKernelGT = 16
 geometry.layers = {}
@@ -165,14 +169,14 @@ geometry.L2Pooling = opt.l2_pooling
 if opt.multiscale == 0 then
    geometry.multiscale = false
    geometry.ratios = {1}
-   geometry.maxw = geometry.maxwGT
-   geometry.maxh = geometry.maxhGT
+   geometry.maxw = geometry.maxwHR
+   geometry.maxh = geometry.maxhHR
 else
    geometry.multiscale = true
    geometry.ratios = {}
    for i = 1,opt.multiscale do table.insert(geometry.ratios, math.pow(2, i-1)) end
-   geometry.maxw = math.ceil(geometry.maxwGT / geometry.ratios[#geometry.ratios])
-   geometry.maxh = math.ceil(geometry.maxhGT / geometry.ratios[#geometry.ratios])
+   geometry.maxw = math.ceil(geometry.maxwHR / geometry.ratios[#geometry.ratios])
+   geometry.maxh = math.ceil(geometry.maxhHR / geometry.ratios[#geometry.ratios])
 end
 geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
 geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
