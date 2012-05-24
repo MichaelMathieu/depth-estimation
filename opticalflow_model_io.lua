@@ -67,6 +67,9 @@ function describeModel(geometry, learning)
       kernel = kernel .. '}'
    end
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
+   if (geometry.maxhHR ~= geometry.maxhGT) or (geometry.maxwHR ~= geometry.maxwGT) then
+      win = win .. ' gtwin=(' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. ')'
+   end
    local images = 'imgs=(' .. learning.first_image .. ':' .. learning.delta .. ':' 
    images = images .. learning.first_image+learning.delta*(learning.num_images-1) .. ')'
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay

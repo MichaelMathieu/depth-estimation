@@ -150,10 +150,10 @@ end
 -- these 2 functions are kinda deprecated and confusing (because maxhGT != maxh)
 -- todo: try not to use them, eventually remove them
 function centered2onebased(geometry, y, x)
-   return (y+math.ceil(geometry.maxhGT/2)), (x+math.ceil(geometry.maxwGT/2))
+   return (y+math.ceil(geometry.maxh/2)), (x+math.ceil(geometry.maxw/2))
 end
 function onebased2centered(geometry, y, x)
-   return (y-math.ceil(geometry.maxhGT/2)), (x-math.ceil(geometry.maxwGT/2))
+   return (y-math.ceil(geometry.maxh/2)), (x-math.ceil(geometry.maxw/2))
 end
 
 function getMiddleIndex(geometry)
