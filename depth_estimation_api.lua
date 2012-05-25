@@ -28,6 +28,7 @@ model.modules[4] = nn.SoftMax()
 local filter = loaded.filter
 local geometry = loaded.geometry
 geometry.prefilter = true
+geometry.output_extraction_method = 'mean'
 local K = torch.Tensor(3,3)
 K[1][1] = 293.824707
 K[1][2] = 0.
@@ -164,7 +165,7 @@ function nextFrameDepth()
       print("prepareInput : " .. timer:time()['real'])
       local moutput = model:forward(input)
       print("Match        : " .. timer:time()['real'])
-      local poutput = processOutput(geometry, moutput, true, 1.5)
+      local poutput = processOutput(geometry, moutput, true, nil)
       print("processOutput: " .. timer:time()['real'])
       output = poutput.full
       print("enlargeMask  : " .. timer:time()['real'])

@@ -515,31 +515,48 @@ function getOutputConfidences(geometry, input, threshold)
    end
 end
 
+function getOutputConfidences2(geometry, input)
+   local xmul = torch.Tensor(geometry.maxh*geometry.maxw)
+   local ymul = torch.Tensor(geometry.maxh*geometry.maxw)
+   for i = 1,geometry.maxh do
+      for j = 1,geometry.maxw do
+	 local k = yx2x(geometry, i, j)
+	 ymul[k] = i
+	 xmul[k] = j
+      end
+   end
+   xmul = nn.Replicate(input:size(1)):forward(nn.Replicate(input:size(2)):forward(xmul))
+   ymul = nn.Replicate(input:size(1)):forward(nn.Replicate(input:size(2)):forward(ymul))
+   local x = input:clone():cmul(xmul):sum(3)[{{},{},1}]
+   local y = input:cmul(ymul):sum(3)[{{},{},1}]
+   return y, x, torch.Tensor(y:size()):fill(1)
+end
+
 function processOutput(geometry, output, process_full, threshold)
    local ret = {}
-   if geometry.training_mode then
-      local m
-      m, ret.index = output:max(3)
-      m = m:select(3,1)
-      ret.index = ret.index:select(3,1)
-      local middleIndex = getMiddleIndex(geometry)
-      local flatPixels = torch.LongTensor(m:size(1), m:size(2)):copy(m:eq(output[{{},{},middleIndex}]))
-      ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(1), ret.index:size(2)))
-   else
+   if geometry.output_extraction_method == 'max' then
       ret.index, ret.confidences = getOutputConfidences(geometry, output, threshold)
-   end
-   ret.index = ret.index:squeeze()
-   if geometry.multiscale then
-      ret.y, ret.x = x2yxMulti(geometry, ret.index)
+      ret.index = ret.index:squeeze()
+      if geometry.multiscale then
+	 ret.y, ret.x = x2yxMulti(geometry, ret.index)
+      else
+	 ret.y, ret.x = x2yx(geometry, ret.index)
+	 local yoffset, xoffset = centered2onebased(geometry, 0, 0)
+	 ret.y = ret.y - yoffset
+	 ret.x = ret.x - xoffset
+      end
+      if process_full == nil then
+	 process_full = type(ret.y) ~= 'number'
+      end
    else
-      ret.y, ret.x = x2yx(geometry, ret.index)
+      assert(not geometry.multiscale)
+      ret.y, ret.x, ret.confidences = getOutputConfidences2(geometry, output)
+      ret.index = yx2x(geometry, (ret.y+0.5):floor(), (ret.x+0.5):floor())
       local yoffset, xoffset = centered2onebased(geometry, 0, 0)
       ret.y = ret.y - yoffset
       ret.x = ret.x - xoffset
    end
-   if process_full == nil then
-      process_full = type(ret.y) ~= 'number'
-   end
+
    if process_full then
       local hoffset, woffset
       hoffset = math.floor((geometry.hImg-ret.y:size(1))/2)

@@ -41,6 +41,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.layers = geometry.layers
    geometryGT.multiscale = false
    geometryGT.training_mode = true
+   geometryGT.output_extraction_method = geometry.output_extraction_method
    
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
@@ -81,16 +82,6 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.training_mode = false
    local output3 = processOutput(geometryGT, output, true, 0)
    
-   --[[
-   local entropy = torch.Tensor(input[1]:size()):zero()
-   local tmp = torch.Tensor(input[1]:size())
-   for i = 1,input:size(1) do
-      tmp:copy(input[1]:lt(1e-20):mul(1e-20)):add(input[1])
-      tmp:log():cmul(input[i])
-      entropy:add(tmp)
-   end
-   --]]
-
    return output2.full[1], output2.full[2], output3.full_confidences
 end
 
@@ -164,9 +155,10 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       
    elseif groundtruth == 'cross-correlation' then
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
-      flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
+      flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT
+      flowdir = flowdir .. '/' .. geometry.output_extraction_method .. '/' .. delta .. '/'
       os.execute('mkdir -p ' .. flowdir)
-      flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
+      flowfilename = flowdir .. imagebasename .. '.flow'
       if paths.filep(flowfilename) then
          flow = torch.load(flowfilename)
 	 flow = torch.Tensor(flow:size()):copy(flow) -- cast
@@ -219,9 +211,10 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
    local flowdir = dirbasename .. 'rectified_flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
-   flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
+   flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT
+   flowdir = flowdir .. '/' .. geometry.output_extraction_method .. '/' .. delta .. '/'
    os.execute('mkdir -p ' .. flowdir)
-   local flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
+   local flowfilename = flowdir .. imagebasename .. '.flow'
    local flow = nil
    if paths.filep(flowfilename) then
       flow = torch.load(flowfilename)
@@ -302,7 +295,8 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    else
       flowdir = flowdir .. '/celiu/'
    end
-   flowdir = flowdir ..learning.delta .. '/'
+   flowdir = flowdir .. geometry.output_extraction_method .. '/'
+   flowdir = flowdir .. learning.delta .. '/'
    sys.execute('mkdir -p ' .. flowdir)
    local flowfilename
    if learning.groundtruth == 'cross-correlation' then
