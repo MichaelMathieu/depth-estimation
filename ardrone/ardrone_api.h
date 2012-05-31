@@ -9,7 +9,7 @@
 //#define READ_NAVDATA
 
 const size_t controlFifoBufferLen = 33;
-const size_t navdataFifoBufferLen = 98;
+const int navdataFifoBufferLen = 98;
 
 class ARdroneAPI : public DroneAPI {
 public:
@@ -17,6 +17,9 @@ public:
   virtual ~ARdroneAPI();
 public:
   virtual void next();
+  void nextTime();
+  void nextNavdata();
+  void nextDepthMap();
   virtual float getDeltaT() const;
   virtual matf getDepthMap() const;
   virtual matf getConfidenceMap() const;
