@@ -1,4 +1,5 @@
 require 'torch'
+torch.setdefaulttensortype('torch.FloatTensor')
 require 'xlua'
 require 'nnx'
 require 'image'
@@ -28,7 +29,9 @@ op:option{'-k2s', '--kernel2-size', action='store', dest='kernel2_size',
 op:option{'-k3s', '--kernel3-size', action='store', dest='kernel3_size',
 	  default=16, help='Kernel 3 size'}
 op:option{'-ws', '--window-size', action='store', dest='win_size',
-	  default=16, help='Window size maxw (and maxh)'}
+	  default=16, help='Window size maxw (and maxh if no -wsh)'}
+op:option{'-wsh', '--window-size-height', action='store', dest='win_size_height',
+	  default=nil, help='Window size height (maxh)'}
 op:option{'-nl', '-num-layers', action='store', dest='num_layers',
 	  default=2, help='Number of layers in the network (1 2 or 3)'}
 op:option{'-s2', '--layer-two-size', action='store', dest='layer_two_size', default=8,
@@ -52,6 +55,8 @@ op:option{'-mstw', '--multiscale-trainable-weights', action='store_true',
 	  help='Allow the weights of CascadingAddTable to be trained'}
 op:option{'-mssb', '--multiscale-single-beta', action='store_true', default=false,
 	  dest='ms_single_beta', help='Single beta per scale in CascadingAddTable'}
+op:option{'-oem', '--output-extraction-method', action='store', default='max',
+	  dest='output_extraction_method', help="Output extraction method (max | mean)"}
 
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
@@ -72,6 +77,8 @@ op:option{'-rn', '--renew-train-set', action='store_true', dest='renew_train_set
 	  default=false, help='Renew train set at each epoch'}
 op:option{'-st', '--soft-targets', action='store', dest='soft_targets',
 	  default=nil, help='Targets are gaussians, specify sigma2'}
+op:option{'-gtws', '--gt-window-size', action='store', dest='gt_win_size',
+	  default=16, help='Groundtruth window size maxw (and maxh)'}
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -131,8 +138,13 @@ correction.distP[5] = -0.069770
 local geometry = {}
 geometry.wImg = 320
 geometry.hImg = 240
-geometry.maxwGT = tonumber(opt.win_size)
-geometry.maxhGT = tonumber(opt.win_size)
+geometry.maxwHR = tonumber(opt.win_size) --high res in case of multiscale
+geometry.maxhHR = tonumber(opt.win_size) --high res in case of multiscale
+if opt.win_size_height then
+   geometry.maxhHR = tonumber(opt.win_size_height)
+end
+geometry.maxwGT = tonumber(opt.gt_win_size)
+geometry.maxhGT = tonumber(opt.gt_win_size)
 geometry.wKernelGT = 16
 geometry.hKernelGT = 16
 geometry.layers = {}
@@ -164,14 +176,14 @@ geometry.L2Pooling = opt.l2_pooling
 if opt.multiscale == 0 then
    geometry.multiscale = false
    geometry.ratios = {1}
-   geometry.maxw = geometry.maxwGT
-   geometry.maxh = geometry.maxhGT
+   geometry.maxw = geometry.maxwHR
+   geometry.maxh = geometry.maxhHR
 else
    geometry.multiscale = true
    geometry.ratios = {}
    for i = 1,opt.multiscale do table.insert(geometry.ratios, math.pow(2, i-1)) end
-   geometry.maxw = math.ceil(geometry.maxwGT / geometry.ratios[#geometry.ratios])
-   geometry.maxh = math.ceil(geometry.maxhGT / geometry.ratios[#geometry.ratios])
+   geometry.maxw = math.ceil(geometry.maxwHR / geometry.ratios[#geometry.ratios])
+   geometry.maxh = math.ceil(geometry.maxhHR / geometry.ratios[#geometry.ratios])
 end
 geometry.wPatch2 = geometry.maxw + geometry.wKernel - 1
 geometry.hPatch2 = geometry.maxh + geometry.hKernel - 1
@@ -183,6 +195,7 @@ if geometry.multiscale then
    geometry.cascad_trainable_weights = opt.ms_trainable_weights
    geometry.single_beta = opt.ms_single_beta
 end
+geometry.output_extraction_method = opt.output_extraction_method
 
 local learning = {}
 learning.first_image = tonumber(opt.first_image)

@@ -41,6 +41,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.layers = geometry.layers
    geometryGT.multiscale = false
    geometryGT.training_mode = true
+   geometryGT.output_extraction_method = geometry.output_extraction_method
    
    local maxh = geometry.maxhGT
    local maxw = geometry.maxwGT
@@ -72,9 +73,16 @@ function getOpticalFlowFast(geometry, image1, image2)
    local net = nn.SpatialMatching(maxh, maxw, false)
    local output = net:forward({input1b, input2b})
    output = -output
-   output = output:reshape(output:size(1), output:size(2), maxh*maxw)
-   local output2 = processOutput(geometryGT, output, true)
-   return output2.full[1], output2.full[2]
+   local ho = output:size(1)
+   local wo = output:size(2)
+   output = output:reshape(ho*wo, maxh*maxw)
+   output = nn.SoftMax():forward(output)
+   output = output:reshape(ho, wo, maxh*maxw)
+   local output2 = processOutput(geometryGT, output, true, 0)
+   geometryGT.training_mode = false
+   local output3 = processOutput(geometryGT, output, true, 0)
+   
+   return output2.full[1], output2.full[2], output3.full_confidences
 end
 
 function getOpticalFlow(geometry, image1, image2)
@@ -147,9 +155,10 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
       
    elseif groundtruth == 'cross-correlation' then
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
-      flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
+      flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT
+      flowdir = flowdir .. '/' .. geometry.output_extraction_method .. '/' .. delta .. '/'
       os.execute('mkdir -p ' .. flowdir)
-      flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
+      flowfilename = flowdir .. imagebasename .. '.flow'
       if paths.filep(flowfilename) then
          flow = torch.load(flowfilename)
 	 flow = torch.Tensor(flow:size()):copy(flow) -- cast
@@ -202,9 +211,10 @@ function loadRectifiedImageOpticalFlow(geometry, dirbasename, imagebasename,
 
    local flowdir = dirbasename .. 'rectified_flow/' .. geometry.wImg .. 'x' .. geometry.hImg
    flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
-   flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT .. '/' .. delta
+   flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT
+   flowdir = flowdir .. '/' .. geometry.output_extraction_method .. '/' .. delta .. '/'
    os.execute('mkdir -p ' .. flowdir)
-   local flowfilename = flowdir .. '/' .. imagebasename .. '.flow'
+   local flowfilename = flowdir .. imagebasename .. '.flow'
    local flow = nil
    if paths.filep(flowfilename) then
       flow = torch.load(flowfilename)
@@ -276,25 +286,38 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    im = image.scale(im, geometry.wImg, geometry.hImg)
    prev_im = image.scale(prev_im, geometry.wImg, geometry.hImg)
    warped_im = image.scale(warped_im, geometry.wImg, geometry.hImg)
+   warped_mask = image.scale(warped_mask, geometry.wImg, geometry.hImg, 'simple')
    
    local flowdir = dirbasename .. 'rectified_flow2/' .. geometry.wImg .. 'x' .. geometry.hImg
    if learning.groundtruth == 'cross-correlation' then
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. 'x'
       flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/'
    else
-      flowdir = flowdir .. '/celiu'
+      flowdir = flowdir .. '/celiu/'
    end
-   flowdir = flowdir ..learning.delta .. '/'
+   flowdir = flowdir .. geometry.output_extraction_method .. '/'
+   flowdir = flowdir .. learning.delta .. '/'
    sys.execute('mkdir -p ' .. flowdir)
-   local flowfilename = flowdir .. imagebasename .. '.flow'
+   local flowfilename
+   if learning.groundtruth == 'cross-correlation' then
+      flowfilename = flowdir .. imagebasename .. '.flow'
+   else
+      flowfilename = flowdir .. imagebasename .. '.png'
+   end
    local flow = nil
    if paths.filep(flowfilename) then
-      flow = torch.load(flowfilename)
-      flow = torch.Tensor(flow:size()):copy(flow) -- cast
-      if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) then
-         flow = nil
-         print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
+      if learning.groundtruth == 'cross-correlation' then
+	 flow = torch.load(flowfilename)
+      else
+	 flow = image.load(flowfilename)
+	 flow = flow*255-128
+	 flow[3]:fill(1)
       end
+      flow = torch.Tensor(flow:size()):copy(flow) -- cast
+      if (flow:size(2) ~= geometry.hImg) or (flow:size(3) ~= geometry.wImg) or (flow:size(1) ~= 3) then
+	 flow = nil
+	 print("Flow in file " .. flowfilename .. " has wrong size. Recomputing...")
+      end	 
    end
 
    if not flow then
@@ -302,14 +325,15 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
 	 error("Cannot recompute liu flow. Do it manually.")
       end
       print('Computing groundtruth optical flow for images '..impath..' and '..previmpath)
-      local yflow, xflow = getOpticalFlowFast(geometry, warped_im, im)
-      flow = torch.Tensor(2, xflow:size(1), xflow:size(2)):fill(1)
+      local yflow ,xflow, mask = getOpticalFlowFast(geometry, warped_im, im)
+      flow = torch.Tensor(3, xflow:size(1), xflow:size(2)):fill(1)
       flow[1]:copy(yflow)
       flow[2]:copy(xflow)
+      flow[3]:copy(mask)
       torch.save(flowfilename, flow)
    end
 
-   return prev_im, warped_im, warped_mask, im, flow
+   return prev_im, warped_im, warped_mask:cmul(flow[3]), im, flow[{{1,2}}]
 end
 
 function loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
@@ -497,32 +521,33 @@ function generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, 
 	 
 	 local yFlow = raw_data.flow[iImg-1][1][yCenter][xCenter]
 	 local xFlow = raw_data.flow[iImg-1][2][yCenter][xCenter]
-	 
-	 dataset.patches[iSample][1] = iImg-1
-	 dataset.patches[iSample][2] = iImg
-	 dataset.patches[iSample][3] = yPatch
-	 dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
-	 dataset.patches[iSample][5] = xPatch
-	 dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
-	 
-	 dataset.targets[iSample][1] = yFlow
-	 dataset.targets[iSample][2] = xFlow
-      
-	 if geometry.motion_correction == 'mc' then
-	    if check_borders(iImg, xPatch, yPatch, geometry) then
+	 if (xFlow >= -math.ceil(geometry.maxwHR/2)) and (xFlow <= math.floor(geometry.maxwHR/2)) and (yFlow >= -math.ceil(geometry.maxhHR/2)) and (yFlow <= math.floor(geometry.maxhHR/2)) then
+	    dataset.patches[iSample][1] = iImg-1
+	    dataset.patches[iSample][2] = iImg
+	    dataset.patches[iSample][3] = yPatch
+	    dataset.patches[iSample][4] = yPatch+geometry.hPatch2-1
+	    dataset.patches[iSample][5] = xPatch
+	    dataset.patches[iSample][6] = xPatch+geometry.wPatch2-1
+	    
+	    dataset.targets[iSample][1] = yFlow
+	    dataset.targets[iSample][2] = xFlow
+	    
+	    if geometry.motion_correction == 'mc' then
+	       if check_borders(iImg, xPatch, yPatch, geometry) then
+		  iSample = iSample+1
+	       end
+	    elseif geometry.motion_correction == 'sfm' then
+	       local hk = math.ceil(geometry.hKernel/2)
+	       local wk = math.ceil(geometry.wKernel/2)
+	       if (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter-wk] > 0.5) and
+		  (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter-wk] > 0.5) and
+		  (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter+wk] > 0.5) and
+		  (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter+wk] > 0.5) then
+		  iSample = iSample+1
+	       end
+	    else
 	       iSample = iSample+1
 	    end
-	 elseif geometry.motion_correction == 'sfm' then
-	    local hk = math.ceil(geometry.hKernel/2)
-	    local wk = math.ceil(geometry.wKernel/2)
-	    if (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter-wk] > 0.5) and
-	       (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter-wk] > 0.5) and
-	       (raw_data.warped_masks[iImg-1][yCenter+hk][xCenter+wk] > 0.5) and
-	       (raw_data.warped_masks[iImg-1][yCenter-hk][xCenter+wk] > 0.5) then
-	       iSample = iSample+1
-	    end
-	 else
-	    iSample = iSample+1
 	 end
       end
    end

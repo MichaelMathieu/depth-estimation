@@ -9,16 +9,16 @@ require 'inline'
 require 'extractoutput'
 
 function yx2x(geometry, y, x)
-   return (y-1) * geometry.maxwGT + x
+   return (y-1) * geometry.maxw + x
 end
 
 function x2yx(geometry, x)
    if type(x) == 'number' then
-      return (math.floor((x-1)/geometry.maxwGT)+1), (math.mod(x-1, geometry.maxwGT)+1)
+      return (math.floor((x-1)/geometry.maxw)+1), (math.mod(x-1, geometry.maxw)+1)
    else
       local xdbl = torch.DoubleTensor(x:size()):copy(x)-1
-      local yout = (xdbl/geometry.maxwGT):floor()
-      local xout = xdbl - yout*geometry.maxwGT
+      local yout = (xdbl/geometry.maxw):floor()
+      local xout = xdbl - yout*geometry.maxw
       return (yout+1.5):floor(), (xout+1.5):floor() --(a+0.5):floor() is a:round()
    end
 end
@@ -150,10 +150,10 @@ end
 -- these 2 functions are kinda deprecated and confusing (because maxhGT != maxh)
 -- todo: try not to use them, eventually remove them
 function centered2onebased(geometry, y, x)
-   return (y+math.ceil(geometry.maxhGT/2)), (x+math.ceil(geometry.maxwGT/2))
+   return (y+math.ceil(geometry.maxh/2)), (x+math.ceil(geometry.maxw/2))
 end
 function onebased2centered(geometry, y, x)
-   return (y-math.ceil(geometry.maxhGT/2)), (x-math.ceil(geometry.maxwGT/2))
+   return (y-math.ceil(geometry.maxh/2)), (x-math.ceil(geometry.maxw/2))
 end
 
 function getMiddleIndex(geometry)
@@ -515,31 +515,48 @@ function getOutputConfidences(geometry, input, threshold)
    end
 end
 
+function getOutputConfidences2(geometry, input)
+   local xmul = torch.Tensor(geometry.maxh*geometry.maxw)
+   local ymul = torch.Tensor(geometry.maxh*geometry.maxw)
+   for i = 1,geometry.maxh do
+      for j = 1,geometry.maxw do
+	 local k = yx2x(geometry, i, j)
+	 ymul[k] = i
+	 xmul[k] = j
+      end
+   end
+   xmul = nn.Replicate(input:size(1)):forward(nn.Replicate(input:size(2)):forward(xmul))
+   ymul = nn.Replicate(input:size(1)):forward(nn.Replicate(input:size(2)):forward(ymul))
+   local x = input:clone():cmul(xmul):sum(3)[{{},{},1}]
+   local y = input:cmul(ymul):sum(3)[{{},{},1}]
+   return y, x, torch.Tensor(y:size()):fill(1)
+end
+
 function processOutput(geometry, output, process_full, threshold)
    local ret = {}
-   if geometry.training_mode then
-      local m
-      m, ret.index = output:max(3)
-      m = m:select(3,1)
-      ret.index = ret.index:select(3,1)
-      local middleIndex = getMiddleIndex(geometry)
-      local flatPixels = torch.LongTensor(m:size(1), m:size(2)):copy(m:eq(output[{{},{},middleIndex}]))
-      ret.index = flatPixels * middleIndex + (-flatPixels+1):cmul(ret.index:reshape(ret.index:size(1), ret.index:size(2)))
-   else
+   if geometry.output_extraction_method == 'max' then
       ret.index, ret.confidences = getOutputConfidences(geometry, output, threshold)
-   end
-   ret.index = ret.index:squeeze()
-   if geometry.multiscale then
-      ret.y, ret.x = x2yxMulti(geometry, ret.index)
+      ret.index = ret.index:squeeze()
+      if geometry.multiscale then
+	 ret.y, ret.x = x2yxMulti(geometry, ret.index)
+      else
+	 ret.y, ret.x = x2yx(geometry, ret.index)
+	 local yoffset, xoffset = centered2onebased(geometry, 0, 0)
+	 ret.y = ret.y - yoffset
+	 ret.x = ret.x - xoffset
+      end
+      if process_full == nil then
+	 process_full = type(ret.y) ~= 'number'
+      end
    else
-      ret.y, ret.x = x2yx(geometry, ret.index)
+      assert(not geometry.multiscale)
+      ret.y, ret.x, ret.confidences = getOutputConfidences2(geometry, output)
+      ret.index = yx2x(geometry, (ret.y+0.5):floor(), (ret.x+0.5):floor())
       local yoffset, xoffset = centered2onebased(geometry, 0, 0)
       ret.y = ret.y - yoffset
       ret.x = ret.x - xoffset
    end
-   if process_full == nil then
-      process_full = type(ret.y) ~= 'number'
-   end
+
    if process_full then
       local hoffset, woffset
       hoffset = math.floor((geometry.hImg-ret.y:size(1))/2)
@@ -592,10 +609,10 @@ end
 
 function prepareTarget(geometry, learning, targett)
    local itarget, target, xtarget, ytarget
-   local halfh1 = math.ceil(geometry.maxhGT/2)-1
-   local halfh2 = math.floor(geometry.maxhGT/2)
-   local halfw1 = math.ceil(geometry.maxwGT/2)-1
-   local halfw2 = math.floor(geometry.maxwGT/2)
+   local halfh1 = math.ceil(geometry.maxh/2)-1
+   local halfh2 = math.floor(geometry.maxh/2)
+   local halfw1 = math.ceil(geometry.maxw/2)-1
+   local halfw2 = math.floor(geometry.maxw/2)
    if (targett[1] < -halfh1) or (targett[1] > halfh2) or
       (targett[2] < -halfw1) or (targett[2] > halfw2) then
       xtarget = 0
@@ -609,10 +626,10 @@ function prepareTarget(geometry, learning, targett)
    else
       local xtargetO = xtarget + halfw1 + 1
       local ytargetO = ytarget + halfh1 + 1
-      itarget = (ytargetO-1) * geometry.maxwGT + xtargetO
+      itarget = (ytargetO-1) * geometry.maxw + xtargetO
    end
    if learning.soft_targets then
-      target = torch.Tensor(geometry.maxhGT*geometry.maxwGT)
+      target = torch.Tensor(geometry.maxh*geometry.maxw)
       local invsigma2 = 1./learning.st_sigma2
       for y = -halfh1, halfh2 do
 	 for x = -halfw1, halfw2 do
@@ -624,7 +641,7 @@ function prepareTarget(geometry, learning, targett)
 	    else
 	       local xO = x + halfw1 + 1
 	       local yO = y + halfh1 + 1
-	       i = (yO-1) * geometry.maxwGT + xO
+	       i = (yO-1) * geometry.maxw + xO
 	    end
 	    target[i] = g
 	 end

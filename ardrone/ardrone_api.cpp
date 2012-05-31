@@ -82,6 +82,8 @@ void ARdroneAPI::nextDepthMap() {
   lua_pop(L, 2);
   matf flow = matf(depth_th->size[0], depth_th->size[1], THFloatTensor_data(depth_th));
   matf mask = matf(mask_th->size[0], mask_th->size[1], THFloatTensor_data(mask_th));
+  cv::namedWindow("x flow");
+  cv::imshow("x flow", ((flow+8)/16).mul(mask));
   cv::namedWindow("im");
   cv::imshow("im", matf(im_th->size[1], im_th->size[2], THFloatTensor_data(im_th)));
 

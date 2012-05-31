@@ -18,7 +18,7 @@ function getKernels(geometry, model)
 	 if #geometry.layers > 2 then
 	    local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
 	    if weight3:nDimension() > 3 then --what that happens *only* sometimes??
-	       weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+	       weight3 = weight3:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
 					 weight3:size(4))
 	    end
 	    table.insert(kernel, weight3)
@@ -36,9 +36,9 @@ function getKernels(geometry, model)
 	 table.insert(kernel, weight2)
       end
       if #geometry.layers > 2 then
-	 local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	 local weight3 = model.modules[1].modules[1].modules[5].weight
 	 if weight3:nDimension() > 3 then --what that happens *only* sometimes??
-	    weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+	    weight3 = weight3:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
 				      weight3:size(4))
 	 end
 	 table.insert(kernel, weight3)
@@ -67,6 +67,9 @@ function describeModel(geometry, learning)
       kernel = kernel .. '}'
    end
    local win = 'win=(' .. geometry.maxh .. 'x' .. geometry.maxw .. ')'
+   if (geometry.maxhHR ~= geometry.maxhGT) or (geometry.maxwHR ~= geometry.maxwGT) then
+      win = win .. ' gtwin=(' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. ')'
+   end
    local images = 'imgs=(' .. learning.first_image .. ':' .. learning.delta .. ':' 
    images = images .. learning.first_image+learning.delta*(learning.num_images-1) .. ')'
    local learning_ = 'learning rate=(' .. learning.rate .. ', ' .. learning.rate_decay
@@ -102,6 +105,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
 	 kernel = kernel .. '_'
       end
    end
+   kernel = kernel .. '-' .. geometry.maxhHR .. 'x' .. geometry.maxwHR .. '-'
    if geometry.L2Pooling then kernel = kernel .. '_l2' end
    if geometry.share_filters then kernel = kernel .. '_sf' end
    if geometry.multiscale then
@@ -130,7 +134,8 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    if geometry.motion_correction then motion = '_mc' end
    if learning.soft_targets then targets = '_st'..learning.st_sigma2 end
    if learning.groundtruth == 'liu' then gt = '_liu' end
-   local train_params = 'r' .. learning.rate .. '_rd' .. learning.rate_decay
+   local train_params = geometry.maxhGT .. 'x' .. geometry.maxwGT .. '-'
+   train_params = train_params .. 'r' .. learning.rate .. '_rd' .. learning.rate_decay
    train_params = train_params .. '_wd' ..learning.weight_decay .. targets .. renew .. gt
    train_params = train_params .. train_cascad
    modeldir = modeldir .. '/' .. train_params
