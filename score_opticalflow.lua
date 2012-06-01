@@ -253,14 +253,28 @@ function score_epoch(geometry, learning, model, criterion, testData, raw_data, n
 	 end
 	 
 	 local output = model:forward(input)
-	 local err = criterion:forward(output:squeeze(), target)
-	 
-	 meanErr = meanErr + err
-	 local outputp = processOutput(geometry, output, false)
-	 if outputp.index == itarget then
-	    nGood = nGood + 1
+	 if geometry.output_extraction_method == 'mean' then
+	    local output_crit = torch.Tensor(2)
+	    output_crit[1] = output[1]:squeeze()
+	    output_crit[2] = output[2]:squeeze()
+	    local target_crit = torch.Tensor(2)
+	    target_crit[1], target_crit[2] = x2yx(geometry, target)
+	    local err = criterion:forward(output_crit, target_crit)
+	    meanErr = meanErr + err
+	    if (output_crit-target_crit):norm() < 1 then
+	       nGood = nGood + 1
+	    else
+	       nBad = nBad + 1
+	    end
 	 else
-	    nBad = nBad + 1
+	    local err = criterion:forward(output:squeeze(), target)
+	    meanErr = meanErr + err
+	    local outputp = processOutput(geometry, output, false)
+	    if outputp.index == itarget then
+	       nGood = nGood + 1
+	    else
+	       nBad = nBad + 1
+	    end
 	 end
       end
 
@@ -273,7 +287,7 @@ function score_epoch(geometry, learning, model, criterion, testData, raw_data, n
       ret.patches_score.n = testData:size()
       ret.patches_score.meanErr = meanErr
       ret.patches_score.accuracy = accuracy
-      print(string.format('Patches: accuracy: %.1f%% meanErr: %.1f', accuracy*100, meanErr))
+      print(string.format('Patches: accuracy: %.1f%% meanErr: %.3f', accuracy*100, meanErr))
    end
    if n_images > 0 then
       ret.full_score = {}

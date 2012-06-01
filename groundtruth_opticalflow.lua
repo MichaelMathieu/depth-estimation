@@ -40,7 +40,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    geometryGT.wKernel = geometry.wKernelGT
    geometryGT.layers = geometry.layers
    geometryGT.multiscale = false
-   geometryGT.training_mode = true
+   geometryGT.training_mode = false
    geometryGT.output_extraction_method = geometry.output_extraction_method
    
    local maxh = geometry.maxhGT
@@ -153,10 +153,15 @@ function loadImageOpticalFlow(geometry, dirbasename, imagebasename, previmagebas
          return nil
       end
       
-   elseif groundtruth == 'cross-correlation' then
+   elseif groundtruth == 'cross-correlation' or groundtruth == 'cc-mean' then
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' ..geometry.maxwGT .. 'x'
       flowdir = flowdir .. geometry.hKernelGT .. 'x' ..geometry.wKernelGT
-      flowdir = flowdir .. '/' .. geometry.output_extraction_method .. '/' .. delta .. '/'
+      if groundtruth == 'cross-correlation' then
+	 flowdir = flowdir .. '/max/'
+      else
+	 flowdir = flowdir .. '/mean/'
+      end
+      flowdir = flowdir .. delta .. '/'
       os.execute('mkdir -p ' .. flowdir)
       flowfilename = flowdir .. imagebasename .. '.flow'
       if paths.filep(flowfilename) then
@@ -247,7 +252,7 @@ end
 
 function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasename,
 					imagebasename, previmagebasename)
-   if (learning.groundtruth ~= 'cross-correlation') and (learning.groundtruth ~= 'liu') then
+   if (learning.groundtruth ~= 'cross-correlation') and (learning.groundtruth ~= 'liu') and (learning.groundtruth ~= 'cc-mean') then
       error('loadRectifiedImageOpticalFlow2: groundtruth must be cross-correlation or liu')
    end
    local ext = '.jpg'
@@ -289,24 +294,28 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
    warped_mask = image.scale(warped_mask, geometry.wImg, geometry.hImg, 'simple')
    
    local flowdir = dirbasename .. 'rectified_flow2/' .. geometry.wImg .. 'x' .. geometry.hImg
-   if learning.groundtruth == 'cross-correlation' then
+   if (learning.groundtruth == 'cross-correlation') or (learning.groundtruth == 'cc-mean') then
       flowdir = flowdir .. '/' .. geometry.maxhGT .. 'x' .. geometry.maxwGT .. 'x'
       flowdir = flowdir .. geometry.hKernelGT .. 'x' .. geometry.wKernelGT .. '/'
+      if (learning.groundtruth == 'cross-correlation') then
+	 flowdir = flowdir .. 'max/'
+      else
+	 flowdir = flowdir .. 'mean/'
+      end
    else
       flowdir = flowdir .. '/celiu/'
    end
-   flowdir = flowdir .. geometry.output_extraction_method .. '/'
    flowdir = flowdir .. learning.delta .. '/'
    sys.execute('mkdir -p ' .. flowdir)
    local flowfilename
-   if learning.groundtruth == 'cross-correlation' then
+   if (learning.groundtruth == 'cross-correlation') or (learning.groundtruth == 'cc-mean') then
       flowfilename = flowdir .. imagebasename .. '.flow'
    else
       flowfilename = flowdir .. imagebasename .. '.png'
    end
    local flow = nil
    if paths.filep(flowfilename) then
-      if learning.groundtruth == 'cross-correlation' then
+      if (learning.groundtruth == 'cross-correlation') or (learning.groundtruth == 'cc-mean') then
 	 flow = torch.load(flowfilename)
       else
 	 flow = image.load(flowfilename)
@@ -332,6 +341,8 @@ function loadRectifiedImageOpticalFlow2(correction, geometry, learning, dirbasen
       flow[3]:copy(mask)
       torch.save(flowfilename, flow)
    end
+
+   flow[{{1,2}}] = (flow[{{1,2}}]+0.5):floor()
 
    return prev_im, warped_im, warped_mask:cmul(flow[3]), im, flow[{{1,2}}]
 end
@@ -414,7 +425,7 @@ function loadDataOpticalFlowCVlibs(geometry, learning, dirbasename)
 end
 
 function loadDataOpticalFlow(correction, geometry, learning, dirbasename)
-   if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') then
+   if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') or (learning.groundtruth == 'cc-mean') then
       return loadDataOpticalFlowCCLiu(correction, geometry, learning, dirbasename)
    elseif learning.groundtruth == 'cvlibs' then
       return loadDataOpticalFlowCVlibs(geometry, learning, dirbasename)
@@ -619,7 +630,7 @@ function generateDataOpticalFlowCVlibs(geometry, learning, raw_data, nSamples)
 end
 
 function generateDataOpticalFlow(correction, geometry, learning, raw_data, nSamples)
-   if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') then
+   if (learning.groundtruth == 'liu') or (learning.groundtruth == 'cross-correlation') or (learning.groundtruth == 'cc-mean') then
       return generateDataOpticalFlowCCLiu(correction, geometry, learning, raw_data, nSamples)
    elseif learning.groundtruth == 'cvlibs' then
       return generateDataOpticalFlowCVlibs(geometry, learning, raw_data, nSamples)

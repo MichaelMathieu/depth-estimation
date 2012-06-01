@@ -58,6 +58,7 @@ function describeModel(geometry, learning)
       end
    end
    if geometry.L2Pooling then kernel = kernel .. ' l2' end
+   if geometry.output_extraction_method == 'mean' then kernel = kernel .. ' mean' end
    kernel = kernel .. ')'
    if geometry.multiscale then
       kernel = kernel .. 'x{' .. geometry.ratios[1]
@@ -107,6 +108,7 @@ function saveModel(dir, basefilename, geometry, learning, model, nEpochs, score)
    end
    kernel = kernel .. '-' .. geometry.maxhHR .. 'x' .. geometry.maxwHR .. '-'
    if geometry.L2Pooling then kernel = kernel .. '_l2' end
+   if geometry.output_extraction_method == 'mean' then kernel = kernel .. '_mean' end
    if geometry.share_filters then kernel = kernel .. '_sf' end
    if geometry.multiscale then
       for i = 1,#geometry.ratios do

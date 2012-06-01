@@ -234,11 +234,15 @@ end
 local parameters, gradParameters = model:getParameters()
 
 local criterion
-if learning.soft_targets then
-   criterion = nn.DistNLLCriterion()
-   --criterion.targetIsProbability = true
+if geometry.output_extraction_method == 'mean' then
+   criterion = nn.MSECriterion()
 else
-   criterion = nn.ClassNLLCriterion()
+   if learning.soft_targets then
+      criterion = nn.DistNLLCriterion()
+      --criterion.targetIsProbability = true
+   else
+      criterion = nn.ClassNLLCriterion()
+   end
 end
 
 print('Loading images...')
@@ -297,16 +301,35 @@ for iEpoch = 1,opt.n_epochs do
 		       end
 		       gradParameters:zero()
 		       local output = model:forward(input)
-		       local err = criterion:forward(output:squeeze(), target)
-		       local df_do = criterion:backward(output:squeeze(), target)
-		       model:backward(input, df_do)
-		       
-		       meanErr = meanErr + err
-		       local outputp = processOutput(geometry, output, false)
-		       if outputp.index == itarget then
-			  nGood = nGood + 1
+		       if geometry.output_extraction_method == 'mean' then
+			  local output_crit = torch.Tensor(2)
+			  output_crit[1] = output[1]:squeeze()
+			  output_crit[2] = output[2]:squeeze()
+			  local target_crit = torch.Tensor(2)
+			  target_crit[1], target_crit[2] = x2yx(geometry, target)
+			  local err = criterion:forward(output_crit, target_crit)
+			  local df_do = criterion:backward(output_crit, target_crit)
+			  local df_do2 = {torch.Tensor(1,1):fill(df_do[1]),
+					  torch.Tensor(1,1):fill(df_do[2])}
+			  model:backward(input, df_do2)
+			  meanErr = meanErr + err
+			  if (output_crit-target_crit):norm() < 1 then
+			     nGood = nGood + 1
+			  else
+			     nBad = nBad + 1
+			  end
 		       else
-			  nBad = nBad + 1
+			  local err = criterion:forward(output:squeeze(), target)
+			  local df_do = criterion:backward(output:squeeze(), target)
+			  model:backward(input, df_do)
+		       
+			  meanErr = meanErr + err
+			  local outputp = processOutput(geometry, output, false)
+			  if outputp.index == itarget then
+			     nGood = nGood + 1
+			  else
+			     nBad = nBad + 1
+			  end
 		       end
 		       if sys.isNaN(gradParameters:sum()) then
 			  error('stopped in main')
@@ -336,7 +359,7 @@ for iEpoch = 1,opt.n_epochs do
    print('train: nGood = ' .. nGood .. ' nBad = ' .. nBad .. ' (' .. 100.0*nGood/(nGood+nBad) .. '%) meanErr = ' .. meanErr)
 
    local score = score_epoch(geometry, learning, model, criterion, testData,
-			     raw_data, opt.n_images_test_set)
+   			     raw_data, opt.n_images_test_set)
    saveModel(opt.output_models_dir, 'model_of_', geometry, learning, model, iEpoch, score)
 
 end
