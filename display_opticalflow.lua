@@ -54,9 +54,12 @@ loaded = loadModel(opt.input_model, true)
 --loaded = loadModel(opt.input_model, false)
 model = loaded.model
 geometry = loaded.geometry
-kernels = loaded.getKernels(geometry, model)
+kernels = getKernels(geometry, model)
+--kernels = loaded.getKernels(geometry, model)
+geometry.motion_correction  = false
 
 for i = 1,#kernels do
+   print(kernels[i])
    if kernels[i]:size(2) > 5 then
       image.display{image=kernels[i], zoom=4, padding=2}
    else
@@ -64,6 +67,7 @@ for i = 1,#kernels do
    end
 end
 
+--[[
 local delta = tonumber(opt.input_image2) - tonumber(opt.input_image1)
 local image1, image2, gt
 if geometry.motion_correction then
@@ -124,3 +128,4 @@ errs:sub(1,diff:size(1), diff:size(2)+1  , 2*diff:size(2)):copy(diff:ge(2))
 errs:sub(1,diff:size(1), 2*diff:size(2)+1, 3*diff:size(2)):copy(diff:ge(3))
 image.display(errs)
 image.display{image=diff}
+--]]

@@ -43,14 +43,16 @@ ARdroneAPI::~ARdroneAPI() {
   lua_close(L);
 }
 
-#include<opencv/highgui.h>
-void ARdroneAPI::next() {
-  float vx, vy, vz;
-  int gx, gy, gz, bs, a;
+void ARdroneAPI::nextTime() {
   double time = getTimeInSec();
   delta_t = (float)(time - last_time);
   last_time = time;
-#if READ_NAVDATA
+}
+
+void ARdroneAPI::nextNavdata() {
+#ifdef READ_NAVDATA
+  float vx, vy, vz;
+  int gx, gy, gz, bs, a;
   while (read(navdata_fifo, navdataFifoBuffer, navdataFifoBufferLen) == navdataFifoBufferLen) {
     sscanf(navdataFifoBuffer, "%d %d %d %d %d %d %f %f %f", &droneState, &bs,
     	   &gx, &gy, &gz, &a, &vx, &vy, &vz);
@@ -68,7 +70,10 @@ void ARdroneAPI::next() {
   imuD(1,0) = imuD(2,0) = 0.0f;
 #endif
   imuD *= delta_t;
+}
 
+#include<opencv/highgui.h>
+void ARdroneAPI::nextDepthMap() {
   lua_getfield(L, LUA_GLOBALSINDEX, "nextFrameDepth");
   lua_call(L, 0, 3);
   THFloatTensor *mask_th = (THFloatTensor*)luaT_toudata(L,-1, luaT_checktypename2id(L, "torch.FloatTensor"));
@@ -83,6 +88,12 @@ void ARdroneAPI::next() {
   cv::imshow("im", matf(im_th->size[1], im_th->size[2], THFloatTensor_data(im_th)));
 
   computeDepthMapFromFlow(flow, mask);
+}
+
+void ARdroneAPI::next() {
+  nextTime();
+  nextNavdata();
+  //nextDepthMap();
 }
 
 void ARdroneAPI::computeDepthMapFromFlow(const matf & xflow, const matf & mask) {

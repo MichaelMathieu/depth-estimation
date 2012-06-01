@@ -18,7 +18,7 @@ function getKernels(geometry, model)
 	 if #geometry.layers > 2 then
 	    local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
 	    if weight3:nDimension() > 3 then --what that happens *only* sometimes??
-	       weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+	       weight3 = weight3:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
 					 weight3:size(4))
 	    end
 	    table.insert(kernel, weight3)
@@ -36,9 +36,9 @@ function getKernels(geometry, model)
 	 table.insert(kernel, weight2)
       end
       if #geometry.layers > 2 then
-	 local weight3 = matcher.modules[1].modules[1].modules[3].modules[3].weight
+	 local weight3 = model.modules[1].modules[1].modules[5].weight
 	 if weight3:nDimension() > 3 then --what that happens *only* sometimes??
-	    weight3 = weight2:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
+	    weight3 = weight3:reshape(weight3:size(1)*weight3:size(2), weight3:size(3),
 				      weight3:size(4))
 	 end
 	 table.insert(kernel, weight3)
