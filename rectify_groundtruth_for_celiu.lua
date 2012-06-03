@@ -4,7 +4,7 @@ require 'groundtruth_opticalflow'
 require 'sfm2'
 require 'sys'
 
-local datapath = 'data/ardrone1/'
+local datapath = 'data2/no-risk/part1/'
 local ext = 'jpg'
 local w = 320.
 local camera = 'gopro'
@@ -17,8 +17,6 @@ if camera == 'gopro' then
    K[1][3] = 641.455200
    K[2][3] = 344.950836
    K[3][3] = 1.0
-   Khalf = correction.K:clone()*0.25
-   Khalf[3][3] = 1.0
    distP = torch.FloatTensor(5)
    distP[1] = -0.355740
    distP[2] = 0.142684
@@ -47,7 +45,9 @@ if datapath:sub(-1) ~= '/' then datapath = datapath .. '/' end
 local i = 1
 local previmname = string.format("%09d.%s", i, ext)
 local previm = image.load(datapath..'images/'..previmname)
-previm = sfm2.undistortImage(previm, K, distP)
+if camera ~= 'gopro' then
+   previm = sfm2.undistortImage(previm, K, distP)
+end
 i = i+1
 local imname = string.format("%09d.%s", i, ext)
 
@@ -70,5 +70,5 @@ while sys.filep(datapath..'images/'..imname) do
    previmname = imname
    i = i + 1
    imname = string.format("%09d.%s", i, ext)
-   garbagecollect()
+   collectgarbage()
 end
