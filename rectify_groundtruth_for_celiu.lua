@@ -4,7 +4,7 @@ require 'groundtruth_opticalflow'
 require 'sfm2'
 require 'sys'
 
-local datapath = 'data2/no-risk/part1/'
+local datapath = 'data/no-risk/part7/'
 local ext = 'jpg'
 local w = 320.
 local camera = 'gopro'
