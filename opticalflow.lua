@@ -137,7 +137,7 @@ correction.distP[5] = -0.069770
 
 local geometry = {}
 geometry.wImg = 320
-geometry.hImg = 240
+geometry.hImg = 180
 geometry.maxwHR = tonumber(opt.win_size) --high res in case of multiscale
 geometry.maxhHR = tonumber(opt.win_size) --high res in case of multiscale
 if opt.win_size_height then
