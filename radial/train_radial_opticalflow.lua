@@ -9,6 +9,7 @@ require 'openmp'
 require 'radial_opticalflow_data'
 require 'image'
 require 'radial_opticalflow_network'
+require 'nn'
 
 torch.manualSeed(1)
 
@@ -30,6 +31,8 @@ op:option{'-lrd', '--learning-rate-decay', action='store', dest='learning_rate_d
           default=5e-7, help='Learning rate decay'}
 op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
+op:option{'-crit', '--criterion', action='store', dest='criterion',
+	  default='NLL', help='Learning criterion (NLL | MSE)'}
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -83,6 +86,7 @@ learningp.rate = opt.learning_rate
 learningp.rate_decay = opt.learning_rate_decay
 learningp.weight_decay = opt.weight_decay
 learningp.n_train_set = opt.n_train_set
+learningp.criterion = opt.criterion
 
 local groundtruthp = {}
 groundtruthp.type = 'cross-correlation'
@@ -103,7 +107,14 @@ local raw_data = load_training_raw_data(opt.root_directory, networkp, groundtrut
 
 local network = getTrainerNetwork(networkp)
 local parameters, gradParameters = network:getParameters()
-local criterion = nn.ClassNLLCriterion()
+local criterion
+if learningp.criterion == 'NLL' then
+   criterion = nn.ClassNLLCriterion()
+elseif learningp.criterion == 'MSE' then
+   criterion = nn.MSECriterion()
+else
+   error('Unknown criterion ' .. learningp.criterion)
+end
 
 local function evaluate(network)
    win_ker = image.display{image=network.modules[1].modules[2].modules[1].weight, padding=2, zoom=4, win=win_ker}
@@ -153,13 +164,19 @@ for iEpoch = 1,opt.n_epochs do
 	 end
 	 gradParameters:zero()
 	 local output = network:forward(input)
-	 --print(target)
-	 local err = criterion:forward(output, target)
-	 local df_do = criterion:backward(output, target)
-	 network:backward(input, df_do)
 	 local _, idx = output:max(1)
+	 local err, df_do
+	 if learningp.criterion == 'NLL' then
+	    err = criterion:forward(output, target)
+	    df_do = criterion:backward(output, target)
+	 elseif learningp.criterion == 'MSE' then
+	    local target_idx = torch.Tensor(1):copy(idx)
+	    local target_crit = torch.Tensor(1):fill(target)
+	    err = criterion:forward(target_idx, target_crit)
+	    df_do = criterion:backward(target_idx, target_crit)
+	 end
+	 network:backward(input, df_do)
 	 idx = idx:squeeze()
-	 --print(idx, target)
 	 if idx == target then
 	    nGood = nGood + 1
 	 else

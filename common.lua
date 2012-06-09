@@ -17,6 +17,10 @@ function sameSize(a, b)
    end
 end
 
+function flownorm(flow)
+   return (flow[1]:clone():cmul(flow[1]) + flow[2]:clone():cmul(flow[2])):sqrt()
+end
+
 function round(x)
    return math.floor(x+0.5)
 end

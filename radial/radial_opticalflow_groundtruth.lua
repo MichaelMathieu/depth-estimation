@@ -47,8 +47,13 @@ function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img
    local matcher = nn.SpatialMatching(hWin, wWin, false)
    local output = matcher({padder(img1uf), img2uf})
    output = output:reshape(output:size(1), output:size(2), hWin*wWin)
-   local _,idx = output:min(3)
-   idx = torch.Tensor(idx:squeeze():size()):copy(idx)
+   local m,idx = output:min(3)
+   m = m[{{},{},1}]
+   idx = torch.Tensor(idx[{{},{},1}]:size()):copy(idx)
+   local middleidx = math.ceil(wWin/2) + wWin*(math.ceil(hWin/2)-1)
+   local flat = m:eq(output[{{},{},middleidx}])
+   flat = torch.Tensor(flat:size()):copy(flat)
+   idx = flat*middleidx + (-flat+1):cmul(idx)
    local floored = ((idx-1)/wWin):floor()
    local flow = torch.Tensor(3, idx:size(1), idx:size(2))
    flow[1] = floored - math.floor((hWin-1)/2)              -- y
@@ -59,7 +64,7 @@ function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img
    return flowp
 end
 
-local function cartesian_groundtruth_cc_testme()
+function cartesian_groundtruth_cc_testme()
    torch.manualSeed(1)
    local function test(w, h, hKer, wKer, hWin, wWin, flowbase, noise)
       local im2 = torch.rand(30, h, w)
