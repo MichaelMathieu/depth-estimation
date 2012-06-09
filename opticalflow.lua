@@ -254,11 +254,11 @@ local trainData = generateDataOpticalFlow(correction, geometry, learning,
 print('Generating test set...')
 local testData = generateDataOpticalFlow(correction, geometry, learning,
 					 raw_data, opt.n_test_set)
-
+print("a")
 local score = score_epoch(geometry, learning, model, criterion, testData,
 			  raw_data, opt.n_images_test_set)
 saveModel(opt.output_models_dir, 'model_of_', geometry, learning, model, 0, score)
-
+print("b")
 config = {learningRate = learning.rate,
 	  weightDecay = learning.weight_decay,
 	  momentum = 0,
@@ -266,10 +266,8 @@ config = {learningRate = learning.rate,
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch .. ' over ' .. opt.n_epochs)
-   --print(model.modules[4].weight)
    print(summary)
 
-      
    local nGood = 0
    local nBad = 0
    local meanErr = 0

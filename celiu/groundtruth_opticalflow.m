@@ -4,7 +4,7 @@ use_rectified = 1;
 delta = 1;
 use_full_image = 0;
 
-imdir = '~/robot/depth-estimation/data/ardrone1/';
+imdir = '~/robot/depth-estimation/data/no-risk/part7/';
 lst = dir([imdir 'images']);
 
 formatSpec = '%09.0f';
@@ -29,8 +29,8 @@ for i=1:nImg
     end
     
 	% set optical flow parameters (see Coarse2FineTwoFrames.m for the definition of the parameters)
-	alpha = 0.05;
-	ratio = 0.75;
+	alpha = 0.02;
+        ratio = 0.75;
 	minWidth = 60;
 	nOuterFPIterations = 7;
 	nInnerFPIterations = 1;
