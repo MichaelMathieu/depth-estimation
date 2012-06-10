@@ -34,6 +34,14 @@ op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 op:option{'-crit', '--criterion', action='store', dest='criterion',
 	  default='NLL', help='Learning criterion (NLL | MSE)'}
+op:option{'-net', '--network', action='store', dest='network_struct',
+	  default="{{3,1,17,5},{5,17,1,10}}", help='Network structure'}
+op:option{'-hw', '--h-window', action='store', dest='hWin',
+	  default=15, help='Height of the search window'}
+op:option{'-wi', '--w-intern', action='store', dest='w_input',
+	  default=200, help='Width of the intern representation'}
+op:option{'-hi', '--h-intern', action='store', dest='h_input',
+	  default=200, help='Height of the intern representation'}
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -50,6 +58,8 @@ op:option{'-cal', '--caligration', dest='calibration_file', default='rectified_g
 -- output 
 op:option{'-omd', '--output-model-dir', action='store', dest='output_models_dir',
 	  default = 'models', help='Output model directory'}
+op:option{'-ev', '--evaluate', action='store_true', dest='evaluate',
+	  default=false, help='Evaluate the network on the first image'}
 
 opt = op:parse()
 opt.nTherads = tonumber(opt.nThreads)
@@ -59,6 +69,9 @@ opt.n_epochs = tonumber(opt.n_epochs)
 opt.learning_rate = tonumber(opt.learning_rate)
 opt.learning_rate_decay = tonumber(opt.learning_rate_decay)
 opt.weight_decay = tonumber(opt.weight_decay)
+opt.hWin = tonumber(opt.hWin)
+opt.w_input = tonumber(opt.w_input)
+opt.h_input = tonumber(opt.h_input)
 opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
 opt.num_input_images = tonumber(opt.num_input_images)
@@ -71,10 +84,10 @@ local calibrationp = torch.load(opt.calibration_file)
 local networkp = {}
 networkp.wImg = 320
 networkp.hImg = round(networkp.wImg*calibrationp.hImg/calibrationp.wImg)
-networkp.wInput = 400
-networkp.hInput = 200
-networkp.layers = {{3,1,17,5}, {5, 17, 1, 10}}
-networkp.hWin = 16
+networkp.wInput = opt.w_input
+networkp.hInput = opt.h_input
+networkp.layers = loadstring("return "..opt.network_struct)()
+networkp.hWin = opt.hWin
 networkp.wKernel = 1
 networkp.hKernel = 1
 for i = 1,#networkp.layers do
@@ -159,7 +172,9 @@ for iEpoch = 1,opt.n_epochs do
       threshold = 0.3
    end
 
-   --evaluate(raw_data, network, 1)
+   if opt.evaluate then
+      evaluate(raw_data, network, 1)
+   end
    
    for iTrainSet = 1,train_set:size() do
       modProgress(iTrainSet, train_set:size(), 100)
@@ -201,5 +216,5 @@ for iEpoch = 1,opt.n_epochs do
    end
    print(nGood, nBad)
    collectgarbage()
-   torch.save(string.format("models/model_%d", iEpoch), network)
+   saveNetwork(string.format("models/model_%d", iEpoch), networkp, network)
 end

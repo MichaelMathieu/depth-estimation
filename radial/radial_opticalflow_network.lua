@@ -87,7 +87,7 @@ end
 
 function copyWeights(srcnetwork, dstnetwork)
    local srcweights, srcbias
-   if type(srcnetwork) == 'table' then
+   if type(srcnetwork) == 'table' and #srcnetwork == 2 then
       srcweights = srcnetwork[1]
       srcbias = srcnetwork[2]
    else
