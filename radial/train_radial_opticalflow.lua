@@ -94,7 +94,7 @@ groundtruthp.wGT = networkp.wImg
 groundtruthp.hGT = networkp.hImg
 --groundtruthp.hGT = 180
 groundtruthp.delta = learningp.delta
-groundtruthp.params = {hWin = 16, wWin = 16,
+groundtruthp.params = {hWin = 17, wWin = 17,
  		       hKer = 17, wKer = 17}
 
 local optim_config = {learningRate = learningp.rate,
@@ -158,7 +158,7 @@ for iEpoch = 1,opt.n_epochs do
    local nGood = 0
    local nBad = 0
 
-   evaluate(raw_data, network, 3)
+   --evaluate(raw_data, network, 3)
    
    for iTrainSet = 1,train_set:size() do
       modProgress(iTrainSet, train_set:size(), 100)
