@@ -73,7 +73,7 @@ networkp.hImg = round(networkp.wImg*calibrationp.hImg/calibrationp.wImg)
 --networkp.hImg = 320
 networkp.wInput = 200
 networkp.hInput = 200
-networkp.layers = {{3,1,7,5}, 'tanh', {5, 17, 1, 10}}
+networkp.layers = {{3,1,7,5}, {5, 17, 1, 10}}
 networkp.hWin = 16
 networkp.wKernel = 7
 networkp.hKernel = 17
@@ -95,7 +95,7 @@ groundtruthp.hGT = networkp.hImg
 --groundtruthp.hGT = 180
 groundtruthp.delta = learningp.delta
 groundtruthp.params = {hWin = 16, wWin = 16,
- 		       hKer = 16, wKer = 16}
+ 		       hKer = 17, wKer = 17}
 
 local optim_config = {learningRate = learningp.rate,
 		      weightDecay = learningp.weight_decay,
@@ -116,19 +116,27 @@ else
    error('Unknown criterion ' .. learningp.criterion)
 end
 
-local function evaluate(network)
-   win_ker = image.display{image=network.modules[1].modules[2].modules[1].weight, padding=2, zoom=4, win=win_ker}
+win_kers = {}
+local function evaluate(raw_data, network, i)
    testnetwork = getTesterNetwork(networkp)
-   testnetwork.modules[1].modules[2].modules[1].weight:copy(network.modules[1].modules[2].modules[1].weight)
-   local w2 = network.modules[1].modules[2].modules[3].weight
-   if w2 then
-      testnetwork.modules[1].modules[2].modules[3].weight:copy(w2)
-      win_ker2 = image.display{image=w2:reshape(w2:size(1)*w2:size(2), w2:size(3), w2:size(4)),
-			       padding=2, zoom=4, win=win_ker2}
+   local testlayers = testnetwork.modules[1].modules[2].modules
+   local layers = network.modules[1].modules[2].modules
+   for i = 1,#layers do
+      if layers[i].weight then
+	 testlayers[i].weight:copy(layers[i].weight)
+	 w = layers[i].weight
+	 if w:size(2) ~= 3 then
+	    w = w:reshape(w:size(1)*w:size(2), w:size(3), w:size(4))
+	 end
+	 win_kers[i] = image.display{image=w,padding=2,zoom=4,win=win_kers[i]}
+      end
+      if layers[i].bias then
+	 testlayers[i].bias:copy(layers[i].bias)
+      end
    end
    time = torch.Timer()
-   local test = testnetwork:forward({raw_data.polar_prev_images[1],
-				     raw_data.polar_images[1]})
+   local test = testnetwork:forward({raw_data.polar_prev_images[i],
+				     raw_data.polar_images[i]})
    print(time:time()['real'])
    _,test = test:min(3)
    test = test-1
@@ -141,8 +149,8 @@ local function evaluate(network)
    local w = test:size(2)
    test:sub(h,h,1,w):zero()
    win_testcart = image.display{image=cartesian2polar(test, p2cmask), win=win_testcart}
+   win_gt = image.display{image=raw_data.groundtruth[i], win=win_gt}
 end
-
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch .. '/' .. opt.n_epochs)
@@ -150,7 +158,7 @@ for iEpoch = 1,opt.n_epochs do
    local nGood = 0
    local nBad = 0
 
-   evaluate(network)
+   evaluate(raw_data, network, 3)
    
    for iTrainSet = 1,train_set:size() do
       modProgress(iTrainSet, train_set:size(), 100)
@@ -189,4 +197,5 @@ for iEpoch = 1,opt.n_epochs do
       
    end
    print(nGood, nBad)
+   collectgarbage()
 end

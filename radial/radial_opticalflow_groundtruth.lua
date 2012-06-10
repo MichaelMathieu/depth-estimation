@@ -2,6 +2,7 @@ require 'torch'
 require 'cartesian2polar'
 require 'image'
 require 'nnx'
+require 'extractoutput'
 torch.setdefaulttensortype('torch.FloatTensor')
 
 function unfold(img, wKer, hKer)
@@ -39,13 +40,15 @@ function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img
    local hKer = groundtruthp.params.hKer
    local wKer = groundtruthp.params.wKer
    
+   -- match
    local img1uf = unfold(img1, wKer, hKer)
    local img2uf = unfold(img2, wKer, hKer)
-   
    local padder = nn.SpatialPadding(-math.floor((wWin-1)/2), -math.ceil((wWin-1)/2),
    			            -math.floor((hWin-1)/2), -math.ceil((hWin-1)/2))
    local matcher = nn.SpatialMatching(hWin, wWin, false)
    local output = matcher({padder(img1uf), img2uf})
+   
+   -- get min
    output = output:reshape(output:size(1), output:size(2), hWin*wWin)
    local m,idx = output:min(3)
    m = m[{{},{},1}]
@@ -54,13 +57,20 @@ function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img
    local flat = m:eq(output[{{},{},middleidx}])
    flat = torch.Tensor(flat:size()):copy(flat)
    idx = flat*middleidx + (-flat+1):cmul(idx)
+
+   -- get x, y
    local floored = ((idx-1)/wWin):floor()
    local flow = torch.Tensor(3, idx:size(1), idx:size(2))
    flow[1] = floored - math.floor((hWin-1)/2)              -- y
    flow[2] = idx-1 - floored*wWin - math.floor((wWin-1)/2) -- x
-   flow[3]:fill(1)                                         -- mask
    
+   --get confidences
+   local confs = torch.LongTensor(flow:size(2), flow:size(3))
+   local imaxs = torch.LongTensor(flow:size(2), flow:size(3))
+   extractoutput.extractOutput(output, 0.11, 0, imaxs, confs)
+   flow[3]:copy(confs)                                     -- mask
    local flowp = cross_correlation_pad_output(flow, wWin, hWin, wKer, hKer)
+   
    return flowp
 end
 

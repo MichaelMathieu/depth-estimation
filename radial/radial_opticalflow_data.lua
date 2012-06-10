@@ -96,11 +96,10 @@ function load_groundtruth(root_directory, groundtruthp, i, e2, im1, im2, mask)
    local radialnorm = flownorm(radial)
    radial[1]:cdiv(radialnorm)
    radial[2]:cdiv(radialnorm)
-   image.display(flow)
-   flow[1]:cmul(radial[1])
-   flow[2]:cmul(radial[2])
-   image.display(flow)
-   return flownorm(flow)
+   local proj = (flow[1]:cmul(radial[1])+flow[2]:cmul(radial[2])+0.5):floor()
+   local gds = proj:ge(0)
+   gds = torch.Tensor(gds:size()):copy(gds)
+   return proj:cmul(gds)
 end
 
 local function rescale(im, w, h, mode)
@@ -120,14 +119,16 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
    --data.images = {}
    --data.prev_images = {}
    --data.prev_images_masks = {}
-   --data.groundtruth = {}
+   data.groundtruth = {}
    data.polar_images = {}
    data.polar_prev_images = {}
    data.polar_prev_images_masks = {}
    data.polar_groundtruth = {}
    local i = 1
    local previmg = nil
+   print('Loading images...')
    for iImg = learningp.first_image+1,learningp.first_image+learningp.n_images-1, learningp.delta do
+      xlua.progress(iImg-learningp.first_image+1,learningp.n_images-1)
       img = load_image(root_directory, calibrationp, iImg)
       img = rescale(img, calibrationp.wImg, calibrationp.hImg)
       local prev_img
@@ -172,21 +173,19 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
 	 prev_img_mask:sub(1,h,1,1):zero()
 	 prev_img_mask:sub(1,h,w,w):zero()
 	 local groundtruth = load_groundtruth(root_directory, groundtruthp, iImg, e2, prev_img, img, prev_img_mask)
-	 if i == 1 then
-	    image.display{image=groundtruth, min=0, max=12}
-	    image.display{image={prev_img, img}}
-	 end
 	 
 	 data.polar_images[i] = cartesian2polar(img, polarWarpMaskPad2)
 	 data.polar_prev_images[i] = cartesian2polar(prev_img, polarWarpMaskPad1)
 	 data.polar_prev_images_masks[i] = cartesian2polar(prev_img_mask, polarWarpMaskPad1)
 	 data.polar_prev_images_masks[i] = torch.Tensor(data.polar_prev_images_masks[i]:size()):copy(data.polar_prev_images_masks[i]:gt(0))
+	 data.groundtruth[i] = groundtruth
 	 data.polar_groundtruth[i] = cartesian2polar(groundtruth, polarWarpMask)
 	 data.polar_groundtruth[i] = data.polar_groundtruth[i]*networkp.hInput/rmax
 	 --data.polar_groundtruth[i] = (data.polar_groundtruth[i]+0.5):floor()
 	 
 	 i = i + 1
       end
+      collectgarbage()
    end
    return data
 end
