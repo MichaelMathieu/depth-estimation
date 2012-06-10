@@ -170,7 +170,7 @@ for iEpoch = 1,opt.n_epochs do
       threshold = 0.3
    end
 
-   evaluate(raw_data, network, 1)
+   --evaluate(raw_data, network, 1)
    
    for iTrainSet = 1,train_set:size() do
       modProgress(iTrainSet, train_set:size(), 100)
@@ -212,4 +212,5 @@ for iEpoch = 1,opt.n_epochs do
    end
    print(nGood, nBad)
    collectgarbage()
+   torch.save(string.format("models/model_%d", iEpoch), network)
 end
