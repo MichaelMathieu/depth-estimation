@@ -171,7 +171,7 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
 	 img = rescale(img, networkp.wImg, networkp.hImg)
 	 prev_img = rescale(prev_img, networkp.wImg, networkp.hImg)
 	 local prev_img_mask
-	 prev_img, prev_img_mask = sfm2.removeEgoMotion(prev_img, Ksmall, R)
+	 prev_img, prev_img_mask = sfm2.removeEgoMotion(prev_img, Ksmall, R, 'simple')
 	 local h = prev_img_mask:size(1)
 	 local w = prev_img_mask:size(2)
 	 prev_img_mask:sub(1,1,1,w):zero()
