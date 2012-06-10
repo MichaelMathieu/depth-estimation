@@ -116,16 +116,27 @@ function displayWeights(network, wins)
    end
 end
 
-function saveNetwork(filename, networkp, network)
+local current_version = 1
+function saveNetwork(dir, iEpoch, networkp, network)
+   if dir:sub(-1) ~= '/' then dir = dir..'/' end
+   filename = dir .. 'model_' .. iEpoch
    local tosave = {}
-   tosave.version = 1
+   tosave.version = current_version
    tosave.networkp = networkp
-   tosave.weights = getWeights(network)
+   tosave.weights = {}
+   tosave.weights[1], tosave.weights[2] = getWeights(network)
    torch.save(filename, tosave)
+end
+
+function checkVersion(loaded)
+   if loaded.version ~= current_version then
+      error('Input file has version '.. loaded.version.. ' but is required to have version '..current_version)
+   end
 end
 
 function loadTrainerNetwork(filename)
    local loaded = torch.load(filename)
+   checkVersion(loaded)
    local networkp = loaded.networkp
    local network = getTrainerNetwork(networkp)
    copyWeights(loaded.wrights, network)
@@ -134,8 +145,9 @@ end
 
 function loadTesterNetwork(filename)
    local loaded = torch.load(filename)
+   checkVersion(loaded)
    local networkp = loaded.networkp
    local network = getTesterNetwork(networkp)
-   copyWeights(loaded.wrights, network)
+   copyWeights(loaded.weights, network)
    return network, networkp
 end

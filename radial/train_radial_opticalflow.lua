@@ -3,13 +3,13 @@ torch.setdefaulttensortype('torch.FloatTensor')
 package.path = "./?.lua;../?.lua;" .. package.path
 package.cpath = "./?.so;../?.so;" .. package.cpath
 require 'xlua'
-require 'optim'
 require 'sys'
+require 'nn'
+require 'optim'
+require 'image'
 require 'openmp'
 require 'radial_opticalflow_data'
-require 'image'
 require 'radial_opticalflow_network'
-require 'nn'
 require 'radial_opticalflow_filtering'
 
 torch.manualSeed(1)
@@ -20,6 +20,14 @@ op:option{'-nt', '--num-threads', action='store', dest='nThreads', default=2,
 	  help='Number of threads used'}
 
 -- network
+op:option{'-net', '--network', action='store', dest='network_struct',
+	  default="{{3,1,17,5},{5,17,1,10}}", help='Network structure'}
+op:option{'-hw', '--h-window', action='store', dest='hWin',
+	  default=15, help='Height of the search window'}
+op:option{'-wi', '--w-intern', action='store', dest='w_input',
+	  default=200, help='Width of the intern representation'}
+op:option{'-hi', '--h-intern', action='store', dest='h_input',
+	  default=200, help='Height of the intern representation'}
 
 -- learning
 op:option{'-n', '--n-train-set', action='store', dest='n_train_set', default=2000,
@@ -34,14 +42,6 @@ op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 op:option{'-crit', '--criterion', action='store', dest='criterion',
 	  default='NLL', help='Learning criterion (NLL | MSE)'}
-op:option{'-net', '--network', action='store', dest='network_struct',
-	  default="{{3,1,17,5},{5,17,1,10}}", help='Network structure'}
-op:option{'-hw', '--h-window', action='store', dest='hWin',
-	  default=15, help='Height of the search window'}
-op:option{'-wi', '--w-intern', action='store', dest='w_input',
-	  default=200, help='Width of the intern representation'}
-op:option{'-hi', '--h-intern', action='store', dest='h_input',
-	  default=200, help='Height of the intern representation'}
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -148,9 +148,11 @@ local function evaluate(raw_data, network, i)
    _,test = test:min(3)
    test = test-1
    test = torch.Tensor(test:squeeze():size()):copy(test)*160/networkp.hInput
+   local rmax = math.max(math.floor(networkp.hImg/2),math.floor(networkp.wImg/2))
    local p2cmask = getP2CMask(test:size(2), test:size(1),
-			      networkp.wImg-33/200*160, networkp.hImg-33/200*160,
-			      raw_data.e2[i][1], raw_data.e2[i][2], 160)
+			      (1-(networkp.wKernel-1)/networkp.wInput)*networkp.wImg,
+			      (1-(networkp.hKernel-1)/networkp.hInput)*networkp.hImg,
+			      raw_data.e2[i][1], raw_data.e2[i][2], rmax)
    win_test = image.display{image=test, win=win_test, min=0, max=12}
    local h = test:size(1)
    local w = test:size(2)
@@ -160,6 +162,15 @@ local function evaluate(raw_data, network, i)
    win_imgs = image.display{image={raw_data.prev_images[i], raw_data.images[i]}, win=win_imgs}
    win_polimgs = image.display{image={raw_data.polar_prev_images[i], raw_data.polar_images[i]},
 			       win=win_polimgs}
+   local gt = raw_data.polar_groundtruth[i]:clone()
+   local gtmask = raw_data.polar_groundtruth_masks[i]
+   gt:cmul(gtmask)
+   local colored_gt = torch.Tensor(3, gt:size(1), gt:size(2))
+   colored_gt[1]:copy(gt)
+   colored_gt[2]:copy(gt)
+   colored_gt[3]:copy(gt + (-gtmask+1)*gt:max())
+   
+   win_polgt = image.display{image=colored_gt, win=win_polgt}
 end
 
 for iEpoch = 1,opt.n_epochs do
@@ -216,5 +227,5 @@ for iEpoch = 1,opt.n_epochs do
    end
    print(nGood, nBad)
    collectgarbage()
-   saveNetwork(string.format("models/model_%d", iEpoch), networkp, network)
+   saveNetwork('models', iEpoch, networkp, network)
 end

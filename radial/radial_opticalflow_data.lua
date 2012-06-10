@@ -120,19 +120,22 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
    data.images = {}
    data.prev_images = {}
    --data.prev_images_masks = {}
-   data.groundtruth = {}
    data.polar_images = {}
    data.polar_prev_images = {}
    data.polar_prev_images_masks = {}
-   data.polar_groundtruth = {}
-   data.polar_groundtruth_masks = {}
    data.e1 = {}
    data.e2 = {}
+   if groundtruthp ~= nil then
+      data.groundtruth = {}
+      data.polar_groundtruth = {}
+      data.polar_groundtruth_masks = {}
+   end
+   
    local i = 1
    local previmg = nil
    print('Loading images...')
-   for iImg = learningp.first_image,learningp.first_image+learningp.n_images-2, learningp.delta do
-      xlua.progress(iImg-learningp.first_image,learningp.n_images)
+   for iImg = learningp.first_image+1,learningp.first_image+learningp.n_images-1, learningp.delta do
+      xlua.progress(iImg-learningp.first_image-1,learningp.n_images-1)
       img = load_image(root_directory, calibrationp, iImg)
       img = rescale(img, calibrationp.wImg, calibrationp.hImg)
       local prev_img
@@ -178,20 +181,23 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
 	 prev_img_mask:sub(h,h,1,w):zero()
 	 prev_img_mask:sub(1,h,1,1):zero()
 	 prev_img_mask:sub(1,h,w,w):zero()
-	 local groundtruth, gt_gds = load_groundtruth(root_directory, groundtruthp,
-						      iImg, e2, prev_img, img, prev_img_mask)
-	 
 	 data.polar_images[i] = cartesian2polar(img, polarWarpMaskPad2)
 	 data.polar_prev_images[i] = cartesian2polar(prev_img, polarWarpMaskPad1)
 	 data.polar_prev_images_masks[i] = cartesian2polar(prev_img_mask, polarWarpMaskPad1)
 	 data.polar_prev_images_masks[i] = torch.Tensor(data.polar_prev_images_masks[i]:size()):copy(data.polar_prev_images_masks[i]:gt(0))
 	 data.prev_images[i] = prev_img
 	 data.images[i] = img
-	 data.groundtruth[i] = groundtruth
-	 data.polar_groundtruth[i] = cartesian2polar(groundtruth, polarWarpMask)
-	 data.polar_groundtruth_masks[i] = cartesian2polar(gt_gds, polarWarpMask)
-	 data.polar_groundtruth[i] = data.polar_groundtruth[i]*networkp.hInput/rmax
-	 --data.polar_groundtruth[i] = (data.polar_groundtruth[i]+0.5):floor()
+	 
+	 if groundtruthp ~= nil then
+	    local groundtruth, gt_gds = load_groundtruth(root_directory, groundtruthp,
+							 iImg, e2, prev_img, img, prev_img_mask)
+	 
+	    data.groundtruth[i] = groundtruth
+	    data.polar_groundtruth[i] = cartesian2polar(groundtruth, polarWarpMask)
+	    data.polar_groundtruth_masks[i] = cartesian2polar(gt_gds, polarWarpMask)
+	    data.polar_groundtruth[i] = data.polar_groundtruth[i]*networkp.hInput/rmax
+	    --data.polar_groundtruth[i] = (data.polar_groundtruth[i]+0.5):floor()
+	 end
 	 
 	 i = i + 1
       end
