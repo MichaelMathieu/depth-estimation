@@ -86,6 +86,7 @@ function load_groundtruth(root_directory, groundtruthp, i, e2, im1, im2, mask)
       error('Unknown extension ' .. ext)
    end
    check_flow(groundtruthp, flow)
+   image.display(flow[3])
    flow[1]:cmul(flow[3])
    flow[2]:cmul(flow[3])
    local radial = torch.Tensor(2, flow:size(2), flow:size(3))
@@ -127,8 +128,8 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
    local i = 1
    local previmg = nil
    print('Loading images...')
-   for iImg = learningp.first_image+1,learningp.first_image+learningp.n_images-1, learningp.delta do
-      xlua.progress(iImg-learningp.first_image+1,learningp.n_images-1)
+   for iImg = learningp.first_image,learningp.first_image+learningp.n_images-1, learningp.delta do
+      xlua.progress(iImg-learningp.first_image,learningp.n_images)
       img = load_image(root_directory, calibrationp, iImg)
       img = rescale(img, calibrationp.wImg, calibrationp.hImg)
       local prev_img
