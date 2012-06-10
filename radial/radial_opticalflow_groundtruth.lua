@@ -60,15 +60,16 @@ function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img
 
    -- get x, y
    local floored = ((idx-1)/wWin):floor()
-   local flow = torch.Tensor(3, idx:size(1), idx:size(2))
+   local flow = torch.Tensor(4, idx:size(1), idx:size(2))
    flow[1] = floored - math.floor((hWin-1)/2)              -- y
    flow[2] = idx-1 - floored*wWin - math.floor((wWin-1)/2) -- x
    
    --get confidences
-   local confs = torch.LongTensor(flow:size(2), flow:size(3))
+   local scores = torch.Tensor(flow:size(2), flow:size(3))
    local imaxs = torch.LongTensor(flow:size(2), flow:size(3))
-   extractoutput.extractOutput(output, 0.11, 0, imaxs, confs)
-   flow[3]:copy(confs)                                     -- mask
+   extractoutput.extractOutput(output, scores, 0.21, imaxs)
+   flow[3]:fill(1)                                     -- mask
+   flow[4]:copy(scores)
    local flowp = cross_correlation_pad_output(flow, wWin, hWin, wKer, hKer)
    
    return flowp

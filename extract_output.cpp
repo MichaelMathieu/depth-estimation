@@ -64,25 +64,21 @@ static int ExtractOutput(lua_State *L) {
   const void* iddouble = luaT_checktypename2id(L, ID_TENSOR_STRING);
   const void* idlong   = luaT_checktypename2id(L, "torch.LongTensor"  );
   Tensor*     input         = (Tensor*)luaT_checkudata(L, 1, iddouble);
-  double          threshold     = lua_tonumber   (L, 2);
-  double          threshold_acc = lua_tonumber   (L, 3);
-  THLongTensor*   ret           = (THLongTensor*)luaT_checkudata(L, 4, idlong  );
-  THLongTensor*   retgd         = (THLongTensor*)luaT_checkudata(L, 5, idlong  );
-
-  //THLongTensor_zero(ret);
-  THLongTensor_zero(retgd);
+  Tensor*     scores        = (Tensor*)luaT_checkudata(L, 2, iddouble);
+  double          threshold     = lua_tonumber   (L, 3);
+  THLongTensor*   ret           = (THLongTensor*)luaT_checkudata(L, 4, idlong);
 
   input = Tensor_(newContiguous)(input);
   real* input_p = Tensor_(data)(input);
-  long* ret_p   = THLongTensor_data  (ret  );
-  long* retgd_p = THLongTensor_data  (retgd);
+  long* ret_p   = THLongTensor_data(ret);
+  real* scores_p = Tensor_(data)(scores);
   
   int nvalues = input->size[2];
   int h = input->size[0];
   int w = input->size[1];
   long* is  = input->stride;
   long* rs  = ret->stride;
-  long* rgs = retgd->stride;
+  long* ss = scores->stride;
   
   int maxhighs = 4;
   if (threshold < 0.2)
@@ -130,8 +126,7 @@ static int ExtractOutput(lua_State *L) {
 	  acc = 0;
 	  for (k = 0; k < maxhighs; ++k)
 	    acc += highs_pe[k];
-	  if (acc >= threshold_acc)
-	    retgd_p[rgs[0]*i + rgs[1]*j] = 1;
+	  scores_p[ss[0]*i + ss[1]*j] = acc;
 	}
       }
     }
@@ -147,8 +142,7 @@ static int ExtractOutput(lua_State *L) {
 	  acc = 0;
 	  for (k = 0; k < maxhighs; ++k)
 	    acc += highs_pe[k];
-	  if (acc >= threshold_acc)
-	    retgd_p[rgs[0]*i + rgs[1]*j] = 1;
+	  scores_p[ss[0]*i + ss[1]*j] = acc;
 	}
       }
     }

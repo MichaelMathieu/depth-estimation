@@ -36,7 +36,7 @@ end
 
 function check_flow(groundtruthp, flow)
    if groundtruthp.type == 'cross-correlation' then
-      if (flow:nDimension() ~= 3) or (flow:size(1) ~= 3) then
+      if (flow:nDimension() ~= 3) or (flow:size(1) < 3) then
 	 error('Flow has wrong size')
       end
       if (flow:size(2) ~= groundtruthp.hGT) or (flow:size(3) ~= groundtruthp.wGT) then

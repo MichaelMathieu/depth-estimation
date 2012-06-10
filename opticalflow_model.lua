@@ -161,8 +161,9 @@ function getOutputConfidences(geometry, input, threshold)
       return idx, torch.Tensor(idx:size()):fill(1)
    else
       local imaxs = torch.LongTensor(input:size(1), input:size(2))
-      local gds   = torch.LongTensor(input:size(1), input:size(2))
-      extractoutput.extractOutput(input, 0.11, threshold, imaxs, gds)
+      local scores= torch.Tensor    (input:size(1), input:size(2))
+      extractoutput.extractOutput(input, scores, 0.11, imaxs)
+      local gds = scores:gt(threshold)
       return imaxs, gds
    end
 end
@@ -188,7 +189,9 @@ function getOutputConfidences2(geometry, input)
    local xgds   = torch.LongTensor(input:size(1), input:size(2))
    --local ygds   = torch.LongTensor(input:size(1), input:size(2))
    local inputmarg = input:reshape(input:size(1), input:size(2), geometry.maxh, geometry.maxw):sum(4):squeeze()
-   extractoutput.extractOutput(inputmarg, 0.11, 0, imaxs, xgds)
+   local scores= torch.Tensor    (input:size(1), input:size(2))
+   extractoutput.extractOutput(inputmarg, scores, 0.11, imaxs)
+   local xgds = scores:gt(0)
    --extractoutput.extractOutput(input:sum(3), 0.11, 0, imaxs, ygds)
    gds = xgds
 
