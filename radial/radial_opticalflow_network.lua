@@ -69,3 +69,73 @@ function getTesterNetwork(networkp)
    network:add(nn.SmartReshape(-1, -2, networkp.hWin))
    return network
 end
+
+function getWeights(network)
+   local weights = {}
+   local bias = {}
+   local layers = network.modules[1].modules[2].modules
+   for i = 1,#layers do
+      if layers[i].weight then
+	 table.insert(weights, layers[i].weight)
+      end
+      if layers[i].bias then
+	 table.insert(bias, layers[i].bias)
+      end
+   end
+   return weights, bias
+end
+
+function copyWeights(srcnetwork, dstnetwork)
+   local srcweights, srcbias
+   if type(srcnetwork) == 'table' then
+      srcweights = srcnetwork[1]
+      srcbias = srcnetwork[2]
+   else
+      srcweights, srcbias = getWeights(srcnetwork)
+   end
+   local dstweights, dstbias = getWeights(dstnetwork)
+   assert(#srcweights == #dstweights)
+   assert(#dstbias == #dstbias)
+   for i = 1,#srcweights do
+      dstweights[i]:copy(srcweights[i])
+   end
+   for i = 1,#srcbias do
+      dstbias[i]:copy(srcbias[i])
+   end
+end
+
+function displayWeights(network, wins)
+   wins = wins or {}
+   local weights, _ = getWeights(network)
+   for i = 1,#weights do
+      local w = weights[i]
+      if w:size(2) ~= 3 then
+	 w = w:reshape(w:size(1)*w:size(2), w:size(3), w:size(4))
+      end
+      wins[i] = image.display{image = w, padding=2, zoom=4, win = wins[i]}
+   end
+end
+
+function saveNetwork(filename, networkp, network)
+   local tosave = {}
+   tosave.version = 1
+   tosave.networkp = networkp
+   tosave.weights = getWeights(network)
+   torch.save(filename, tosave)
+end
+
+function loadTrainerNetwork(filename)
+   local loaded = torch.load(filename)
+   local networkp = loaded.networkp
+   local network = getTrainerNetwork(networkp)
+   copyWeights(loaded.wrights, network)
+   return network, networkp
+end
+
+function loadTesterNetwork(filename)
+   local loaded = torch.load(filename)
+   local networkp = loaded.networkp
+   local network = getTesterNetwork(networkp)
+   copyWeights(loaded.wrights, network)
+   return network, networkp
+end
