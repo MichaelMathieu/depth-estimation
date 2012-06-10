@@ -111,6 +111,7 @@ local raw_data = load_training_raw_data(opt.root_directory, networkp, groundtrut
 					learningp, calibrationp)
 
 local network = getTrainerNetwork(networkp)
+
 local parameters, gradParameters = network:getParameters()
 local criterion
 if learningp.criterion == 'NLL' then
@@ -124,21 +125,9 @@ end
 win_kers = {}
 local function evaluate(raw_data, network, i)
    testnetwork = getTesterNetwork(networkp)
-   local testlayers = testnetwork.modules[1].modules[2].modules
-   local layers = network.modules[1].modules[2].modules
-   for i = 1,#layers do
-      if layers[i].weight then
-	 testlayers[i].weight:copy(layers[i].weight)
-	 w = layers[i].weight
-	 if w:size(2) ~= 3 then
-	    w = w:reshape(w:size(1)*w:size(2), w:size(3), w:size(4))
-	 end
-	 win_kers[i] = image.display{image=w,padding=2,zoom=4,win=win_kers[i]}
-      end
-      if layers[i].bias then
-	 testlayers[i].bias:copy(layers[i].bias)
-      end
-   end
+   copyWeights(network, testnetwork)
+   displayWeights(network, win_kers)
+
    time = torch.Timer()
    local test = testnetwork:forward({raw_data.polar_prev_images[i],
 				     raw_data.polar_images[i]})
