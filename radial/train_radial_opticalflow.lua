@@ -10,6 +10,7 @@ require 'radial_opticalflow_data'
 require 'image'
 require 'radial_opticalflow_network'
 require 'nn'
+require 'radial_opticalflow_filtering'
 
 torch.manualSeed(1)
 
@@ -70,13 +71,18 @@ local calibrationp = torch.load(opt.calibration_file)
 local networkp = {}
 networkp.wImg = 320
 networkp.hImg = round(networkp.wImg*calibrationp.hImg/calibrationp.wImg)
---networkp.hImg = 320
-networkp.wInput = 200
+networkp.wInput = 400
 networkp.hInput = 200
-networkp.layers = {{3,1,7,5}, {5, 17, 1, 10}}
+networkp.layers = {{3,1,17,5}, {5, 17, 1, 10}}
 networkp.hWin = 16
-networkp.wKernel = 7
-networkp.hKernel = 17
+networkp.wKernel = 1
+networkp.hKernel = 1
+for i = 1,#networkp.layers do
+   if type(networkp.layers) == 'table' then
+      networkp.hKernel = networkp.hKernel + networkp.layers[i][2]-1
+      networkp.wKernel = networkp.wKernel + networkp.layers[i][3]-1
+   end
+end
 
 local learningp = {}
 learningp.first_image = opt.first_image
@@ -92,7 +98,6 @@ local groundtruthp = {}
 groundtruthp.type = 'cross-correlation'
 groundtruthp.wGT = networkp.wImg
 groundtruthp.hGT = networkp.hImg
---groundtruthp.hGT = 180
 groundtruthp.delta = learningp.delta
 groundtruthp.params = {hWin = 17, wWin = 17,
  		       hKer = 17, wKer = 17}
@@ -143,13 +148,16 @@ local function evaluate(raw_data, network, i)
    test = torch.Tensor(test:squeeze():size()):copy(test)*160/networkp.hInput
    local p2cmask = getP2CMask(test:size(2), test:size(1),
 			      networkp.wImg-33/200*160, networkp.hImg-33/200*160,
-			      699/4, 238/4, 160)
+			      raw_data.e2[i][1], raw_data.e2[i][2], 160)
    win_test = image.display{image=test, win=win_test, min=0, max=12}
    local h = test:size(1)
    local w = test:size(2)
    test:sub(h,h,1,w):zero()
    win_testcart = image.display{image=cartesian2polar(test, p2cmask), win=win_testcart}
    win_gt = image.display{image=raw_data.groundtruth[i], win=win_gt}
+   win_imgs = image.display{image={raw_data.prev_images[i], raw_data.images[i]}, win=win_imgs}
+   win_polimgs = image.display{image={raw_data.polar_prev_images[i], raw_data.polar_images[i]},
+			       win=win_polimgs}
 end
 
 for iEpoch = 1,opt.n_epochs do
@@ -157,6 +165,10 @@ for iEpoch = 1,opt.n_epochs do
    local train_set = generate_training_patches(raw_data, networkp, learningp)
    local nGood = 0
    local nBad = 0
+   local threshold = 0
+   if iEpoch > 1 then
+      threshold = 0.3
+   end
 
    evaluate(raw_data, network, 1)
    
@@ -172,23 +184,25 @@ for iEpoch = 1,opt.n_epochs do
 	 end
 	 gradParameters:zero()
 	 local output = network:forward(input)
-	 local _, idx = output:max(1)
-	 local err, df_do
-	 if learningp.criterion == 'NLL' then
-	    err = criterion:forward(output, target)
-	    df_do = criterion:backward(output, target)
-	 elseif learningp.criterion == 'MSE' then
-	    local target_idx = torch.Tensor(1):copy(idx)
-	    local target_crit = torch.Tensor(1):fill(target)
-	    err = criterion:forward(target_idx, target_crit)
-	    df_do = criterion:backward(target_idx, target_crit)
-	 end
-	 network:backward(input, df_do)
-	 idx = idx:squeeze()
-	 if idx == target then
-	    nGood = nGood + 1
-	 else
-	    nBad = nBad + 1
+	 local idx, good = filterOutputTrainer(output, threshold)
+	 local err = 0
+	 if good then
+	    local df_do
+	    if learningp.criterion == 'NLL' then
+	       err = criterion:forward(output, target)
+	       df_do = criterion:backward(output, target)
+	    elseif learningp.criterion == 'MSE' then
+	       local target_idx = torch.Tensor(1):fill(idx)
+	       local target_crit = torch.Tensor(1):fill(target)
+	       err = criterion:forward(target_idx, target_crit)
+	       df_do = criterion:backward(target_idx, target_crit)
+	    end
+	    network:backward(input, df_do)
+	    if idx == target then
+	       nGood = nGood + 1
+	    else
+	       nBad = nBad + 1
+	    end
 	 end
 	 return err, gradParameters
       end
