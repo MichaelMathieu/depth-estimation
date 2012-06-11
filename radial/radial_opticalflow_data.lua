@@ -25,15 +25,18 @@ function load_image(root_directory, dataset, calibrationp, i)
 end
 
 function generate_groundtruth(gtdir, filepath, groundtruthp, im1, im2, mask)
+   print('Computing '..groundtruthp.type..' groundtruth '..filepath)
+   local flow
    if groundtruthp.type == 'cross-correlation' then
-      print('Computing groundtruth '..filepath)
-      local flow = compute_cartesian_groundtruth_cross_correlation(groundtruthp, im1, im2)
-      flow[3]:cmul(mask)
-      os.execute('mkdir -p ' .. gtdir)
-      torch.save(filepath, flow)
+      flow = compute_cartesian_groundtruth_cross_correlation(groundtruthp, im1, im2)
+   elseif groundtruthp.type == 'liu' then
+      flow = compute_cartesian_groundtruth_liu(groundtruthp, im1, im2)
    else
-      error("Can't compute groundtruth of type "..groundtruth.type)
+      error("Can't compute groundtruth of type "..groundtruthp.type)
    end
+   flow[3]:cmul(mask)
+   os.execute('mkdir -p ' .. gtdir)
+   torch.save(filepath, flow)
 end
 
 function check_flow(groundtruthp, flow)
@@ -56,22 +59,21 @@ function check_flow(groundtruthp, flow)
    end
 end
 
-function load_groundtruth(root_directory, dataset, groundtruthp, i, e2, im1, im2, mask)
+function load_groundtruth(root_directory, dataset, groundtruthp, maxflow,
+			  i, e2, im1, im2, mask)
    local gtdir = root_directory
    local ds = dataset
    if gtdir:sub(-1) ~= '/' then gtdir = gtdir..'/' end
    if ds:sub(-1) ~= '/' then ds = ds..'/' end
    gtdir = gtdir .. ds .. "rectified_flow3/"
    gtdir = gtdir .. groundtruthp.wGT .. 'x' .. groundtruthp.hGT .. '/'
-   local ext
+   local ext = '.flow'
    if groundtruthp.type == 'cross-correlation' then
       gtdir = gtdir .. groundtruthp.params.wWin .. 'x' .. groundtruthp.params.hWin .. 'x'
 	 .. groundtruthp.params.wKer .. 'x' .. groundtruthp.params.hKer .. '/'
       gtdir = gtdir .. 'max/'
-      ext = '.flow'
    elseif groundtruthp.type == 'liu' then
       gtdir = gtdir .. 'celiu/'
-      ext = '.png'
    else
       error('Groundtruth '..groundtruthp.type..' not supported.')
    end
@@ -90,7 +92,9 @@ function load_groundtruth(root_directory, dataset, groundtruthp, i, e2, im1, im2
       error('Unknown extension ' .. ext)
    end
    check_flow(groundtruthp, flow)
-   flow[3]:cmul(torch.Tensor(flow[3]:size()):copy(flow[4]:gt(15)))
+   if groundtruthp.type == 'cross-correlation' then
+      flow[3]:cmul(torch.Tensor(flow[3]:size()):copy(flow[4]:gt(15)))
+   end
    local radial = torch.Tensor(2, flow:size(2), flow:size(3))
    radial[1]:copy(torch.ger(torch.linspace(0, flow:size(2)-1, flow:size(2)),
 			    torch.Tensor(flow:size(3)):fill(1))-e2[2])
@@ -99,11 +103,20 @@ function load_groundtruth(root_directory, dataset, groundtruthp, i, e2, im1, im2
    local radialnorm = flownorm(radial)
    radial[1]:cdiv(radialnorm)
    radial[2]:cdiv(radialnorm)
-   local proj = (flow[1]:cmul(radial[1])+flow[2]:cmul(radial[2])+0.5):floor()
-   local gds = proj:ge(0)
+   local projf = flow[1]:cmul(radial[1])+flow[2]:cmul(radial[2])
+   local gds = projf:ge(0)
    gds = torch.Tensor(gds:size()):copy(gds)
    gds:cmul(flow[3])
    --gds = (gds+0.5):floor()
+   projf:cmul(gds)
+   local proj = (projf+0.5):floor()
+   winp = image.display{image={proj, projf}, win=winp}
+   
+   local saturation = torch.Tensor(proj:size()):copy(proj:le(maxflow))
+   proj:cmul(saturation)
+   proj:add((-saturation+1)*(maxflow))
+   gds:cmul(saturation)
+
    return proj:cmul(gds), gds
 end
 
@@ -201,7 +214,7 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
 	 img = rescale(img, networkp.wImg, networkp.hImg)
 	 prev_img = rescale(prev_img, networkp.wImg, networkp.hImg)
 	 local prev_img_mask
-	 prev_img, prev_img_mask = sfm2.removeEgoMotion(prev_img, Ksmall, R, 'simple')
+	 prev_img, prev_img_mask = sfm2.removeEgoMotion(prev_img, Ksmall, R, 'bilinear')
 	 local h = prev_img_mask:size(1)
 	 local w = prev_img_mask:size(2)
 	 prev_img_mask:sub(1,1,1,w):zero()
@@ -217,12 +230,13 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
 	 
 	 if groundtruthp ~= nil then
 	    local groundtruth, gt_gds = load_groundtruth(root_directory, dataset, groundtruthp,
+							 (networkp.hWin-1)*rmax/networkp.hInput,
 							 iImg, e2, prev_img, img, prev_img_mask)
 	 
 	    data.groundtruth[i] = groundtruth
 	    data.polar_groundtruth[i] = cartesian2polar(groundtruth, polarWarpMask)
 	    data.polar_groundtruth_masks[i] = cartesian2polar(gt_gds, polarWarpMask)
-	    data.polar_groundtruth[i] = data.polar_groundtruth[i]*networkp.hInput/rmax
+	    data.polar_groundtruth[i] = data.polar_groundtruth[i]*networkp.hInput/rmax	    
 	    --data.polar_groundtruth[i] = (data.polar_groundtruth[i]+0.5):floor()
 	 end
 	 
@@ -246,6 +260,7 @@ function load_data(root_directory, networkp, groundtruthp, learningp, calibratio
 	 end
       end
    end
+   return data
 end
 
 function generate_training_patches(raw_data, networkp, learningp)

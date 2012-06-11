@@ -101,12 +101,18 @@ learningp.n_train_set = opt.n_train_set
 learningp.criterion = opt.criterion
 
 local groundtruthp = {}
-groundtruthp.type = 'cross-correlation'
+--groundtruthp.type = 'cross-correlation'
+groundtruthp.type = 'liu'
 groundtruthp.wGT = networkp.wImg
 groundtruthp.hGT = networkp.hImg
 groundtruthp.delta = learningp.delta
-groundtruthp.params = {hWin = 17, wWin = 17,
- 		       hKer = 17, wKer = 17}
+--groundtruthp.params = {hWin = 17, wWin = 17,
+-- 		       hKer = 17, wKer = 17}
+groundtruthp.params = {alpha = 0.005,
+		       ratio = 0.75,
+		       minWidth = 60,
+		       nOFPIters = 10, nIFPIters = 5,
+		       nCGIters = 40}
 
 local optim_config = {learningRate = learningp.rate,
 		      weightDecay = learningp.weight_decay,

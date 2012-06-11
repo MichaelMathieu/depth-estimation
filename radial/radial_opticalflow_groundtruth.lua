@@ -3,6 +3,7 @@ require 'cartesian2polar'
 require 'image'
 require 'nnx'
 require 'extractoutput'
+require 'liuflow'
 torch.setdefaulttensortype('torch.FloatTensor')
 
 function unfold(img, wKer, hKer)
@@ -116,4 +117,27 @@ function cartesian_groundtruth_cc_testme()
    flowbaseKer2[1]:fill(math.floor(torch.rand(1):squeeze()*12-5+0.5))
    flowbaseKer2[2]:fill(math.floor(torch.rand(1):squeeze()*7-4+0.5))
    test(w, h, 5, 5, 17, 17, flowbaseKer, 1)
+end
+
+function compute_cartesian_groundtruth_liu(groundtruthp, img1, img2)
+   assert(groundtruthp.type == 'liu')
+   local alpha = groundtruthp.params.alpha
+   local ratio = groundtruthp.params.ratio
+   local minWidth = groundtruthp.params.winWidth
+   local nOuterFPIterations = groundtruthp.params.nOFPIters
+   local nInnerFPIterations = groundtruthp.params.nIFPIters
+   local nCGIterations = groundtruthp.params.nGCIters
+   
+   local resn, resa, warp, resx, resy = liuflow.infer{pair={img1, img2}, alpha=alpha,
+						      ratio=ratio, minWidth=minWidth,
+						      nOuterFPIterations=nOuterFPIterations,
+						      nInnerFPIterations=nInnerFPIterations,
+						      nCGIterations=nCGIterations}
+   win1 = image.display{image={img1, img2}, win=win1}
+   win2 = image.display{image=resn , min=0, win=win2}
+   local flow = torch.Tensor(3, img1:size(2), img1:size(3))
+   flow[1]:copy(resy)
+   flow[2]:copy(resx)
+   flow[3]:fill(1)
+   return flow
 end

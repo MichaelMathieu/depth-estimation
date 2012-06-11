@@ -14,8 +14,8 @@ function getFlow(im1, im2)
    local SORIterations = 40
    local resn, resa, warp, resx, resy = liuflow.infer{pair={im1, im2}, alpha=alpha,
 						      ratio=ratio,
-						      winWidth=minWidth,
-						      nOuterFPIteration=nOuterFPIterations,
+						      minWidth=minWidth,
+						      nOuterFPIterations=nOuterFPIterations,
 						      nInnerFPIterations=nInnerFPIterations,
 						      nCGIterations=SORIterations}
    win3=image.display{image=liuflow.field2rgb(resn, resa), win=win3, min=0, max=1}
