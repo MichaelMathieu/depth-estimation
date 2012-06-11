@@ -79,6 +79,8 @@ function cartesian_groundtruth_cc_testme()
    torch.manualSeed(1)
    local function test(w, h, hKer, wKer, hWin, wWin, flowbase, noise)
       local im2 = torch.rand(30, h, w)
+      --warp is confusing:
+      -- im1(i,j) = im2(i+dx, j+dy)
       local im1 = image.warp(im2, flowbase, 'nearest', true) + torch.randn(30, h, w):mul(noise)
       local groundtruthp = {
 	 type='cross-correlation',

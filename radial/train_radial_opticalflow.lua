@@ -11,6 +11,7 @@ require 'openmp'
 require 'radial_opticalflow_data'
 require 'radial_opticalflow_network'
 require 'radial_opticalflow_filtering'
+require 'radial_opticalflow_polar'
 
 torch.manualSeed(1)
 
@@ -144,15 +145,12 @@ local function evaluate(raw_data, network, i)
    time = torch.Timer()
    local test = testnetwork:forward({raw_data.polar_prev_images[i],
 				     raw_data.polar_images[i]})
+				     
    print(time:time()['real'])
    _,test = test:min(3)
    test = test-1
    test = torch.Tensor(test:squeeze():size()):copy(test)*160/networkp.hInput
-   local rmax = math.max(math.floor(networkp.hImg/2),math.floor(networkp.wImg/2))
-   local p2cmask = getP2CMask(test:size(2), test:size(1),
-			      (1-(networkp.wKernel-1)/networkp.wInput)*networkp.wImg,
-			      (1-(networkp.hKernel-1)/networkp.hInput)*networkp.hImg,
-			      raw_data.e2[i][1], raw_data.e2[i][2], rmax)
+   local p2cmask = getP2CMaskOF(networkp, raw_data.e2[i])
    win_test = image.display{image=test, win=win_test, min=0, max=12}
    local h = test:size(1)
    local w = test:size(2)

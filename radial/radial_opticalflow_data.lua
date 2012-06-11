@@ -239,7 +239,7 @@ function generate_training_patches(raw_data, networkp, learningp)
       if mask_patch:lt(0.1):sum() == 0 then
 	 patches.patches[i] = {iImg, y, y+hPatch, x, x+wPatch}
 	 patches.flow[i] = raw_data.polar_groundtruth[iImg][{y+math.ceil(networkp.hKernel/2)-1,
-							     x+math.ceil(wPatch/2)-1}]
+							     x}]
 	 i = i + 1
       end
    end
