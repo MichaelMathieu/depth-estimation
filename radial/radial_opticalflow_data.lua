@@ -7,16 +7,18 @@ require 'sfm2'
 require 'cartesian2polar'
 require 'radial_opticalflow_groundtruth'
 
-function load_image(root_directory, calibrationp, i)
+function load_image(root_directory, dataset, calibrationp, i)
    local rd = root_directory
+   local ds = dataset
    if rd:sub(-1) ~= '/' then rd = rd..'/' end
+   if ds:sub(-1) ~= '/' then ds = ds..'/' end
    local img
-   if paths.filep(string.format("%simages/%09d.jpg", rd, i)) then
-      img = image.load(string.format("%simages/%09d.jpg", rd, i))
-   elseif paths.filep(string.format("%simages/%09d.png", rd, i)) then
-      img = image.load(string.format("%simages/%09d.png", rd, i))
+   if paths.filep(string.format("%s%simages/%09d.jpg", rd, ds, i)) then
+      img = image.load(string.format("%s%simages/%09d.jpg", rd, ds, i))
+   elseif paths.filep(string.format("%s%simages/%09d.png", rd, ds, i)) then
+      img = image.load(string.format("%s%simages/%09d.png", rd, ds, i))
    else
-      error(string.format("Image %simages/%09d.* does not exist.", rd, i))
+      error(string.format("Image %s%simages/%09d.* does not exist.", rd, ds, i))
    end
    img = sfm2.undistortImage(img, calibrationp.K, calibrationp.distortion)
    return img
@@ -54,10 +56,12 @@ function check_flow(groundtruthp, flow)
    end
 end
 
-function load_groundtruth(root_directory, groundtruthp, i, e2, im1, im2, mask)
+function load_groundtruth(root_directory, dataset, groundtruthp, i, e2, im1, im2, mask)
    local gtdir = root_directory
+   local ds = dataset
    if gtdir:sub(-1) ~= '/' then gtdir = gtdir..'/' end
-   gtdir = gtdir .. "rectified_flow3/"
+   if ds:sub(-1) ~= '/' then ds = ds..'/' end
+   gtdir = gtdir .. ds .. "rectified_flow3/"
    gtdir = gtdir .. groundtruthp.wGT .. 'x' .. groundtruthp.hGT .. '/'
    local ext
    if groundtruthp.type == 'cross-correlation' then
@@ -112,7 +116,28 @@ local function rescale(im, w, h, mode)
    end
 end
 
-function load_training_raw_data(root_directory, networkp, groundtruthp, learningp, calibrationp)
+local function getFstLastImages(root_directory, dataset)
+   local rd = root_directory
+   local ds = dataset
+   if rd:sub(-1) ~= '/' then rd = rd..'/' end
+   if ds:sub(-1) ~= '/' then ds = ds..'/' end
+   local dir = rd .. ds .. 'images/'
+   local imgs = ls2(dir, function(a) return tonumber(a:sub(1,-5)) ~= nil end)
+   local fst = tonumber(imgs[1]:sub(1,-5))
+   local last = tonumber(imgs[1]:sub(1,-5))
+   for i = 1,#imgs do
+      local a = tonumber(imgs[i]:sub(1,-5))
+      if a < fst then
+	 fst = a
+      end
+      if a > last then
+	 last = a
+      end
+   end
+   return fst, last
+end
+
+function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp, calibrationp)
    local Ksmall = calibrationp.K:clone()
    Ksmall[1]:mul(networkp.wImg/calibrationp.wImg)
    Ksmall[2]:mul(networkp.hImg/calibrationp.hImg)
@@ -130,17 +155,19 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
       data.polar_groundtruth = {}
       data.polar_groundtruth_masks = {}
    end
+
+   local fst_img, last_img = getFstLastImages(root_directory, dataset)
    
    local i = 1
    local previmg = nil
    print('Loading images...')
-   for iImg = learningp.first_image+1,learningp.first_image+learningp.n_images-1, learningp.delta do
-      xlua.progress(iImg-learningp.first_image-1,learningp.n_images-1)
-      img = load_image(root_directory, calibrationp, iImg)
+   for iImg = fst_img+1,last_img,learningp.delta do
+      xlua.progress(iImg-fst_img-1,last_img-fst_img)
+      img = load_image(root_directory, dataset, calibrationp, iImg)
       img = rescale(img, calibrationp.wImg, calibrationp.hImg)
       local prev_img
       if previmg == nil then
-	 prev_img = load_image(root_directory, calibrationp, iImg-learningp.delta)
+	 prev_img = load_image(root_directory, dataset, calibrationp, iImg-learningp.delta)
       else
 	 prev_img = previmg
       end
@@ -189,7 +216,7 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
 	 data.images[i] = img
 	 
 	 if groundtruthp ~= nil then
-	    local groundtruth, gt_gds = load_groundtruth(root_directory, groundtruthp,
+	    local groundtruth, gt_gds = load_groundtruth(root_directory, dataset, groundtruthp,
 							 iImg, e2, prev_img, img, prev_img_mask)
 	 
 	    data.groundtruth[i] = groundtruth
@@ -204,6 +231,21 @@ function load_training_raw_data(root_directory, networkp, groundtruthp, learning
       collectgarbage()
    end
    return data
+end
+
+function load_data(root_directory, networkp, groundtruthp, learningp, calibrationp)
+   local datasets = ls2(root_directory, function(a) return true end)
+   local data = {}
+   for i = 1,#datasets do
+      local dataset = load_dataset(root_directory, datasets[i], networkp,
+				   groundtruthp, learningp, calibrationp)
+      for k, v in pairs(dataset) do
+	 if data[k] == nil then data[k] = {} end
+	 for j = 1,#v do
+	    table.insert(data[k], dataset[k][j])
+	 end
+      end
+   end
 end
 
 function generate_training_patches(raw_data, networkp, learningp)

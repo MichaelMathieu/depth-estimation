@@ -47,12 +47,8 @@ op:option{'-crit', '--criterion', action='store', dest='criterion',
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
 	  default='data/no-risk/part1/', help='Root dataset directory'}
-op:option{'-fi', '--first-image', action='store', dest='first_image', default=0,
-	  help='Index of first image used'}
 op:option{'-d', '--delta', action='store', dest='delta', default=1,
 	  help='Delta between two consecutive frames'}
-op:option{'-ni', '--num-input-images', action='store', dest='num_input_images',
-	  default=10, help='Number of annotated images used'}
 op:option{'-cal', '--caligration', dest='calibration_file', default='rectified_gopro.cal',
 	  action='store', help='Calibration parameters file'}
 
@@ -73,9 +69,7 @@ opt.weight_decay = tonumber(opt.weight_decay)
 opt.hWin = tonumber(opt.hWin)
 opt.w_input = tonumber(opt.w_input)
 opt.h_input = tonumber(opt.h_input)
-opt.first_image = tonumber(opt.first_image)
 opt.delta = tonumber(opt.delta)
-opt.num_input_images = tonumber(opt.num_input_images)
 if opt.root_directory:sub(-1) ~= '/' then opt.root_directory = opt.root_directory .. '/' end
 
 openmp.setDefaultNumThreads(opt.nThreads)
@@ -99,9 +93,7 @@ for i = 1,#networkp.layers do
 end
 
 local learningp = {}
-learningp.first_image = opt.first_image
 learningp.delta = opt.delta
-learningp.n_images = opt.num_input_images
 learningp.rate = opt.learning_rate
 learningp.rate_decay = opt.learning_rate_decay
 learningp.weight_decay = opt.weight_decay
@@ -121,8 +113,8 @@ local optim_config = {learningRate = learningp.rate,
 		      momentum = 0,
 		      learningRateDecay = learningp.rate_decay}
 
-local raw_data = load_training_raw_data(opt.root_directory, networkp, groundtruthp,
-					learningp, calibrationp)
+local raw_data = load_data(opt.root_directory, networkp, groundtruthp,
+			   learningp, calibrationp)
 
 local network = getTrainerNetwork(networkp)
 
@@ -178,7 +170,7 @@ for iEpoch = 1,opt.n_epochs do
    local nBad = 0
    local threshold = 0
    if iEpoch > 1 then
-      threshold = 0.3
+      threshold = 0.1
    end
 
    if opt.evaluate then
