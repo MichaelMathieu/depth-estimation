@@ -101,13 +101,15 @@ learningp.n_train_set = opt.n_train_set
 learningp.criterion = opt.criterion
 
 local groundtruthp = {}
---groundtruthp.type = 'cross-correlation'
-groundtruthp.type = 'liu'
 groundtruthp.wGT = networkp.wImg
 groundtruthp.hGT = networkp.hImg
 groundtruthp.delta = learningp.delta
---groundtruthp.params = {hWin = 17, wWin = 17,
--- 		       hKer = 17, wKer = 17}
+--[[
+groundtruthp.type = 'cross-correlation'
+groundtruthp.params = {hWin = 17, wWin = 17,
+ 		       hKer = 17, wKer = 17}
+--]]
+groundtruthp.type = 'liu'
 groundtruthp.params = {alpha = 0.005,
 		       ratio = 0.75,
 		       minWidth = 60,
@@ -140,9 +142,12 @@ local function evaluate(raw_data, network, i)
    copyWeights(network, testnetwork)
    displayWeights(network, win_kers)
 
+   local maskf = raw_data.polar_prev_images_masks[i]
+   local mask = torch.LongTensor(maskf:size(1), maskf:size(2)):copy(maskf)
    time = torch.Timer()
    local test = testnetwork:forward({raw_data.polar_prev_images[i],
 				     raw_data.polar_images[i]})
+				     --mask})
 				     
    print(time:time()['real'])
    _,test = test:min(3)
@@ -197,7 +202,7 @@ for iEpoch = 1,opt.n_epochs do
 	 local output = network:forward(input)
 	 local idx, good = filterOutputTrainer(output, threshold)
 	 local err = 0
-	 if good then
+	 if good or true then
 	    local df_do
 	    if learningp.criterion == 'NLL' then
 	       err = criterion:forward(output, target)

@@ -6,6 +6,7 @@ require 'image'
 require 'sfm2'
 require 'cartesian2polar'
 require 'radial_opticalflow_groundtruth'
+require 'radial_opticalflow_polar'
 
 function load_image(root_directory, dataset, calibrationp, i)
    local rd = root_directory
@@ -193,7 +194,7 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
       e2 = e2*networkp.wImg/calibrationp.wImg
       data.e1[i] = e1
       data.e2[i] = e2
-      local rmax = math.max(math.floor(networkp.hImg/2),math.floor(networkp.wImg/2))
+      local rmax = getRMax(networkp, e2)
       local polarWarpMask = getC2PMask(networkp.wImg, networkp.hImg,
 				       networkp.wInput, networkp.hInput,
 				       e2[1], e2[2], 0, 0, rmax)

@@ -30,13 +30,13 @@ function getFilter(networkp)
 end
 
 function getMatcher(networkp)
-   return nn.SpatialMatching(networkp.hWin, 1, false)
+   return nn.SpatialRadialMatching(networkp.hWin)
 end
 
 function getTrainerNetwork(networkp)
    local network = nn.Sequential()
    local filters = nn.ParallelTable()
-   local padder = nn.SpatialPadding(0, 0, 0, -networkp.hWin+1)
+   local padder  = nn.SpatialPadding(0, 0, 0, -networkp.hWin+1)
    local seq_prev = nn.Sequential()
    seq_prev:add(padder)
    local filter = getFilter(networkp)
@@ -56,17 +56,20 @@ end
 function getTesterNetwork(networkp)
    local network = nn.Sequential()
    local filters = nn.ParallelTable()
-   local padder = nn.SpatialPadding(0, 0, 0, -networkp.hWin+1)
+   local padder  = nn.SpatialPadding(0, 0, 0, -networkp.hWin+1)
+   --local maskpadder = nn.SpatialPadding(0, 0, -math.ceil(networkp.hKernel/2)+1,
+   --					1-math.floor(networkp.hKernel/2)-networkp.hWin,
+   --					1, 2)
    local seq_prev = nn.Sequential()
    seq_prev:add(padder)
    local filter = getFilter(networkp)
    seq_prev:add(filter)
    filters:add(seq_prev)
    filters:add(filter:clone('weight', 'bias', 'gradWeight', 'gradBias'))
+   --filters:add(maskpadder)
    network:add(filters)
    local matcher = getMatcher(networkp)
    network:add(matcher)
-   network:add(nn.SmartReshape(-1, -2, networkp.hWin))
    return network
 end
 
