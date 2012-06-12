@@ -133,8 +133,8 @@ function compute_cartesian_groundtruth_liu(groundtruthp, img1, img2)
 						      nOuterFPIterations=nOuterFPIterations,
 						      nInnerFPIterations=nInnerFPIterations,
 						      nCGIterations=nCGIterations}
-   win1 = image.display{image={img1, img2}, win=win1}
-   win2 = image.display{image=resn , min=0, win=win2}
+   --win1 = image.display{image={img1, img2}, win=win1}
+   --win2 = image.display{image=resn , min=0, win=win2}
    local flow = torch.Tensor(3, img1:size(2), img1:size(3))
    flow[1]:copy(resy)
    flow[2]:copy(resx)

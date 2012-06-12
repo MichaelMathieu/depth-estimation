@@ -111,7 +111,7 @@ function load_groundtruth(root_directory, dataset, groundtruthp, maxflow,
    --gds = (gds+0.5):floor()
    projf:cmul(gds)
    local proj = (projf+0.5):floor()
-   winp = image.display{image={proj, projf}, win=winp}
+   --winp = image.display{image={proj, projf}, win=winp}
    
    local saturation = torch.Tensor(proj:size()):copy(proj:le(maxflow))
    proj:cmul(saturation)

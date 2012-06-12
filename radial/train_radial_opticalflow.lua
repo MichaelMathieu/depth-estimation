@@ -185,9 +185,9 @@ for iEpoch = 1,opt.n_epochs do
    local nGood = 0
    local nBad = 0
    local threshold = 0
-   if iEpoch > 1 then
-      threshold = 0.1
-   end
+   --if iEpoch > 1 then
+   --threshold = 0.1
+--end
 
    if opt.evaluate then
       evaluate(raw_data, network, 1)
