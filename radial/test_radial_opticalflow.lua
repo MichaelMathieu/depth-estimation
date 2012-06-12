@@ -88,9 +88,9 @@ for i = 2,datap.n_images do
    print("rescale: "..timer:time().real)
    local R,T,nFound,nInliers,fundmat =
       sfm2.getEgoMotion{im1 = prev_img, im2 = img, K = calibrationp.K,
-			--maxPoints=calibrationp.sfm_max_points,
-			maxPoints=1000,
-			pointsQuality=0.001, ransacMaxDist=1, getInliers=false}
+			maxPoints = calibrationp.sfm.max_points,
+			pointsQuality=calibrationp.sfm.points_quality,
+			ransacMaxDist=calibrationp.sfm.ransac_max_dist}
    
    local _, e2 = sfm2.getEpipoles(fundmat)
    e2 = e2*networkp.wImg/calibrationp.wImg

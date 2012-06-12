@@ -1,12 +1,15 @@
 require 'torch'
 
-local cam = 'gopro'
+local cam = 'ardrone'
 
 if cam == 'ardrone' then
    wImg = 640
    hImg = 480
    
-   sfm_max_points = 400
+   sfm = {}
+   sfm.max_points = 400
+   sfm.points_quality = 0.001
+   sfm.ransac_max_dist = 1
    bad_image_threshold = 0.2
    
    K = torch.FloatTensor(3,3):zero()
@@ -28,8 +31,11 @@ if cam == 'ardrone' then
 elseif cam == 'rectified_gopro' then
    wImg = 1280
    hImg = 720
-   
-   sfm_max_points = 400
+
+   sfm = {}
+   sfm.max_points = 400
+   sfm.points_quality = 0.001
+   sfm.ransac_max_dist = 1
    bad_image_threshold = 0.2
    
    K = torch.FloatTensor(3,3):zero()
@@ -46,8 +52,11 @@ elseif cam == 'rectified_gopro' then
 elseif cam == 'gopro' then
    wImg = 1280
    hImg = 720
-   
-   sfm_max_points = 400
+
+   sfm = {}
+   sfm.max_points = 400
+   sfm.points_quality = 0.001
+   sfm.ransac_max_dist = 1
    bad_image_threshold = 0.2
    
    K = torch.FloatTensor(3,3):zero()
@@ -71,7 +80,7 @@ end
 local tosave = {}
 tosave.wImg = wImg
 tosave.hImg = hImg
-tosave.sfm_max_points = sfm_max_points
+tosave.sfm = sfm
 tosave.bad_image_threshold = bad_image_threshold
 tosave.K = K
 tosave.distortion = distortion
