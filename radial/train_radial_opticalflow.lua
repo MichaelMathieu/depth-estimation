@@ -12,6 +12,7 @@ require 'radial_opticalflow_data'
 require 'radial_opticalflow_network'
 require 'radial_opticalflow_filtering'
 require 'radial_opticalflow_polar'
+require 'radial_opticalflow_display'
 
 torch.manualSeed(1)
 
@@ -101,13 +102,15 @@ learningp.n_train_set = opt.n_train_set
 learningp.criterion = opt.criterion
 
 local groundtruthp = {}
---groundtruthp.type = 'cross-correlation'
-groundtruthp.type = 'liu'
 groundtruthp.wGT = networkp.wImg
 groundtruthp.hGT = networkp.hImg
 groundtruthp.delta = learningp.delta
---groundtruthp.params = {hWin = 17, wWin = 17,
--- 		       hKer = 17, wKer = 17}
+--[[
+groundtruthp.type = 'cross-correlation'
+groundtruthp.params = {hWin = 17, wWin = 17,
+ 		       hKer = 17, wKer = 17}
+--]]
+groundtruthp.type = 'liu'
 groundtruthp.params = {alpha = 0.005,
 		       ratio = 0.75,
 		       minWidth = 60,
@@ -140,20 +143,24 @@ local function evaluate(raw_data, network, i)
    copyWeights(network, testnetwork)
    displayWeights(network, win_kers)
 
+   local maskf = raw_data.polar_prev_images_masks[i]
+   local mask = torch.LongTensor(maskf:size(1), maskf:size(2)):copy(maskf)
    time = torch.Timer()
    local test = testnetwork:forward({raw_data.polar_prev_images[i],
 				     raw_data.polar_images[i]})
+				     --mask})
 				     
    print(time:time()['real'])
    _,test = test:min(3)
-   test = test-1
-   test = torch.Tensor(test:squeeze():size()):copy(test)*160/networkp.hInput
+   test:add(-1)
+   test = torch.Tensor(test:squeeze():size()):copy(test)*getRMax(networkp, raw_data.e2[i])/networkp.hInput
    local p2cmask = getP2CMaskOF(networkp, raw_data.e2[i])
-   win_test = image.display{image=test, win=win_test, min=0, max=12}
+   win_test = image.display{image=test, win=win_test}
    local h = test:size(1)
    local w = test:size(2)
    test:sub(h,h,1,w):zero()
-   win_testcart = image.display{image=cartesian2polar(test, p2cmask), win=win_testcart}
+   win_testcart = image.display{image=cartesian2polar(test, p2cmask), win=win_testcart,
+				min = 0, max = raw_data.groundtruth[i]:max()}
    win_gt = image.display{image=raw_data.groundtruth[i], win=win_gt}
    win_imgs = image.display{image={raw_data.prev_images[i], raw_data.images[i]}, win=win_imgs}
    win_polimgs = image.display{image={raw_data.polar_prev_images[i], raw_data.polar_images[i]},

@@ -6,6 +6,7 @@ require 'image'
 require 'sfm2'
 require 'cartesian2polar'
 require 'radial_opticalflow_groundtruth'
+require 'radial_opticalflow_polar'
 
 function load_image(root_directory, dataset, calibrationp, i)
    local rd = root_directory
@@ -185,28 +186,24 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
 	 prev_img = previmg
       end
       prev_img = rescale(prev_img, calibrationp.wImg, calibrationp.hImg)
-      local R, T, nFound, nInliers, fundmat = sfm2.getEgoMotion{im1 = img, im2 = prev_img,
-								K = calibrationp.K,
-								maxPoints = calibrationp.sfm_max_points}
-      local e1, e2 = sfm2.getEpipoles(fundmat)
-      e1 = e1*networkp.wImg/calibrationp.wImg
+      local R, T, nFound, nInliers, fundmat =
+	 sfm2.getEgoMotion{im1 = prev_img, im2 = img,
+			   K = calibrationp.K,
+			   maxPoints = calibrationp.sfm.max_points,
+			   pointsQuality=calibrationp.sfm.points_quality,
+			   ransacMaxDist=calibrationp.sfm.ransac_max_dist}
+      local _, e2 = sfm2.getEpipoles(fundmat)
       e2 = e2*networkp.wImg/calibrationp.wImg
-      data.e1[i] = e1
       data.e2[i] = e2
-      local rmax = math.max(math.floor(networkp.hImg/2),math.floor(networkp.wImg/2))
+      local rmax = getRMax(networkp, e2)
       local polarWarpMask = getC2PMask(networkp.wImg, networkp.hImg,
 				       networkp.wInput, networkp.hInput,
 				       e2[1], e2[2], 0, 0, rmax)
-      local polarWarpMaskPad1 = getC2PMask(networkp.wImg, networkp.hImg,
-					   networkp.wInput, networkp.hInput,
-					   e1[1], e1[2],
-					   math.floor((networkp.wKernel-1)/2),
-					   math.ceil((networkp.wKernel-1)/2), rmax)
-      local polarWarpMaskPad2 = getC2PMask(networkp.wImg, networkp.hImg,
-					   networkp.wInput, networkp.hInput,
-					   e2[1], e2[2],
-					   math.floor((networkp.wKernel-1)/2),
-					   math.ceil((networkp.wKernel-1)/2), rmax)
+      local polarWarpMaskPad = getC2PMask(networkp.wImg, networkp.hImg,
+					  networkp.wInput, networkp.hInput,
+					  e2[1], e2[2],
+					  math.floor((networkp.wKernel-1)/2),
+					  math.ceil((networkp.wKernel-1)/2), rmax)
       if nInliers/nFound < calibrationp.bad_image_threshold then
 	 previmg = nil
       else
@@ -221,9 +218,9 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
 	 prev_img_mask:sub(h,h,1,w):zero()
 	 prev_img_mask:sub(1,h,1,1):zero()
 	 prev_img_mask:sub(1,h,w,w):zero()
-	 data.polar_images[i] = cartesian2polar(img, polarWarpMaskPad2)
-	 data.polar_prev_images[i] = cartesian2polar(prev_img, polarWarpMaskPad1)
-	 data.polar_prev_images_masks[i] = cartesian2polar(prev_img_mask, polarWarpMaskPad1)
+	 data.polar_images[i] = cartesian2polar(img, polarWarpMaskPad)
+	 data.polar_prev_images[i] = cartesian2polar(prev_img, polarWarpMaskPad)
+	 data.polar_prev_images_masks[i] = cartesian2polar(prev_img_mask, polarWarpMaskPad)
 	 data.polar_prev_images_masks[i] = torch.Tensor(data.polar_prev_images_masks[i]:size()):copy(data.polar_prev_images_masks[i]:gt(0))
 	 data.prev_images[i] = prev_img
 	 data.images[i] = img
