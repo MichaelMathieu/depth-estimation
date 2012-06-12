@@ -13,6 +13,7 @@ require 'radial_opticalflow_network'
 require 'radial_opticalflow_filtering'
 require 'radial_opticalflow_polar'
 require 'radial_opticalflow_display'
+require 'draw'
 
 torch.manualSeed(1)
 
@@ -162,7 +163,9 @@ local function evaluate(raw_data, network, i)
    win_testcart = image.display{image=cartesian2polar(test, p2cmask), win=win_testcart,
 				min = 0, max = raw_data.groundtruth[i]:max()}
    win_gt = image.display{image=raw_data.groundtruth[i], win=win_gt}
-   win_imgs = image.display{image={raw_data.prev_images[i], raw_data.images[i]}, win=win_imgs}
+   local imcpy = raw_data.images[i]:clone()
+   draw.point(imcpy, raw_data.e2[i][1], raw_data.e2[i][2], 3, 1, 0, 0)
+   win_imgs = image.display{image={raw_data.prev_images[i], imcpy}, win=win_imgs}
    win_polimgs = image.display{image={raw_data.polar_prev_images[i], raw_data.polar_images[i]},
 			       win=win_polimgs}
    local gt = raw_data.polar_groundtruth[i]:clone()

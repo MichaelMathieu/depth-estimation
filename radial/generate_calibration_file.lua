@@ -1,6 +1,6 @@
 require 'torch'
 
-local cam = 'ardrone'
+local cam = 'rectified_gopro'
 
 if cam == 'ardrone' then
    wImg = 640
@@ -33,7 +33,7 @@ elseif cam == 'rectified_gopro' then
    hImg = 720
 
    sfm = {}
-   sfm.max_points = 400
+   sfm.max_points = 1000
    sfm.points_quality = 0.001
    sfm.ransac_max_dist = 1
    bad_image_threshold = 0.2
