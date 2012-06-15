@@ -45,6 +45,8 @@ op:option{'-wd', '--weight-decay', action='store', dest='weight_decay',
 	  default=0, help='Weight decay'}
 op:option{'-crit', '--criterion', action='store', dest='criterion',
 	  default='NLL', help='Learning criterion (NLL | MSE)'}
+op:option{'-gt', '--groundtruth', action='store', dest='groundtruth',
+	  default='cross-correlation', help='Groundtruth type (cross-correlation | polar-cross-correlation | liu)'}
 
 -- input
 op:option{'-rd', '--root-directory', action='store', dest='root_directory',
@@ -106,17 +108,26 @@ local groundtruthp = {}
 groundtruthp.wGT = networkp.wImg
 groundtruthp.hGT = networkp.hImg
 groundtruthp.delta = learningp.delta
---[[
-groundtruthp.type = 'cross-correlation'
-groundtruthp.params = {hWin = 17, wWin = 17,
- 		       hKer = 17, wKer = 17}
---]]
-groundtruthp.type = 'liu'
-groundtruthp.params = {alpha = 0.005,
-		       ratio = 0.75,
-		       minWidth = 60,
-		       nOFPIters = 10, nIFPIters = 5,
-		       nCGIters = 40}
+
+groundtruthp.type = opt.groundtruth
+if groundtruthp.type == 'cross-correlation' then
+   groundtruthp.polar = false
+   groundtruthp.params = {hWin = 17, wWin = 17,
+			  hKernel = 17, wKernel = 17}
+elseif groundtruthp.type == 'polar-cross-correlation' then
+   groundtruthp.polar = true
+   groundtruthp.params = {hWin = 30, hKernel = 25, wKernel = 25,
+			  wInput = 200, hInput = 300}
+elseif groundtruthp.type == 'liu' then
+   groundtruthp.polar = false
+   groundtruthp.params = {alpha = 0.005,
+			  ratio = 0.75,
+			  minWidth = 60,
+			  nOFPIters = 10, nIFPIters = 5,
+			  nCGIters = 40}
+else
+   error('Unknown groundtruth type ' .. groundtruthp.type)
+end
 
 local optim_config = {learningRate = learningp.rate,
 		      weightDecay = learningp.weight_decay,
@@ -154,11 +165,19 @@ local function evaluate(raw_data, network, i)
    print(time:time()['real'])
    _,test = test:min(3)
    test:add(-1)
-   test = torch.Tensor(test:squeeze():size()):copy(test)*getRMax(networkp, raw_data.e2[i])/networkp.hInput
+   test = torch.Tensor(test:squeeze():size()):copy(test)--*getRMax(networkp.hImg, networkp.wImg, raw_data.e2[i])/networkp.hInput
    local p2cmask = getP2CMaskOF(networkp, raw_data.e2[i])
    win_test = image.display{image=test, win=win_test}
-   local h = test:size(1)
+   local pgt = raw_data.polar_groundtruth[i]
+   local padh = math.floor((networkp.hKernel-1)/2)
+   local padb = math.ceil((networkp.hKernel-1)/2)+networkp.hWin-1
+   local diff = (test-pgt:sub(1+padh, pgt:size(1)-padb)):eq(0)
+   diff = torch.Tensor(diff:size()):copy(diff)
+   win_testgt = image.display{image={--test,
+				     --pgt:sub(1+padh, pgt:size(1)-padb),
+				     diff}, win=win_testgt}
    local w = test:size(2)
+   local h = test:size(1)
    test:sub(h,h,1,w):zero()
    win_testcart = image.display{image=cartesian2polar(test, p2cmask), win=win_testcart,
 				min = 0, max = raw_data.groundtruth[i]:max()}
@@ -190,14 +209,16 @@ for iEpoch = 1,opt.n_epochs do
 --end
 
    if opt.evaluate then
-      evaluate(raw_data, network, 1)
+      for i = 1,#raw_data.images do
+	 evaluate(raw_data, network, i)
+      end
    end
    
    for iTrainSet = 1,train_set:size() do
       modProgress(iTrainSet, train_set:size(), 100)
       
       local input = train_set:getPatch(iTrainSet)
-      local target = round(train_set.flow[iTrainSet]+1)
+      local target = round(train_set.flow[iTrainSet])
       
       local function feval(x)
 	 if x ~= parameters then
@@ -210,8 +231,8 @@ for iEpoch = 1,opt.n_epochs do
 	 if good or true then
 	    local df_do
 	    if learningp.criterion == 'NLL' then
-	       err = criterion:forward(output, target)
-	       df_do = criterion:backward(output, target)
+	       err = criterion:forward(output, target+1)
+	       df_do = criterion:backward(output, target+1)
 	    elseif learningp.criterion == 'MSE' then
 	       local target_idx = torch.Tensor(1):fill(idx)
 	       local target_crit = torch.Tensor(1):fill(target)

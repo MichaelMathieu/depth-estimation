@@ -34,12 +34,46 @@ function cross_correlation_pad_output(output, wWin, hWin, wKer, hKer)
 			    yDim, xDim)(output)
 end
 
-function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img2)
+function adapt_mask(groundtruthp, mask)
+   local wWin = groundtruthp.params.wWin
+   local hWin = groundtruthp.params.hWin
+   local wKer = groundtruthp.params.wKernel
+   local hKer = groundtruthp.params.hKernel
+   local h = mask:size(1)
+   local w = mask:size(2)
+   local newmask = torch.Tensor(mask:size()):zero()
+   local lshift = math.floor((wWin-1)/2)+math.floor((wKer-1)/2)
+   if lshift > 0 then
+      newmask:sub(1, h, lshift+1, w):add(mask:sub(1, h, 1, w-lshift))
+   end
+   local rshift = math.ceil((wWin-1)/2)+math.ceil((wKer-1)/2)
+   if rshift > 0 then
+      newmask:sub(1, h, 1, w-rshift):add(mask:sub(1, h, 1+rshift, w))
+   end
+   local tshift = math.floor((hWin-1)/2)+math.floor((hKer-1)/2)
+   if tshift > 0 then
+      newmask:sub(tshift+1, h, 1, w):add(mask:sub(1, h-tshift, 1, w))
+   end
+   local bshift = math.ceil((hWin-1)/2)+math.ceil((hKer-1)/2)
+   if bshift > 0 then
+      newmask:sub(1, h-bshift, 1, w):add(mask:sub(1+bshift, h, 1, w))
+   end
+   newmask = torch.Tensor(newmask:size()):copy(newmask:gt(3.9))
+   return newmask
+end
+   
+
+function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img2, mask)
    assert(groundtruthp.type == 'cross-correlation')
    local hWin = groundtruthp.params.hWin
    local wWin = groundtruthp.params.wWin
-   local hKer = groundtruthp.params.hKer
-   local wKer = groundtruthp.params.wKer
+   local hKer = groundtruthp.params.hKernel or groundtruthp.params.hKer
+   local wKer = groundtruthp.params.wKernel or groundtruthp.params.wKer
+   mask = mask or torch.Tensor(img1[1]:size()):fill(1)
+   mask = adapt_mask(groundtruthp, mask)
+   -- CAREFUL this mask represents the pixels where the groundtruth is computed.
+   -- it is not the same as the masks computed in radial_opticalflow_data, which are
+   -- the pixels that can be used to compute the groundtruth (or anything)
    
    -- match
    local img1uf = unfold(img1, wKer, hKer)
@@ -72,12 +106,68 @@ function compute_cartesian_groundtruth_cross_correlation(groundtruthp, img1, img
    flow[3]:fill(1)                                     -- mask
    flow[4]:copy(scores)
    local flowp = cross_correlation_pad_output(flow, wWin, hWin, wKer, hKer)
+   flowp[3]:cmul(mask)
+   
+   return flowp
+end
+
+function compute_polar_groundtruth_cross_correlation(groundtruthp, img1, img2, mask, e2)
+   assert(groundtruthp.type == 'polar-cross-correlation')
+   local hWin = groundtruthp.params.hWin
+   local hKer = groundtruthp.params.hKernel
+   local wKer = groundtruthp.params.wKernel
+   local wInput = groundtruthp.params.wInput
+   local hInput = groundtruthp.params.hInput
+   local wImg = groundtruthp.wGT
+   local hImg = groundtruthp.hGT
+   assert((img1:size(2) == hImg) and (img1:size(3) == wImg))
+   assert((img2:size(2) == hImg) and (img2:size(3) == wImg))
+
+   -- warp
+   local rmax = getRMax(hImg, wImg, e2)
+   local polarWarpMaskPad = getC2PMask(wImg, hImg, wInput, hInput, e2[1], e2[2],
+				       math.floor((wKer-1)/2), math.ceil((wKer-1)/2), rmax)
+   local pol_img1 = cartesian2polar(img1, polarWarpMaskPad)
+   local pol_img2 = cartesian2polar(img2, polarWarpMaskPad)
+
+   --mask
+   -- CAREFUL this mask represents the pixels where the groundtruth is computed.
+   -- it is not the same as the masks computed in radial_opticalflow_data, which are
+   -- the pixels that can be used to compute the groundtruth (or anything)
+   local maskcart = torch.Tensor(hImg, wImg):zero()
+   local polarWarpMask = getC2PMask(wImg, hImg, wInput, hInput, e2[1], e2[2], 0, 0, rmax)
+   maskcart:sub(2, hImg-1, 2, wImg-1):fill(1)
+   local shiftmask = cartesian2polar(maskcart, polarWarpMask)
+   local mask = torch.Tensor(shiftmask:size()):zero()
+   local shift = hWin+math.floor((hKer-1)/2)-1
+   mask:sub(1, hInput-shift):copy(shiftmask:sub(1+shift, hInput))
+   if hKer > 1 then
+      mask:sub(1,math.ceil((hKer-1)/2)):zero()
+   end
+   
+   -- match
+   local img1uf = unfold(pol_img1, wKer, hKer)
+   local img2uf = unfold(pol_img2, wKer, hKer)
+   local padder = nn.SpatialPadding(0, 0, 0, -hWin+1)
+   local matcher = nn.SpatialRadialMatching(hWin)
+   local output = matcher({padder(img1uf), img2uf})
+   
+   -- get min
+   local m,idx = output:min(3)
+   idx:add(-1)
+   idx = torch.Tensor(idx[{{},{},1}]:size()):copy(idx)
+
+   -- pad and output
+   local padder = nn.SpatialPadding(0, 0, math.floor((hKer-1)/2),
+				    math.ceil((hKer-1)/2)+hWin-1, 1, 2)
+   local flowp = torch.Tensor(2, hInput, wInput)
+   flowp[1]:copy(padder(idx)) -- flow
+   flowp[2]:copy(mask)        -- mask
    
    return flowp
 end
 
 function cartesian_groundtruth_cc_testme()
-   torch.manualSeed(1)
    local function test(w, h, hKer, wKer, hWin, wWin, flowbase, noise)
       local im2 = torch.rand(30, h, w)
       --warp is confusing:

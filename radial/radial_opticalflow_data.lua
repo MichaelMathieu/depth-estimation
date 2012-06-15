@@ -25,17 +25,18 @@ function load_image(root_directory, dataset, calibrationp, i)
    return img
 end
 
-function generate_groundtruth(gtdir, filepath, groundtruthp, im1, im2, mask)
+function generate_groundtruth(gtdir, filepath, groundtruthp, im1, im2, mask, e2)
    print('Computing '..groundtruthp.type..' groundtruth '..filepath)
    local flow
    if groundtruthp.type == 'cross-correlation' then
-      flow = compute_cartesian_groundtruth_cross_correlation(groundtruthp, im1, im2)
+      flow = compute_cartesian_groundtruth_cross_correlation(groundtruthp, im1, im2, mask)
+   elseif groundtruthp.type == 'polar-cross-correlation' then
+      flow = compute_polar_groundtruth_cross_correlation(groundtruthp, im1, im2, mask, e2)
    elseif groundtruthp.type == 'liu' then
       flow = compute_cartesian_groundtruth_liu(groundtruthp, im1, im2)
    else
       error("Can't compute groundtruth of type "..groundtruthp.type)
    end
-   flow[3]:cmul(mask)
    os.execute('mkdir -p ' .. gtdir)
    torch.save(filepath, flow)
 end
@@ -46,6 +47,14 @@ function check_flow(groundtruthp, flow)
 	 error('Flow has wrong size')
       end
       if (flow:size(2) ~= groundtruthp.hGT) or (flow:size(3) ~= groundtruthp.wGT) then
+	 error('Flow image has wrong size')
+      end
+   elseif groundtruthp.type == 'polar-cross-correlation' then
+      if (flow:nDimension() ~= 3) or (flow:size(1) ~= 2) then
+	 error('Flow has wrong size')
+      end
+      if (flow:size(2) ~= groundtruthp.params.hInput) or
+         (flow:size(3) ~= groundtruthp.params.wInput) then
 	 error('Flow image has wrong size')
       end
    elseif groundtruthp.type == 'liu' then
@@ -60,18 +69,20 @@ function check_flow(groundtruthp, flow)
    end
 end
 
-function load_groundtruth(root_directory, dataset, groundtruthp, maxflow,
-			  i, e2, im1, im2, mask)
+function get_groundtruth_path(groundtruthp, root_directory, dataset, i)
    local gtdir = root_directory
    local ds = dataset
    if gtdir:sub(-1) ~= '/' then gtdir = gtdir..'/' end
    if ds:sub(-1) ~= '/' then ds = ds..'/' end
    gtdir = gtdir .. ds .. "rectified_flow3/"
    gtdir = gtdir .. groundtruthp.wGT .. 'x' .. groundtruthp.hGT .. '/'
-   local ext = '.flow'
    if groundtruthp.type == 'cross-correlation' then
       gtdir = gtdir .. groundtruthp.params.wWin .. 'x' .. groundtruthp.params.hWin .. 'x'
-	 .. groundtruthp.params.wKer .. 'x' .. groundtruthp.params.hKer .. '/'
+	 .. groundtruthp.params.wKernel .. 'x' .. groundtruthp.params.hKernel .. '/'
+      gtdir = gtdir .. 'max/'
+   elseif groundtruthp.type == 'polar-cross-correlation' then
+      gtdir = gtdir .. 'polar-' .. groundtruthp.params.hWin .. 'x'
+	 .. groundtruthp.params.wKernel .. 'x' .. groundtruthp.params.hKernel .. '/'
       gtdir = gtdir .. 'max/'
    elseif groundtruthp.type == 'liu' then
       gtdir = gtdir .. 'celiu/'
@@ -79,23 +90,28 @@ function load_groundtruth(root_directory, dataset, groundtruthp, maxflow,
       error('Groundtruth '..groundtruthp.type..' not supported.')
    end
    gtdir = gtdir .. groundtruthp.delta .. '/'
-   local gtpath = string.format("%s%09d%s", gtdir, i+groundtruthp.delta, ext)
+   local gtpath = string.format("%s%09d.flow", gtdir, i)
+   return gtdir, gtpath
+end
+
+function load_raw_groundtruth(groundtruthp, gtdir, gtpath, im1, im2, mask, e2)
    if not paths.filep(gtpath) then
-      generate_groundtruth(gtdir, gtpath, groundtruthp, im1, im2, mask)
+      generate_groundtruth(gtdir, gtpath, groundtruthp, im1, im2, mask, e2)
    end
-   local flow
-   if ext == '.flow' then
-      flow = torch.load(gtpath)
-   elseif ext == '.png' then
-      flow = image.load(gtpath)*255-128
-      flow[3]:fill(1)
-   else
-      error('Unknown extension ' .. ext)
-   end
+   local flow = torch.load(gtpath)
    check_flow(groundtruthp, flow)
    if groundtruthp.type == 'cross-correlation' then
       flow[3]:cmul(torch.Tensor(flow[3]:size()):copy(flow[4]:gt(15)))
    end
+   if groundtruthp.polar then
+      return flow[1], flow[2]
+   else
+      return flow[{{1,2}}], flow[3]
+   end
+end
+
+function project_groundtruth(groundtruthp, flow, gds_old, e2)
+   assert(flow:size(1) == 2)
    local radial = torch.Tensor(2, flow:size(2), flow:size(3))
    radial[1]:copy(torch.ger(torch.linspace(0, flow:size(2)-1, flow:size(2)),
 			    torch.Tensor(flow:size(3)):fill(1))-e2[2])
@@ -105,20 +121,32 @@ function load_groundtruth(root_directory, dataset, groundtruthp, maxflow,
    radial[1]:cdiv(radialnorm)
    radial[2]:cdiv(radialnorm)
    local projf = flow[1]:cmul(radial[1])+flow[2]:cmul(radial[2])
+   local proj = (projf+0.5):floor()
    local gds = projf:ge(0)
    gds = torch.Tensor(gds:size()):copy(gds)
-   gds:cmul(flow[3])
-   --gds = (gds+0.5):floor()
-   projf:cmul(gds)
-   local proj = (projf+0.5):floor()
-   --winp = image.display{image={proj, projf}, win=winp}
-   
-   local saturation = torch.Tensor(proj:size()):copy(proj:le(maxflow))
-   proj:cmul(saturation)
-   proj:add((-saturation+1)*(maxflow))
-   gds:cmul(saturation)
+   gds_old:cmul(gds)
+   return proj
+end
 
-   return proj:cmul(gds), gds
+function saturate_groundtruth(flow, gds, maxflow)
+   local saturation = torch.Tensor(flow:size()):copy(flow:le(maxflow))
+   flow:cmul(saturation)
+   flow:add((-saturation+1)*(maxflow))
+   gds:cmul(saturation)
+end
+
+function load_groundtruth(root_directory, dataset, groundtruthp, maxflow,
+			  i, e2, im1, im2, mask)
+   local gtdir, gtpath = get_groundtruth_path(groundtruthp, root_directory, dataset, i)
+   local flow, gds = load_raw_groundtruth(groundtruthp, gtdir, gtpath, im1, im2, mask, e2)
+   
+   if not groundtruthp.polar then
+      flow = project_groundtruth(groundtruthp, flow, gds, e2)
+   end
+   saturate_groundtruth(flow, gds, maxflow)
+   flow:cmul(gds)
+   
+   return flow, gds
 end
 
 local function rescale(im, w, h, mode)
@@ -155,28 +183,20 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
    local Ksmall = calibrationp.K:clone()
    Ksmall[1]:mul(networkp.wImg/calibrationp.wImg)
    Ksmall[2]:mul(networkp.hImg/calibrationp.hImg)
-   local data = {}
-   data.images = {}
-   data.prev_images = {}
-   --data.prev_images_masks = {}
-   data.polar_images = {}
-   data.polar_prev_images = {}
-   data.polar_prev_images_masks = {}
-   data.e1 = {}
-   data.e2 = {}
-   if groundtruthp ~= nil then
-      data.groundtruth = {}
-      data.polar_groundtruth = {}
-      data.polar_groundtruth_masks = {}
-   end
-
-   local fst_img, last_img = getFstLastImages(root_directory, dataset)
    
+   local data = {images={}, polar_images={},
+		 prev_images={}, polar_prev_images={}, polar_prev_images_masks={},
+		 e1={}, e2={},
+		 groundtruth = {}, polar_groundtruth={}, polar_groundtruth_masks={}}
+
+   local fst_img, last_img = getFstLastImages(root_directory, dataset)   
    local i = 1
    local previmg = nil
    print('Loading images...')
    for iImg = fst_img+1,last_img,learningp.delta do
       xlua.progress(iImg-fst_img-1,last_img-fst_img)
+      
+      -- loading images
       img = load_image(root_directory, dataset, calibrationp, iImg)
       img = rescale(img, calibrationp.wImg, calibrationp.hImg)
       local prev_img
@@ -186,6 +206,8 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
 	 prev_img = previmg
       end
       prev_img = rescale(prev_img, calibrationp.wImg, calibrationp.hImg)
+      
+      -- egomotion and epipoles
       local R, T, nFound, nInliers, fundmat =
 	 sfm2.getEgoMotion{im1 = prev_img, im2 = img,
 			   K = calibrationp.K,
@@ -195,46 +217,65 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
       local _, e2 = sfm2.getEpipoles(fundmat)
       e2 = e2*networkp.wImg/calibrationp.wImg
       data.e2[i] = e2
-      local rmax = getRMax(networkp, e2)
-      local polarWarpMask = getC2PMask(networkp.wImg, networkp.hImg,
-				       networkp.wInput, networkp.hInput,
-				       e2[1], e2[2], 0, 0, rmax)
-      local polarWarpMaskPad = getC2PMask(networkp.wImg, networkp.hImg,
-					  networkp.wInput, networkp.hInput,
-					  e2[1], e2[2],
-					  math.floor((networkp.wKernel-1)/2),
-					  math.ceil((networkp.wKernel-1)/2), rmax)
       if nInliers/nFound < calibrationp.bad_image_threshold then
 	 previmg = nil
       else
 	 noprev = img
+
+	 -- polar transform
 	 img = rescale(img, networkp.wImg, networkp.hImg)
 	 prev_img = rescale(prev_img, networkp.wImg, networkp.hImg)
 	 local prev_img_mask
 	 prev_img, prev_img_mask = sfm2.removeEgoMotion(prev_img, Ksmall, R, 'bilinear')
-	 local h = prev_img_mask:size(1)
-	 local w = prev_img_mask:size(2)
-	 prev_img_mask:sub(1,1,1,w):zero()
-	 prev_img_mask:sub(h,h,1,w):zero()
-	 prev_img_mask:sub(1,h,1,1):zero()
-	 prev_img_mask:sub(1,h,w,w):zero()
+	 
+	 local prev_img_mask_borders = prev_img_mask:clone()
+	 local h = prev_img_mask_borders:size(1)
+	 local w = prev_img_mask_borders:size(2)
+	 prev_img_mask_borders:sub(1,1,1,w):zero()
+	 prev_img_mask_borders:sub(h,h,1,w):zero()
+	 prev_img_mask_borders:sub(1,h,1,1):zero()
+	 prev_img_mask_borders:sub(1,h,w,w):zero()
+	 
+	 local rmax = getRMax(networkp.hImg, networkp.wImg, e2)
+	 local polarWarpMaskPad = getC2PMask(networkp.wImg, networkp.hImg,
+					     networkp.wInput, networkp.hInput,
+					     e2[1], e2[2],
+					     math.floor((networkp.wKernel-1)/2),
+					     math.ceil((networkp.wKernel-1)/2), rmax)
 	 data.polar_images[i] = cartesian2polar(img, polarWarpMaskPad)
 	 data.polar_prev_images[i] = cartesian2polar(prev_img, polarWarpMaskPad)
-	 data.polar_prev_images_masks[i] = cartesian2polar(prev_img_mask, polarWarpMaskPad)
-	 data.polar_prev_images_masks[i] = torch.Tensor(data.polar_prev_images_masks[i]:size()):copy(data.polar_prev_images_masks[i]:gt(0))
+	 local polar_mask = cartesian2polar(prev_img_mask_borders, polarWarpMaskPad)
+	 data.polar_prev_images_masks[i]=torch.Tensor(polar_mask:size()):copy(polar_mask:gt(0))
 	 data.prev_images[i] = prev_img
 	 data.images[i] = img
 	 
 	 if groundtruthp ~= nil then
-	    local groundtruth, gt_gds = load_groundtruth(root_directory, dataset, groundtruthp,
-							 (networkp.hWin-1)*rmax/networkp.hInput,
-							 iImg, e2, prev_img, img, prev_img_mask)
-	 
-	    data.groundtruth[i] = groundtruth
-	    data.polar_groundtruth[i] = cartesian2polar(groundtruth, polarWarpMask)
-	    data.polar_groundtruth_masks[i] = cartesian2polar(gt_gds, polarWarpMask)
-	    data.polar_groundtruth[i] = data.polar_groundtruth[i]*networkp.hInput/rmax	    
-	    --data.polar_groundtruth[i] = (data.polar_groundtruth[i]+0.5):floor()
+	    if groundtruthp.polar then
+	       local rmaxgt = getRMax(groundtruthp.hGT, groundtruthp.wGT, e2)
+	       local polarWarpMask = getP2CMask(groundtruthp.params.wInput,
+						groundtruthp.params.hInput,
+						groundtruthp.wGT, groundtruthp.hGT,
+						e2[1], e2[2], rmaxgt)
+	       local polar_groundtruth, gt_gds
+		  = load_groundtruth(root_directory, dataset, groundtruthp,
+				     networkp.hInput, iImg, e2, prev_img, img, prev_img_mask)
+	       data.polar_groundtruth[i] = polar_groundtruth
+	       data.polar_groundtruth_masks[i] = gt_gds
+	       data.groundtruth[i] = cartesian2polar(polar_groundtruth, polarWarpMask)
+	    else
+	       local polarWarpMask = getC2PMask(networkp.wImg, networkp.hImg,
+						networkp.wInput, networkp.hInput,
+						e2[1], e2[2], 0, 0, rmax)
+	       local groundtruth, gt_gds =
+		  load_groundtruth(root_directory, dataset, groundtruthp,
+				   (networkp.hWin-1)*rmax/networkp.hInput,
+				   iImg, e2, prev_img, img, prev_img_mask)
+	       data.groundtruth[i] = groundtruth
+	       data.polar_groundtruth[i] = cartesian2polar(groundtruth, polarWarpMask)
+	       data.polar_groundtruth_masks[i] = cartesian2polar(gt_gds, polarWarpMask)
+	       data.polar_groundtruth[i] = data.polar_groundtruth[i]*networkp.hInput/rmax
+	       --data.polar_groundtruth[i] = (data.polar_groundtruth[i]+0.5):floor()
+	    end
 	 end
 	 
 	 i = i + 1
@@ -279,6 +320,8 @@ function generate_training_patches(raw_data, networkp, learningp)
    end
    local wPatch = networkp.wKernel
    local hPatch = networkp.hKernel + networkp.hWin - 1
+   local wOffset = 0
+   local hOffset = math.ceil(networkp.hKernel/2)-1
    local i = 1
    while i <= learningp.n_train_set do
       local iImg = randInt(1, #raw_data.polar_images + 1)
@@ -286,14 +329,11 @@ function generate_training_patches(raw_data, networkp, learningp)
       local y = randInt(1, networkp.hInput - hPatch)
       local mask_patch = raw_data.polar_prev_images_masks[iImg]:sub(y, y+hPatch-1,
 								    x, x+wPatch-1)
-      local gt_mask_patch = raw_data.polar_groundtruth_masks[iImg]:sub(y, y+hPatch-1,
-								       x, x+wPatch-1)
-      mask_patch:cmul(gt_mask_patch)
+      local gt_mask_center = raw_data.polar_groundtruth_masks[iImg][y+hOffset][x+wOffset]
 
-      if mask_patch:lt(0.1):sum() == 0 then
+      if (mask_patch:lt(0.1):sum() == 0) and (gt_mask_center > 0.9) then
 	 patches.patches[i] = {iImg, y, y+hPatch, x, x+wPatch}
-	 patches.flow[i] = raw_data.polar_groundtruth[iImg][{y+math.ceil(networkp.hKernel/2)-1,
-							     x}]
+	 patches.flow[i] = raw_data.polar_groundtruth[iImg][y+hOffset][x+wOffset]
 	 i = i + 1
       end
    end

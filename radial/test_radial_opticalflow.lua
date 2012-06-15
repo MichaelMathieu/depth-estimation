@@ -43,10 +43,6 @@ if opt.root_directory:sub(-1) ~= '/' then opt.root_directory = opt.root_director
 openmp.setDefaultNumThreads(opt.nThreads)
 
 local network, networkp = loadTesterNetwork(opt.network_file)
-networkp.layers = {{3, 15, 1, 4}, {4, 1, 15, 10}}
-networkp.wKernel = 15
-networkp.hKernel = 15
-network = getTesterNetwork(networkp)
 
 local calibrationp = torch.load(opt.calibration_file)
 
