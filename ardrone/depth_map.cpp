@@ -46,7 +46,10 @@ void DepthMap::newPixel(float x, float y, float depth, float confidence,
 float DepthMap::getSafeTheta(size_t fov) {
   assert(fov<nBinsTheta());
   float safeTheta = 0;
-  int iniTheta = floor((nBinsTheta()-fov)/2);
+  int steerTheta = getIThetaFromTheta(theta_sight); 
+  steerTheta = (steerTheta<nBinsTheta())?steerTheta:steerTheta-nBinsTheta();
+  printf("steer bin = %d\n", steerTheta);
+  int iniTheta = floor(steerTheta-fov/2);
   int endTheta = iniTheta+fov;
   size_t closestBin = nBinsRho()-1;
   for (int iTheta=iniTheta; iTheta<endTheta; iTheta++) {
@@ -70,7 +73,8 @@ float DepthMap::getSafeTheta(size_t fov) {
     // safeTheta += theta*maxConfidenceBin/nBinsRho();
 
   }
-  if (closestBin<8)
+  printf("closest bin = %d\n", closestBin);
+  if (closestBin<(nBinsRho())/5)
     return safeTheta;
   else
     return 0;
@@ -108,12 +112,15 @@ void DepthMap::newDisplacement(const matf & pos, const matf & sight) {
 void DepthMap::newFrame(const matf & pixels, const matf & confidence) {
   int w = pixels.size().width, h = pixels.size().height;
   
-  int jmin = h/4-20;
-  int jmax = h/4+20;
+  // int jmin = h/4-20;
+  // int jmax = h/4+20;
+  int jmin = h/2-1;
+  int jmax = h/2;
   for (int j = jmin; j < jmax; ++j)
     for (int i = 0; i < w; ++i)
-      if (confidence(j, i) > 0.5f)
-	newPixel(i, j, pixels(j, i), 1, pixels.size().width, pixels.size().height);
+      if (confidence(j, i) > 0.5f) {
+      	newPixel(i, j, pixels(j, i), 1, pixels.size().width, pixels.size().height);
+      }
 }
 
 mat3b DepthMap::to2DMap() {
