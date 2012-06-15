@@ -78,7 +78,7 @@ function getOpticalFlowFast(geometry, image1, image2)
    output = output:reshape(ho*wo, maxh*maxw)
    output = nn.SoftMax():forward(output)
    output = output:reshape(ho, wo, maxh*maxw)
-   local output2 = processOutput(geometryGT, output, true, 0)
+   local output2 = processOutput(geometryGT, output, true, nil)
    geometryGT.training_mode = false
    local output3 = processOutput(geometryGT, output, true, 0)
    

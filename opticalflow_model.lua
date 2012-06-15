@@ -46,7 +46,10 @@ function getFilter(geometry)
    assert(not geometry.L2Pooling)
    local filter = nn.Sequential()
    for i = 1,#geometry.layers do
-      if i == 1 or geometry.layers[i-1][4] == geometry.layers[i][1] then
+      if i == 1 then
+	 filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
+					  geometry.layers[i][2], geometry.layers[i][3]))
+      elseif geometry.layers[i-1][4] == geometry.layers[i][1] then
 	 filter:add(nn.SpatialConvolution(geometry.layers[i][1], geometry.layers[i][4],
 					  geometry.layers[i][2], geometry.layers[i][3]))
       else
@@ -158,8 +161,9 @@ function getOutputConfidences(geometry, input, threshold)
       return idx, torch.Tensor(idx:size()):fill(1)
    else
       local imaxs = torch.LongTensor(input:size(1), input:size(2))
-      local gds   = torch.LongTensor(input:size(1), input:size(2))
-      extractoutput.extractOutput(input, 0.11, threshold, imaxs, gds)
+      local scores= torch.Tensor    (input:size(1), input:size(2))
+      extractoutput.extractOutput(input, scores, 0.11, imaxs)
+      local gds = scores:gt(threshold)
       return imaxs, gds
    end
 end
@@ -180,8 +184,16 @@ function getOutputConfidences2(geometry, input)
    local y = input:clone():cmul(ymul):sum(3)[{{},{},1}]
 
    local imaxs = torch.LongTensor(input:size(1), input:size(2))
-   local gds   = torch.LongTensor(input:size(1), input:size(2))
-   extractoutput.extractOutput(input, 0.11, 0, imaxs, gds)
+   --local gds   = torch.LongTensor(input:size(1), input:size(2))
+   --extractoutput.extractOutput(input, 0.11, 0, imaxs, gds)
+   local xgds   = torch.LongTensor(input:size(1), input:size(2))
+   --local ygds   = torch.LongTensor(input:size(1), input:size(2))
+   local inputmarg = input:reshape(input:size(1), input:size(2), geometry.maxh, geometry.maxw):sum(4):squeeze()
+   local scores= torch.Tensor    (input:size(1), input:size(2))
+   extractoutput.extractOutput(inputmarg, scores, 0.11, imaxs)
+   local xgds = scores:gt(0)
+   --extractoutput.extractOutput(input:sum(3), 0.11, 0, imaxs, ygds)
+   gds = xgds
 
    return y, x, gds
 end
@@ -308,11 +320,130 @@ function prepareTarget(geometry, learning, targett)
 end
 
 
-function postProcessImage(input, winsize)
+function postProcessImage(input, mask, winsize, method)
    local output = torch.Tensor(2, input[1]:size(1), input[1]:size(2)):zero()
-   local winsizeh1 = math.ceil(winsize/2)-1
-   local winsizeh2 = math.floor(winsize/2)
-   local win = torch.Tensor(2,winsize,winsize)
+   --local winsizeh1 = math.ceil(winsize/2)-1
+   --local winsizeh2 = math.floor(winsize/2)
+   --local win = torch.Tensor(2,winsize,winsize)
+   inline.preamble [[
+	 int comp(const void* a_,const void* b_) {
+	    float a = *((float*)a_), b = *((float*)b_);
+	    if (a==b) {
+	       return 0;
+	    } else {
+	       if (a < b) {
+		  return -1;
+	       } else {
+		  return 1;
+	       }
+	    }
+	 }
+   ]]
+   local fmax = inline.load [[
+	 const void* idfloat = luaT_checktypename2id(L, "torch.FloatTensor");
+	 THFloatTensor* flow = (THFloatTensor*)luaT_checkudata(L, 1, idfloat);
+	 THFloatTensor* mask = (THFloatTensor*)luaT_checkudata(L, 2, idfloat);
+	 int k = lua_tointeger(L, 3);
+	 THFloatTensor* ret = (THFloatTensor*)luaT_checkudata(L, 4, idfloat);
+	 
+	 int h = flow->size[1];
+	 int w = flow->size[2];
+	 long* fs = flow->stride;
+	 float* flow_p = THFloatTensor_data(flow);
+	 long* ms = mask->stride;
+	 float* mask_p = THFloatTensor_data(mask);
+	 long* rs = ret->stride;
+	 float* ret_p = THFloatTensor_data(ret);
+	 int halfk = k/2;
+
+	 const int TMPSIZE = 256;
+	 const int ROWSIZE = 16;
+	 int tmp[TMPSIZE];
+
+	 int i, j, ik, jk, l;
+	 for (i = 0; i < h-k; ++i) {
+	    for (j = 0; j < w-k; ++j) {
+	       memset(tmp, 0, TMPSIZE*sizeof(int));
+	       for (ik = i; ik < i+k; ++ik) {
+		  for (jk = j; jk < j+k; ++jk) {
+		     if (mask_p[ik*ms[0] + jk*ms[1] ]) {
+			int vx = flow_p[fs[0] + ik*fs[1] + jk*fs[2] ];
+			int vy = flow_p[ik*fs[1] + jk*fs[2] ];
+			int v = vx+ROWSIZE*vy;
+			++tmp[v];
+		     }
+		  }
+	       }
+	       int im = 0;
+	       for (l = 0; l < TMPSIZE; ++l) {
+		  if (tmp[l] > tmp[im])
+		     im = l;
+	       }
+	       ret_p[rs[0] + (i+halfk)*rs[1] + (j+halfk)*rs[2] ] = im%%ROWSIZE;
+	       ret_p[        (i+halfk)*rs[1] + (j+halfk)*rs[2] ] = im/ROWSIZE;
+	    }
+	 }
+   ]]
+
+   local fmed = inline.load [[
+	 const void* idfloat = luaT_checktypename2id(L, "torch.FloatTensor");
+	 THFloatTensor* flow = (THFloatTensor*)luaT_checkudata(L, 1, idfloat);
+	 THFloatTensor* mask = (THFloatTensor*)luaT_checkudata(L, 2, idfloat);
+	 int k = lua_tointeger(L, 3);
+	 THFloatTensor* ret = (THFloatTensor*)luaT_checkudata(L, 4, idfloat);
+	 
+	 int h = flow->size[1];
+	 int w = flow->size[2];
+	 long* fs = flow->stride;
+	 float* flow_p = THFloatTensor_data(flow);
+	 long* ms = mask->stride;
+	 float* mask_p = THFloatTensor_data(mask);
+	 long* rs = ret->stride;
+	 float* ret_p = THFloatTensor_data(ret);
+	 int halfk = k/2;
+
+	 const int TMPSIZE = 32;
+	 const int ROWSIZE = 16;
+	 float tmp[TMPSIZE];
+	 float tmp2[TMPSIZE];
+
+	 int i, j, ik, jk, l;
+	 for (i = 0; i < h-k; ++i) {
+	    for (j = 0; j < w-k; ++j) {
+	       memset(tmp, 0, TMPSIZE*sizeof(int));
+	       memset(tmp2, 0, TMPSIZE*sizeof(int));
+	       int n = 0;
+	       for (ik = i; ik < i+k; ++ik) {
+		  for (jk = j; jk < j+k; ++jk) {
+		     if (mask_p[ik*ms[0] + jk*ms[1] ]) {
+			float vx = flow_p[fs[0] + ik*fs[1] + jk*fs[2] ];
+			float vy = flow_p[ik*fs[1] + jk*fs[2] ];
+			tmp[n] = vy;
+			tmp2[n++] = vx;
+		     }
+		  }
+	       }
+	       qsort(tmp, n, sizeof(float), comp);
+	       qsort(tmp2, n, sizeof(float), comp);
+	       float im = tmp[n/2];
+	       float im2 = tmp2[n/2];
+	       ret_p[rs[0] + (i+halfk)*rs[1] + (j+halfk)*rs[2] ] = im2;
+	       ret_p[        (i+halfk)*rs[1] + (j+halfk)*rs[2] ] = im;
+	    }
+	 }
+   ]]
+   inline.default_preamble()
+   if method == 'max' then
+      local inputR = (input+0.5):floor()
+      m = inputR:min()
+      fmax(inputR-m, mask, winsize, output)
+      output = output+m
+   else
+      fmed(input, mask, winsize, output)
+      output = output
+   end
+
+   --[[
    for i = 1+winsizeh1,output:size(2)-winsizeh2 do
       for j = 1+winsizeh1,output:size(3)-winsizeh2 do
 	 win[1] = (input[1]:sub(i-winsizeh1,i+winsizeh2, j-winsizeh1, j+winsizeh2)+0.5):floor()
@@ -336,5 +467,6 @@ function postProcessImage(input, winsize)
 	 output[2][i][j] = win2[2][tbest]
       end
    end
+   --]]
    return output
 end

@@ -3,7 +3,7 @@ require 'opticalflow_model'
 require 'opticalflow_model_io'
 require 'gnuplot'
 
-function flow2pol(geometry, y, x)
+function flow2pol(y, x)
    --y, x = onebased2centered(geometry, y, x)
    local ang = math.atan2(y, x)
    local norm = math.sqrt(x*x+y*y)
@@ -12,12 +12,13 @@ end
 
 function flow2hsv(geometry, flow)
    local todisplay = torch.Tensor(3, flow:size(2), flow:size(3))
+   local normer = 1.0/math.sqrt((geometry.maxh/2)*(geometry.maxh/2)+(geometry.maxw/2)*(geometry.maxw/2))
    for i = 1,flow:size(2) do
       for j = 1,flow:size(3) do
-	 local ang, norm = flow2pol(geometry, flow[1][i][j], flow[2][i][j])
+	 local ang, norm = flow2pol(flow[1][i][j], flow[2][i][j])
 	 todisplay[1][i][j] = ang/(math.pi*2.0)
 	 todisplay[2][i][j] = 1.0
-	 todisplay[3][i][j] = norm/math.max(geometry.maxh/2, geometry.maxw/2)
+	 todisplay[3][i][j] = norm*normer
       end
    end
    return image.hsl2rgb(todisplay)
