@@ -266,10 +266,8 @@ config = {learningRate = learning.rate,
 
 for iEpoch = 1,opt.n_epochs do
    print('Epoch ' .. iEpoch .. ' over ' .. opt.n_epochs)
-   --print(model.modules[4].weight)
    print(summary)
 
-      
    local nGood = 0
    local nBad = 0
    local meanErr = 0

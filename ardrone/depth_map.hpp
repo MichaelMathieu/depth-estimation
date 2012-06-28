@@ -30,10 +30,12 @@ float DepthMap::BinIndex::getTheta2() const {
 }
 
 float & DepthMap::BinIndex::value() {
+  // printf("iRho = %d, iTheta = %d\n", iRho, iTheta);
   return map->map(iTheta, iRho);
 }
 
 const float & DepthMap::BinIndex::value() const {
+  // printf("iRho = %d, iTheta = %d\n", iRho, iTheta);
   return map->map(iTheta, iRho);
 }
 

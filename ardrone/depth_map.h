@@ -3,6 +3,7 @@
 
 #include<vector>
 #include<cstdlib>
+#include <stdio.h>
 #include "drone_api.h"
 
 class DepthMap {

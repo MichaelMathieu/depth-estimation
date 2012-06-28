@@ -18,6 +18,10 @@ SimulatedAPI::SimulatedAPI(int depthMapWidth, int depthMapHeight)
     obstacles.push_back(Obstacle(5*(i+1), -10+sin(i*0.5)*2*i, 0, 1.0f));
     obstacles.push_back(Obstacle(5*(i+1), +10+sin(i*0.5)*2*i, 0, 1.0f));
   }
+  // for (int i=0; i< 100; ++i) {
+  //   obstacles.push_back(Obstacle(10*2*i, -30+i, 0, 1.0f));
+  //   obstacles.push_back(Obstacle(10*(2*i+1), 30-i, 0, 1.0f));
+  // }
 }
 
 SimulatedAPI::~SimulatedAPI() {
@@ -59,8 +63,8 @@ matf SimulatedAPI::getDepthMap() const {
     float D2 = norm(v);
     float k2 = focal_length / D2;
     float r = k2 * radius;
-    //printf("Map\n");
-    //printf("%f %f %f %f\n", r, radius, k2, D2);
+    // printf("Map\n");
+    // printf("%f %f %f %f\n", r, radius, k2, D2);
     for (int ii = max(0,round2(a+hw-r)); ii < min(dmW, round2(a+hw+r)); ++ii)
       for (int jj = max(0, round2(b+hh-r)); jj < min(dmH, round2(b+hh+r)); ++jj)
         if (D2 < map(jj, ii))
