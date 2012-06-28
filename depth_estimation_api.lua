@@ -169,7 +169,10 @@ function nextFrameDepth()
       print("processOutput: " .. timer:time()['real'])
       output = poutput.full
       print("enlargeMask  : " .. timer:time()['real'])
-      
+      enlargeMask(mask,
+		  math.ceil((geometry.wImg-poutput.y:size(2))/2),
+		  math.ceil((geometry.hImg-poutput.y:size(1))/2))
+
       local mask2 = torch.Tensor(geometry.hImg, geometry.wImg):zero()
       mask2:narrow(
 	 1, math.floor((geometry.hImg-mask:size(1))/2), mask:size(1)):narrow(
