@@ -45,6 +45,9 @@ openmp.setDefaultNumThreads(opt.nThreads)
 local network, networkp = loadTesterNetwork(opt.network_file)
 
 local calibrationp = torch.load(opt.calibration_file)
+calibrationp.sfm.max_points = 1000
+calibrationp.sfm.points_quality = 0.001
+calibrationp.sfm.ransac_max_dist = .03
 
 local datap = {}
 datap.first_image = opt.first_image
@@ -82,13 +85,47 @@ for i = 2,datap.n_images do
    print("load   : "..timer:time().real)
    img = rescale(img, calibrationp.wImg, calibrationp.hImg)
    print("rescale: "..timer:time().real)
-   local R,T,nFound,nInliers,fundmat =
+   local R,T,nFound,nInliers,fundmat, inliers =
       sfm2.getEgoMotion{im1 = prev_img, im2 = img, K = calibrationp.K,
 			maxPoints = calibrationp.sfm.max_points,
 			pointsQuality=calibrationp.sfm.points_quality,
-			ransacMaxDist=calibrationp.sfm.ransac_max_dist}
+			ransacMaxDist=calibrationp.sfm.ransac_max_dist,
+			pointMinDistance=30,
+			getInliers = true}
+   T = calibrationp.K * T
+   local e = T/T[3]
+   local _, eE = sfm2.getEpipoles(fundmat)
+   local R2,T2,nFound2,nInliers2,fundmat2, inliers2 =
+      sfm2.getEgoMotion2{im1 = prev_img, im2 = img, K = calibrationp.K,
+			 maxPoints = calibrationp.sfm.max_points,
+			 pointsQuality=calibrationp.sfm.points_quality,
+			 ransacMaxDist=calibrationp.sfm.ransac_max_dist,
+			 pointMinDistance=30,
+			 getInliers = true}
+   T2 = calibrationp.K * T2
+   local e2 = T2/T2[3]
    
-   local _, e2 = sfm2.getEpipoles(fundmat)
+   local Rb = torch.mm(torch.mm(calibrationp.K, sfm2.inverse(R2)), sfm2.inverse(calibrationp.K))
+      
+   local im_cpy = prev_img:clone()
+   for i = 1,inliers2:size(1) do
+      local t = torch.Tensor(3, 1):fill(1)
+      t[1][1] = inliers2[i][1]
+      t[2][1] = inliers2[i][2]
+      t = torch.mm(Rb, t)
+      t = t/t[3][1]
+      local u = torch.Tensor(3, 1):fill(1)
+      u[1][1] = inliers2[i][3]
+      u[2][1] = inliers2[i][4]
+      t = u - (u-t)*100
+      draw.line(im_cpy, t[1][1], t[2][1], u[1][1], u[2][1], 1, 0, 1)
+   end
+   draw.point(im_cpy, e[1],  e[2],  10, 1, 0, 0)
+   draw.point(im_cpy, eE[1], eE[2], 10, 0, 1, 0)
+   draw.point(im_cpy, e2[1], e2[2], 10, 0, 0, 1)
+   w42 = image.display{image = image.scale(im_cpy, im_cpy:size(3)/2, im_cpy:size(2)/2),
+		       win=w42}
+   
    e2 = e2*networkp.wImg/calibrationp.wImg
    --e2[1] = networkp.wImg/2
    --e2[2] = networkp.hImg/2
@@ -102,7 +139,7 @@ for i = 2,datap.n_images do
    end
    e2p = e2
    print("sfm    : "..timer:time().real)
-   local rmax = getRMax(networkp, e2)
+   local rmax = getRMax(networkp.hImg, networkp.wImg, e2)
    local polarWarpMaskPad = getC2PMask(networkp.wImg, networkp.hImg,
 				       networkp.wInput, networkp.hInput,
 				       e2[1], e2[2],
@@ -111,7 +148,7 @@ for i = 2,datap.n_images do
    print("mask1  : "..timer:time().real)
    img_scaled = rescale(img, networkp.wImg, networkp.hImg)
    print("rescale: "..timer:time().real)
-   prev_warped, prev_img_mask = sfm2.removeEgoMotion(prev_scaled, Ksmall, R, 'bilinear')
+   prev_warped, prev_img_mask = sfm2.removeEgoMotion(prev_scaled, Ksmall, R2, 'bilinear')
    polar_img = cartesian2polar(img_scaled, polarWarpMaskPad)
    polar_prev = cartesian2polar(prev_warped, polarWarpMaskPad)
    print("warps  : "..timer:time().real)
@@ -132,7 +169,10 @@ for i = 2,datap.n_images do
    local p2cmask = getP2CMaskOF(networkp, e2)
    local cartidx = cartesian2polar(idx, p2cmask)
 
-   local depth, confs = flow2depth(networkp, cartidx, nil, 0.65)
+   local center = e2
+   center = center * getKOutput(networkp)
+   winflow = image.display{image=cartidx, win=winflow}
+   local depth, confs = flow2depth(networkp, cartidx, center, 0.65)
    local colordepth = depth2color(depth, confs)
    colordepth = padOutput(networkp, colordepth)
    --win = image.display{image=colordepth, win=win}
@@ -148,7 +188,9 @@ for i = 2,datap.n_images do
    local colordepth2 = depth2color(depth, confs)--]]
 
    win4 = image.display{image=colordepth+img_scaled, win=win4}
-   win3 = image.display{image={prev_disp, img_disp}, win=win3}
+   local diff = torch.Tensor(img_disp:size()):zero()
+   diff[1]:copy((prev_disp-img_disp):ge(0.1):sum(1):squeeze():ne(0))
+   win3 = image.display{image={prev_disp, img_disp, diff}, win=win3}
    --win5 = image.display{image=colordepth2+img_scaled, win=win5}
    
 

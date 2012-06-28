@@ -8,7 +8,7 @@ function flow2depth(networkp, flow, center, kinfty)
       center[1] = flow:size(2)/2
       center[2] = flow:size(1)/2
    end
-   local infty = getRMax(networkp, center)*kinfty
+   local infty = getRMax(networkp.hImg, networkp.wImg, center)*kinfty
    local ret = torch.Tensor(flow:size()):zero()
    local confs = torch.Tensor(flow:size()):fill(1)
    for i = 1,flow:size(1) do

@@ -116,7 +116,7 @@ if groundtruthp.type == 'cross-correlation' then
 			  hKernel = 17, wKernel = 17}
 elseif groundtruthp.type == 'polar-cross-correlation' then
    groundtruthp.polar = true
-   groundtruthp.params = {hWin = 30, hKernel = 25, wKernel = 25,
+   groundtruthp.params = {hWin = 30, hKernel = 25, wKernel = 3,
 			  wInput = 200, hInput = 300}
 elseif groundtruthp.type == 'liu' then
    groundtruthp.polar = false
