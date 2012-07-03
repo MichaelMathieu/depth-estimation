@@ -209,12 +209,14 @@ function load_dataset(root_directory, dataset, networkp, groundtruthp, learningp
       
       -- egomotion and epipoles
       local R, T, nFound, nInliers, fundmat =
-	 sfm2.getEgoMotion{im1 = prev_img, im2 = img,
-			   K = calibrationp.K,
-			   maxPoints = calibrationp.sfm.max_points,
-			   pointsQuality=calibrationp.sfm.points_quality,
-			   ransacMaxDist=calibrationp.sfm.ransac_max_dist}
-      local _, e2 = sfm2.getEpipoles(fundmat)
+	 sfm2.getEgoMotion2{im1 = prev_img, im2 = img,
+			    K = calibrationp.K,
+			    maxPoints = calibrationp.sfm.max_points,
+			    pointsQuality=calibrationp.sfm.points_quality,
+			    ransacMaxDist=calibrationp.sfm.ransac2_max_dist,
+			    pointsMinDistance=calibrationp.sfm.points_min_dist}
+      local e2 = calibrationp.K * T
+      e2 = e2 / e2[3]
       e2 = e2*networkp.wImg/calibrationp.wImg
       data.e2[i] = e2
       if nInliers/nFound < calibrationp.bad_image_threshold then

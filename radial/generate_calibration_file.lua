@@ -34,8 +34,10 @@ elseif cam == 'rectified_gopro' then
 
    sfm = {}
    sfm.max_points = 1000
-   sfm.points_quality = 0.001
+   sfm.points_quality = 0.0001
+   sfm.points_min_dist = 50
    sfm.ransac_max_dist = 1
+   sfm.ransac2_max_dist = 0.02
    bad_image_threshold = 0.2
    
    K = torch.FloatTensor(3,3):zero()
