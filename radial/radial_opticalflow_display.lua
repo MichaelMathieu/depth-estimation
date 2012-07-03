@@ -15,7 +15,7 @@ function flow2depth(networkp, flow, center, kinfty)
       for j = 1,flow:size(2) do
 	 local d = math.sqrt((j-center[1])*(j-center[1])+(i-center[2])*(i-center[2]))
 	 if d > 10 then
-	    if flow[i][j] < 0.1 then
+	    if flow[i][j] < 0.001 then
 	       ret[i][j] = infty
 	    else
 	       ret[i][j] = d/flow[i][j]

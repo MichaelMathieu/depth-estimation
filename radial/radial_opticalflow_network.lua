@@ -142,7 +142,7 @@ function loadTrainerNetwork(filename)
    checkVersion(loaded)
    local networkp = loaded.networkp
    local network = getTrainerNetwork(networkp)
-   copyWeights(loaded.wrights, network)
+   copyWeights(loaded.weights, network)
    return network, networkp
 end
 

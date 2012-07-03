@@ -15,7 +15,7 @@ function getKOutput(networkp)
    return kOutput
 end
 
-function getP2CMaskOF(networkp, e2)
+function getP2CMaskOF(networkp, e2, alpha_polar)
    local wPolar = networkp.wInput
    local hPolar = networkp.hInput-networkp.hKernel-networkp.hWin+2
    local kOutput = hPolar/networkp.hInput
@@ -24,6 +24,7 @@ function getP2CMaskOF(networkp, e2)
    local new_e2 = e2*kOutput
    local newRMax = getRMax(networkp.hImg, networkp.wImg, e2)*kOutput
    
-   local mask = getP2CMask(wPolar, hPolar, wOutput, hOutput, new_e2[1], new_e2[2], newRMax)
+   local mask = getP2CMask(wPolar, hPolar, wOutput, hOutput, new_e2[1],
+			   new_e2[2], newRMax, alpha_polar)
    return mask
 end

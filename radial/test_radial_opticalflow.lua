@@ -44,10 +44,12 @@ openmp.setDefaultNumThreads(opt.nThreads)
 
 local network, networkp = loadTesterNetwork(opt.network_file)
 
+local alpha_polar = 1.
+
 local calibrationp = torch.load(opt.calibration_file)
-calibrationp.sfm.max_points = 500
-calibrationp.sfm.points_quality = 0.001
-calibrationp.sfm.ransac_max_dist = .02
+calibrationp.sfm.max_points = 1000
+calibrationp.sfm.points_quality = 0.0001
+calibrationp.sfm.ransac_max_dist = .2
 
 local datap = {}
 datap.first_image = opt.first_image
@@ -85,37 +87,39 @@ for i = 2,datap.n_images do
    print("load   : "..timer:time().real)
    img = rescale(img, calibrationp.wImg, calibrationp.hImg)
    print("rescale: "..timer:time().real)
+   --[[
    local R,T,nFound,nInliers,fundmat, inliers =
       sfm2.getEgoMotion{im1 = prev_img, im2 = img, K = calibrationp.K,
 			maxPoints = calibrationp.sfm.max_points,
 			pointsQuality=calibrationp.sfm.points_quality,
-			ransacMaxDist=0.5,
-			pointMinDistance=30,
+			ransacMaxDist=calibrationp.sfm.ransac_max_dist,
+			pointsMinDistance=20,
 			getInliers = true}
-   print(R)
-   print(T)
    T = calibrationp.K * T
    local e = T/T[3]
-   
+   --]]
+
    local R2,T2,nFound2,nInliers2,fundmat2, inliers2 =
       sfm2.getEgoMotion2{im1 = prev_img, im2 = img, K = calibrationp.K,
 			 maxPoints = calibrationp.sfm.max_points,
 			 pointsQuality=calibrationp.sfm.points_quality,
-			 ransacMaxDist=0.01,
-			 pointMinDistance=30,
+			 ransacMaxDist=0.02,
+			 pointsMinDistance=50,
 			 getInliers = true}
+   print('nfound2: ' .. nFound2)
    T2 = calibrationp.K * T2
    local e2 = T2/T2[3]
-   
-   --local e2 = calibrationp.K[{{1,2},3}]
-   --local R2 = torch.eye(3,3)
-   --local inliers = torch.Tensor(1,4)
-   --local e = e2
+
+
+   local e = e2
+   local R = R2
+   local inliers = inliers2
    --local e2 = e
    --local R2 = R
    --local inliers2 = inliers
-   
+   --[[
    local Rb = torch.mm(torch.mm(calibrationp.K, sfm2.inverse(R2)), sfm2.inverse(calibrationp.K))
+   --local Rb = R
       
    local im_cpy = prev_img:clone()
    for i = 1,inliers2:size(1) do
@@ -134,6 +138,7 @@ for i = 2,datap.n_images do
    draw.point(im_cpy, e2[1], e2[2], 10, 0, 0, 1)
    w42 = image.display{image = image.scale(im_cpy, im_cpy:size(3)/2, im_cpy:size(2)/2),
 		       win=w42}
+   --]]
    
    e2 = e2*networkp.wImg/calibrationp.wImg
    --e2[1] = networkp.wImg/2
@@ -153,7 +158,7 @@ for i = 2,datap.n_images do
 				       networkp.wInput, networkp.hInput,
 				       e2[1], e2[2],
 				       math.floor((networkp.wKernel-1)/2),
-				       math.ceil((networkp.wKernel-1)/2), rmax)
+				       math.ceil((networkp.wKernel-1)/2), rmax, alpha_polar)
    print("mask1  : "..timer:time().real)
    img_scaled = rescale(img, networkp.wImg, networkp.hImg)
    print("rescale: "..timer:time().real)
@@ -166,7 +171,7 @@ for i = 2,datap.n_images do
    local prev_disp = prev_warped:clone()
    draw.point(prev_disp, e2[1], e2[2], 3, 1, 0, 0)
    draw.point(img_disp,  e2[1], e2[2], 3, 1, 0, 0)
-   --win2 = image.display{image={polar_prev, polar_img}, win=win2}
+   win2 = image.display{image={polar_prev, polar_img}, win=win2}
    print("debug  : "..timer:time().real)
       
    local output = network:forward({polar_prev, polar_img})
@@ -174,9 +179,15 @@ for i = 2,datap.n_images do
    idx = torch.Tensor(idx:squeeze():size()):copy(idx)
    idx:add(-1)
    print("forward: "..timer:time().real)
-
-   local p2cmask = getP2CMaskOF(networkp, e2)
-   local cartidx = cartesian2polar(idx, p2cmask)
+   
+   local scaled_idx = torch.Tensor(idx:size())
+   for i = 1,scaled_idx:size(1) do
+      scaled_idx[i]:copy((idx[i]+i-1):pow(alpha_polar) - (i-1)^(alpha_polar))
+   end
+   win_idx = image.display{image={scaled_idx, idx}, win=win_idx}
+   local p2cmask = getP2CMaskOF(networkp, e2, apha_polar)
+   local cartidx = cartesian2polar(scaled_idx, p2cmask)
+   --scaled_idx = idx
 
    local center = e2
    winflow = image.display{image=cartidx, win=winflow}
