@@ -1,6 +1,7 @@
 require 'torch'
 require 'image'
 require 'radial_opticalflow_polar'
+require 'inline'
 
 function flow2depth(networkp, flow, center, kinfty)
    if center == nil then
@@ -11,20 +12,48 @@ function flow2depth(networkp, flow, center, kinfty)
    local infty = getRMax(networkp.hImg, networkp.wImg, center)*kinfty
    local ret = torch.Tensor(flow:size()):zero()
    local confs = torch.Tensor(flow:size()):fill(1)
-   for i = 1,flow:size(1) do
-      for j = 1,flow:size(2) do
-	 local d = math.sqrt((j-center[1])*(j-center[1])+(i-center[2])*(i-center[2]))
-	 if d > 10 then
-	    if flow[i][j] < 0.001 then
-	       ret[i][j] = infty
-	    else
-	       ret[i][j] = d/flow[i][j]
-	    end
-	 else
-	    confs[i][j] = 0
-	 end
-      end
-   end
+
+   local do_depths = inline.load [[
+	 #define square(a) ((a)*(a))
+	 
+	 const void* idtensor = luaT_checktypename2id(L, "torch.FloatTensor");
+	 THFloatTensor*  input = (THFloatTensor*)luaT_checkudata(L, 1, idtensor);
+	 THFloatTensor* output = (THFloatTensor*)luaT_checkudata(L, 2, idtensor);
+	 THFloatTensor*  confs = (THFloatTensor*)luaT_checkudata(L, 3, idtensor);
+	 float xcenter = lua_tonumber(L, 4);
+	 float ycenter = lua_tonumber(L, 5);
+	 float infty   = lua_tonumber(L, 6);
+	 
+	 int h = input->size[0];
+	 int w = input->size[1];
+	 long* is = input->stride;
+	 long* os = output->stride;
+	 long* cs = confs->stride;
+	 float*  input_p = THFloatTensor_data(input);
+	 float* output_p = THFloatTensor_data(output);
+	 float* confs_p = THFloatTensor_data(confs);
+
+	 int i, j;
+	 float d, flow;
+	 for (i = 0; i < h; ++i) {
+	    for (j = 0; j < w; ++j) {
+	       d = sqrt(square((float)j-xcenter) + square((float)i-ycenter));
+	       if (d > 10.0f) {
+		  flow = input_p[i*is[0] + j*is[1] ];
+		  if (flow < 0.1f) {
+		     output_p[i*os[0] + j*os[1] ] = infty;
+		  } else {
+		     output_p[i*os[0] + j*os[1] ] = d/flow;
+		  }
+	       } else {
+		  confs_p[i*cs[0] + j*cs[1] ] = 0.0f;
+	       }
+	    }
+	 }
+   ]]
+
+   do_depths(flow, ret, confs, center[1], center[2], infty)
+   
    return ret/infty, confs
 end
 

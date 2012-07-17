@@ -11,6 +11,7 @@ require 'radial_opticalflow_network'
 require 'radial_opticalflow_filtering'
 require 'radial_opticalflow_display'
 require 'draw'
+require 'opencv24'
 
 torch.manualSeed(1)
 
@@ -47,9 +48,9 @@ local network, networkp = loadTesterNetwork(opt.network_file)
 local alpha_polar = 1.
 
 local calibrationp = torch.load(opt.calibration_file)
-calibrationp.sfm.max_points = 1000
-calibrationp.sfm.points_quality = 0.0001
-calibrationp.sfm.ransac_max_dist = .2
+--calibrationp.sfm.max_points = 1000
+--calibrationp.sfm.points_quality = 0.0001
+--calibrationp.sfm.ransac_max_dist = .2
 
 local datap = {}
 datap.first_image = opt.first_image
@@ -78,6 +79,9 @@ prev_scaled = rescale(prev_img, networkp.wImg, networkp.hImg)
 
 e2p = nil
 
+local iFREAK = opencv24.CreateFREAK(true, true, 22, 4)
+--local trainedPairs = opencv24.TrainFREAK({prev_img}, iFREAK, 20, 0.7)
+--local iFREAK = opencv24.CreateFREAK(false, true, 22*4, 4, trainedPairs)
 
 for i = 2,datap.n_images do
    local timer = torch.Timer()
@@ -87,13 +91,28 @@ for i = 2,datap.n_images do
    print("load   : "..timer:time().real)
    img = rescale(img, calibrationp.wImg, calibrationp.hImg)
    print("rescale: "..timer:time().real)
+   
+
+   local trackedPoints = opencv24.TrackPointsLK{im1 = prev_img, im2 = img,
+						maxPoints = 200,
+						pointsQuality = 0.0001,
+						pointsMinDistance = 40,
+						trackerWinSize=21
+					     }
+   --[[
+   local trackedPoints = opencv24.TrackPointsFREAK{im1 = prev_img, im2 = img,
+						   iFREAK=iFREAK,
+						   detectionThres=10,
+						   matchingThres=75}
+   --]]
+
+   print(trackedPoints:size())
+
    --[[
    local R,T,nFound,nInliers,fundmat, inliers =
       sfm2.getEgoMotion{im1 = prev_img, im2 = img, K = calibrationp.K,
-			maxPoints = calibrationp.sfm.max_points,
-			pointsQuality=calibrationp.sfm.points_quality,
-			ransacMaxDist=calibrationp.sfm.ransac_max_dist,
-			pointsMinDistance=20,
+			trackedPoints = trackedPoints,
+			ransacMinDist = 1,
 			getInliers = true}
    T = calibrationp.K * T
    local e = T/T[3]
@@ -103,25 +122,27 @@ for i = 2,datap.n_images do
       sfm2.getEgoMotion2{im1 = prev_img, im2 = img, K = calibrationp.K,
 			 maxPoints = calibrationp.sfm.max_points,
 			 pointsQuality=calibrationp.sfm.points_quality,
-			 ransacMaxDist=0.02,
-			 pointsMinDistance=50,
+			 ransacMaxDist=calibrationp.sfm.ransac2_max_dist,
+			 pointsMinDistance=calibrationp.sfm.points_min_dist,
 			 getInliers = true}
    print('nfound2: ' .. nFound2)
    T2 = calibrationp.K * T2
    local e2 = T2/T2[3]
-
-
    local e = e2
    local R = R2
    local inliers = inliers2
-   --local e2 = e
-   --local R2 = R
-   --local inliers2 = inliers
-   --[[
+
+   
+   local e2 = e
+   local R2 = R
+   local inliers2 = inliers
+
+
    local Rb = torch.mm(torch.mm(calibrationp.K, sfm2.inverse(R2)), sfm2.inverse(calibrationp.K))
    --local Rb = R
-      
+   --[[
    local im_cpy = prev_img:clone()
+
    for i = 1,inliers2:size(1) do
       local t = torch.Tensor(3, 1):fill(1)
       t[1][1] = inliers2[i][1]
@@ -134,9 +155,15 @@ for i = 2,datap.n_images do
       t = u - (u-t)*100
       draw.line(im_cpy, t[1][1], t[2][1], u[1][1], u[2][1], 1, 0, 1)
    end
+
+   for i = 1,trackedPoints:size(1) do
+      draw.circle(im_cpy, trackedPoints[i][1], trackedPoints[i][2], 5, 0, 1, 1)
+      --draw.line(im_cpy, trackedPoints[i][1], trackedPoints[i][2], trackedPoints[i][3], trackedPoints[i][4], 0, 0, 1)
+   end
    draw.point(im_cpy, e[1],  e[2],  10, 1, 0, 0)
    draw.point(im_cpy, e2[1], e2[2], 10, 0, 0, 1)
-   w42 = image.display{image = image.scale(im_cpy, im_cpy:size(3)/2, im_cpy:size(2)/2),
+   local k = 0.5
+   w42 = image.display{image = image.scale(im_cpy, im_cpy:size(3)*k, im_cpy:size(2)*k),
 		       win=w42}
    --]]
    
@@ -144,7 +171,7 @@ for i = 2,datap.n_images do
    --e2[1] = networkp.wImg/2
    --e2[2] = networkp.hImg/2
    if e2p ~= nil then
-      local alpha = 1.0
+      local alpha = 0.5
       if (e2[1] >= 2) and (e2[2] >= 2) and (e2[1] <= networkp.wImg-1) and (e2[2] < networkp.hImg-1) then
 	 e2 = e2*alpha+e2p*(1-alpha)
       else
@@ -162,7 +189,7 @@ for i = 2,datap.n_images do
    print("mask1  : "..timer:time().real)
    img_scaled = rescale(img, networkp.wImg, networkp.hImg)
    print("rescale: "..timer:time().real)
-   prev_warped, prev_img_mask = sfm2.removeEgoMotion(prev_scaled, Ksmall, R2, 'bilinear')
+   prev_warped, prev_img_mask = sfm2.removeEgoMotion(prev_scaled, Ksmall, R, 'bilinear')
    polar_img = cartesian2polar(img_scaled, polarWarpMaskPad)
    polar_prev = cartesian2polar(prev_warped, polarWarpMaskPad)
    print("warps  : "..timer:time().real)
@@ -171,7 +198,7 @@ for i = 2,datap.n_images do
    local prev_disp = prev_warped:clone()
    draw.point(prev_disp, e2[1], e2[2], 3, 1, 0, 0)
    draw.point(img_disp,  e2[1], e2[2], 3, 1, 0, 0)
-   win2 = image.display{image={polar_prev, polar_img}, win=win2}
+   --win2 = image.display{image={polar_prev, polar_img}, win=win2}
    print("debug  : "..timer:time().real)
       
    local output = network:forward({polar_prev, polar_img})
@@ -180,13 +207,15 @@ for i = 2,datap.n_images do
    idx:add(-1)
    print("forward: "..timer:time().real)
    
+   --[[
    local scaled_idx = torch.Tensor(idx:size())
    for i = 1,scaled_idx:size(1) do
       scaled_idx[i]:copy((idx[i]+i-1):pow(alpha_polar) - (i-1)^(alpha_polar))
    end
    win_idx = image.display{image={scaled_idx, idx}, win=win_idx}
+   --]]
    local p2cmask = getP2CMaskOF(networkp, e2, apha_polar)
-   local cartidx = cartesian2polar(scaled_idx, p2cmask)
+   local cartidx = cartesian2polar(idx, p2cmask)
    --scaled_idx = idx
 
    local center = e2
@@ -198,6 +227,7 @@ for i = 2,datap.n_images do
    colordepth = padOutput(networkp, colordepth)   
    win4b = image.display{image=colordepth+img_scaled, win=win4b}
 
+
    timer:reset()
    local flowcv = sfm2.getOpticalFlow(prev_scaled, img_scaled)
    print("opencv: "..timer:time().real)
@@ -205,6 +235,7 @@ for i = 2,datap.n_images do
    local depth, confs = flow2depth(networkp, cartidx, center, 0.65)
    local colordepth = depth2color(depth, confs)
    win4 = image.display{image=colordepth+img_scaled, win=win4}
+
    
    win3 = image.display{image={prev_disp, img_disp}, win=win3}
    --win5 = image.display{image=colordepth2+img_scaled, win=win5}

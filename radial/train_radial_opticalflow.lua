@@ -206,7 +206,7 @@ for iEpoch = 1,opt.n_epochs do
    local threshold = 0
    --if iEpoch > 1 then
    --threshold = 0.1
---end
+   --end
 
    if opt.evaluate then
       for i = 1,#raw_data.images do

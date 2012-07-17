@@ -35,9 +35,10 @@ elseif cam == 'rectified_gopro' then
    sfm = {}
    sfm.max_points = 1000
    sfm.points_quality = 0.0001
-   sfm.points_min_dist = 50
+   sfm.points_min_dist = 30
    sfm.ransac_max_dist = 1
    sfm.ransac2_max_dist = 0.02
+   sfm.tracker_win_size = 21
    bad_image_threshold = 0.2
    
    K = torch.FloatTensor(3,3):zero()
@@ -51,6 +52,29 @@ elseif cam == 'rectified_gopro' then
    distortion = torch.FloatTensor(5):zero()
    
    filename = 'rectified_gopro.cal'
+elseif cam == 'rectified_gopro_small' then
+   wImg = 340
+   hImg = 180
+
+   sfm = {}
+   sfm.max_points = 500
+   sfm.points_quality = 0.0001
+   sfm.points_min_dist = 10
+   sfm.ransac_max_dist = 1
+   sfm.ransac2_max_dist = 0.02
+   bad_image_threshold = 0.2
+   
+   K = torch.FloatTensor(3,3):zero()
+   K[1][1] = 602.663208/4 -- x focal length (in pixels)
+   K[2][2] = 603.193289/4 -- y focal length (in pixels)
+   K[1][3] = 641.455200/4 -- x principal point (in pixels)
+   K[2][3] = 344.950836/4 -- y principal point (in pixels)
+   K[1][2] = 0.0          -- skew (most of the time 0)
+   K[3][3] = 1.0
+   
+   distortion = torch.FloatTensor(5):zero()
+   
+   filename = 'rectified_gopro_small.cal'
 elseif cam == 'gopro' then
    wImg = 1280
    hImg = 720
