@@ -16,19 +16,24 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
    dataset.calibrationp.Ksmall[3][3] = 1
    dataset.datap = datap
    dataset.groundtruthp = groundtruthp
-   local names = ls2(dataset.path .. 'images/',
-		     function(a) return tonumber(a:sub(1,-5)) ~= nil end)
 
    dataset.image_names_idx = {}
    dataset.image_idx_names = {}
    dataset.names = {}
-   for i = 1,#names do
-      dataset.image_names_idx[names[i]] = i
-      dataset.image_idx_names[i] = names[i]      
+   function dataset:add_subdir(dirname)
+      if dirname:sub(-1) ~= '/' then dirname = dirname .. '/' end
+      local names = ls2(dataset.path .. dirname .. 'images/',
+			function(a) return tonumber(a:sub(1,-5)) ~= nil end)
+      for i = 1,#names do
+	 names[i] = dirname..'images/'..names[i]
+	 dataset.image_names_idx[names[i]] = i
+	 dataset.image_idx_names[i] = names[i]      
+      end
+      for i = 2,#names do
+	 table.insert(dataset.names, names[i])
+      end
    end
-   for i = 2,#names do
-      table.insert(dataset.names, names[i])
-   end
+   
    function dataset:get_idx_from_name(name)
       return self.image_names_idx[name]
    end
@@ -44,10 +49,10 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
 
    function dataset:get_full_image_by_name(name)
       local img
-      if paths.filep(string.format("%simages/%s", self.path, name)) then
-	 img = image.load(string.format("%simages/%s", self.path, name))
+      if paths.filep(string.format("%s%s", self.path, name)) then
+	 img = image.load(string.format("%s%s", self.path, name))
       else
-	 error(string.format("Image %simages/%s does not exist.", self.path, name))
+	 error(string.format("Image %s%s does not exist.", self.path, name))
       end
       if (img:size(2) ~= self.calibrationp.hImg) or (img:size(3) ~= self.calibrationp.wImg) then
 	 img = image.scale(img, self.calibrationp.wImg, self.calibrationp.hImg)

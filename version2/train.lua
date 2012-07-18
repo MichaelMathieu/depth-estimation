@@ -46,7 +46,8 @@ local dataset
 if paths.filep(dataset_filename) then
    dataset = torch.load(dataset_filename)
 else
-   dataset = new_dataset('data/no-risk/part1', calibrationp, datap, groundtruthp)
+   dataset = new_dataset('data/no-risk/', calibrationp, datap, groundtruthp)
+   dataset:add_subdir('part1')
 end
 
 local network = getTrainerNetwork(datap)
