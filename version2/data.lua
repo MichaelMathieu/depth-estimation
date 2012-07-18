@@ -26,7 +26,7 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
       local names = ls2(dataset.path .. dirname .. 'images/',
 			function(a) return tonumber(a:sub(1,-5)) ~= nil end)
       for i = 1,#names do
-	 names[i] = dirname..'images/'..names[i]
+	 names[i] = {dirname, names[i]}
 	 dataset.image_names_idx[names[i]] = i
 	 dataset.image_idx_names[i] = names[i]      
       end
@@ -50,10 +50,10 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
 
    function dataset:get_full_image_by_name(name)
       local img
-      if paths.filep(string.format("%s%s", self.path, name)) then
-	 img = image.load(string.format("%s%s", self.path, name))
+      if paths.filep(string.format("%s%simages/%s", self.path, name[1], name[2])) then
+	 img = image.load(string.format("%s%simages/%s", self.path, name[1], name[2]))
       else
-	 error(string.format("Image %s%s does not exist.", self.path, name))
+	 error(string.format("Image %s%simages/%s does not exist.", self.path, name[1], name[2]))
       end
       if (img:size(2) ~= self.calibrationp.hImg) or (img:size(3) ~= self.calibrationp.wImg) then
 	 img = image.scale(img, self.calibrationp.wImg, self.calibrationp.hImg)
@@ -119,7 +119,7 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
    dataset.gt = {}
    function dataset:get_gt_by_name(name)
       if not dataset.gt[name] then
-	 local gtdir = self.path
+	 local gtdir = self.path .. name[1]
 	 if self.calibrationp.rectify then
 	    gtdir = gtdir .. "rectified_flow4/"
 	 else
@@ -137,7 +137,7 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
 	 else
 	    error('Groundtruth '..self.groundtruthp.type..' not supported.')
 	 end
-	 local name2 = name
+	 local name2 = name[2]
 	 if (name2:sub(-4) == '.jpg') or (name2:sub(-4) == '.png') then
 	    name2 = name2:sub(1,-5)
 	 end
