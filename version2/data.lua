@@ -6,6 +6,7 @@ require 'image'
 require 'sfm2'
 require 'opencv24'
 require 'groundtruth'
+require 'sys'
 
 function new_dataset(path, calibrationp, datap, groundtruthp)
    if path:sub(-1) ~= '/' then path = path .. '/' end
@@ -142,6 +143,7 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
 	    local im2 = self:get_image_by_name(name)
 	    local mask = self:get_mask_by_name(name)
 	    local flow, conf = generate_groundtruth(self.groundtruthp, im1, im2, mask)
+	    sys.execute('mkdir -p ' .. gtdir)
 	    torch.save(gtpath, {flow, conf})
 	 end
 	 local flowraw = torch.load(gtpath)
