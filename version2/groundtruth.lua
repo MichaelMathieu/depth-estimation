@@ -106,7 +106,7 @@ function compute_groundtruth_cross_correlation(groundtruthp, img1, img2, mask)
    local flowp = cross_correlation_pad_output(flow, wWin, hWin, wKer, hKer)
    flowp[3]:cmul(mask)
    
-   return flowp
+   return flowp[{{1,2}}], flowp[3]
 end
 
 
