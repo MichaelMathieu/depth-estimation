@@ -12,6 +12,8 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
    local dataset = {}
    dataset.path = path
    dataset.calibrationp = calibrationp
+   dataset.calibrationp.Ksmall = dataset.calibrationp.K:clone()/4
+   dataset.calibrationp.Ksmall[3][3] = 1
    dataset.datap = datap
    dataset.groundtruthp = groundtruthp
    local names = ls2(dataset.path .. 'images/',
@@ -19,9 +21,13 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
 
    dataset.image_names_idx = {}
    dataset.image_idx_names = {}
+   dataset.names = {}
+   for i = 1,#names do
+      dataset.image_names_idx[names[i]] = i
+      dataset.image_idx_names[i] = names[i]      
+   end
    for i = 2,#names do
-      dataset.image_names_idx[names[i]] = i-1
-      dataset.image_idx_names[i-1] = names[i]
+      table.insert(dataset.names, names[i])
    end
    function dataset:get_idx_from_name(name)
       return self.image_names_idx[name]
@@ -30,20 +36,35 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
       return self.image_idx_names[idx]
    end
    function dataset:get_image_names()
-      return self.image_idx_names
+      return self.names
+   end
+   function dataset:size()
+      return #self.names
+   end
+
+   function dataset:get_full_image_by_name(name)
+      local img
+      if paths.filep(string.format("%simages/%s", self.path, name)) then
+	 img = image.load(string.format("%simages/%s", self.path, name))
+      else
+	 error(string.format("Image %simages/%s does not exist.", self.path, name))
+      end
+      if (img:size(2) ~= self.calibrationp.hImg) or (img:size(3) ~= self.calibrationp.wImg) then
+	 img = image.scale(img, self.calibrationp.wImg, self.calibrationp.hImg)
+      end
+      if calibrationp.distortion:abs():sum() ~= 0 then
+	 img = sfm2.undistortImage(img, self.calibrationp.K, self.calibrationp.distortion)
+      end
+      return img
+   end
+   function dataset:get_full_image_by_idx(idx)
+      return self:get_full_image_by_name(self:get_name_by_idx(idx))
    end
    
    dataset.images = {}
    function dataset:get_image_by_name(name)
       if not dataset.images[name] then
-	 local img
-	 if paths.filep(string.format("%simages/%s", self.path, name)) then
-	    img = image.load(string.format("%simages/%s", self.path, name))
-	 else
-	    error(string.format("Image %simages/%s does not exist.", self.path, name))
-	 end
-	 img = image.scale(img, self.calibrationp.wImg, self.calibrationp.hImg)
-	 img = sfm2.undistortImage(img, self.calibrationp.K, self.calibrationp.distortion)
+	 local img = self:get_full_image_by_name(name)
 	 img = image.scale(img, self.datap.wImg, self.datap.hImg)
 	 dataset.images[name] = img
       end
@@ -57,12 +78,20 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
    dataset.masks = {}
    function dataset:get_prev_image_by_name(name)
       if not self.prev_images[name] then
-	 local img1 = self:get_image_by_idx(self:get_idx_from_name(name)-1)
-	 local img2 = self:get_image_by_name(name)
+	 local img1 = self:get_full_image_by_idx(self:get_idx_from_name(name)-1, true)
+	 local img2 = self:get_full_image_by_name(name, true)
+	 local mask = torch.Tensor(img1:size(2), img1:size(3)):fill(1)
 	 if self.calibrationp.rectify then
-	    error('Rectification not implemented')
+	    local sfmparams = self.calibrationp.sfm
+	    sfmparams.im1 = img1
+	    sfmparams.im2 = img2
+	    sfmparams.K = self.calibrationp.K
+	    sfmparams.trackedPoints = opencv24.TrackPointsLK(sfmparams)
+	    local R, T, nFound, nInliers, fundmat = sfm2.getEgoMotion(sfmparams)
+	    img1 = image.scale(img1, self.datap.wImg, self.datap.hImg, 'bilinear')
+	    img1, mask = sfm2.removeEgoMotion(img1, self.calibrationp.Ksmall, R, 'bilinear')
 	 end
-	 self.masks[name] = torch.Tensor(img1:size(2), img1:size(2)):fill(1)
+	 self.masks[name] = mask
 	 self.prev_images[name] = img1
       end
       return self.prev_images[name]
@@ -84,7 +113,12 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
    dataset.gt = {}
    function dataset:get_gt_by_name(name)
       if not dataset.gt[name] then
-	 local gtdir = self.path .. "rectified_flow4/"
+	 local gtdir = self.path
+	 if self.calibrationp.rectify then
+	    gtdir = gtdir .. "rectified_flow4/"
+	 else
+	    gtdir = gtdir .. "flow"
+	 end
 	 gtdir = gtdir .. self.datap.wImg .. 'x' .. self.datap.hImg .. '/'
 	 if self.groundtruthp.type == 'cross-correlation' then
 	    gtdir = gtdir .. self.groundtruthp.params.wWin .. 'x'
@@ -111,6 +145,10 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
 	    torch.save(gtpath, {flow, conf})
 	 end
 	 local flowraw = torch.load(gtpath)
+	 if type(flowraw) ~= 'table' then
+	    flowraw = {flowraw[{{1,2}}], flowraw[3]}
+	    torch.save(gtpath, flowraw)
+	 end
 	 local flow = flowraw[1]
 	 local conf = flowraw[2]
 	 return flow, conf
@@ -119,6 +157,49 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
    end
    function dataset:get_gt_by_idx(idx)
       return self:get_gt_by_name(self:get_name_by_idx(idx))
+   end
+
+   function dataset:get_patches(nSamples)
+      local patches = {}
+      local wPatch = datap.wKernel + datap.wWin - 1
+      local hPatch = datap.hKernel + datap.hWin - 1
+      local wOffset = math.ceil(datap.wKernel/2) + math.ceil(datap.wWin/2) - 2
+      local hOffset = math.ceil(datap.hKernel/2) + math.ceil(datap.hWin/2) - 2
+      local i = 1
+      local names = self:get_image_names()
+      while i <= nSamples do
+	 xlua.progress(i, nSamples)
+	 local iImg = randInt(1, #names+1)
+	 local name = names[iImg]
+	 local x = randInt(1, datap.wImg - wPatch)
+	 local y = randInt(1, datap.hImg - hPatch)
+	 local mask_val = self:get_mask_by_name(name)[{{y,y+hOffset-1},{x,x+wOffset-1}}]
+	 mask_val:add(-1)
+	 local flow, conf = self:get_gt_by_name(name)
+	 flow = flow[{{},y+hOffset, x+wOffset}]:clone()
+	 conf = conf[{y+hOffset, x+wOffset}]
+	 if (mask_val:abs():sum() < 0.1) and (conf > 0.5) then
+	    patches[i] = {
+	       patch1 = function()
+			   return self:get_prev_image_by_name(name):sub(1,3,
+									y,y+hPatch-1,
+									x,x+wPatch-1)
+			end,
+	       patch2 = function()
+			   return self:get_image_by_name(name):sub(1,3,
+								   y,y+hPatch-1,
+								   x,x+wPatch-1)
+			end,
+	       target = flow,
+	       targetCrit = (flow[1]+math.ceil(datap.hWin/2)-1)*datap.wWin + flow[2]+math.ceil(datap.wWin/2)-1 + 1
+	    }
+	    i = i + 1
+	 end
+	 if i % 10 == 0 then
+	    collectgarbage()
+	 end
+      end
+      return patches
    end
 
    return dataset
@@ -136,44 +217,3 @@ function generate_groundtruth(groundtruthp, im1, im2, mask)
    end
    return flow, conf
 end
-
---[[
-function generate_training_patches(raw_data, networkp, learningp)
-   local patches = {}
-   patches.images = raw_data.polar_images
-   patches.prev_images = raw_data.polar_prev_images
-   patches.patches = {}
-   patches.flow = {}
-   function patches:getPatch(i)
-      return {self.prev_images[self.patches[i][1] ]:sub(1, 3,
-						       self.patches[i][2],self.patches[i][3]-1,
-						       self.patches[i][4],self.patches[i][5]-1),
-	      self.images[self.patches[i][1] ]:sub(1, 3,
-						  self.patches[i][2], self.patches[i][3]-1,
-						  self.patches[i][4], self.patches[i][5]-1)}
-   end
-   function patches:size()
-      return #self.patches
-   end
-   local wPatch = networkp.wKernel
-   local hPatch = networkp.hKernel + networkp.hWin - 1
-   local wOffset = 0
-   local hOffset = math.ceil(networkp.hKernel/2)-1
-   local i = 1
-   while i <= learningp.n_train_set do
-      local iImg = randInt(1, #raw_data.polar_images + 1)
-      local x = randInt(1, networkp.wInput - wPatch)
-      local y = randInt(1, networkp.hInput - hPatch)
-      local mask_patch = raw_data.polar_prev_images_masks[iImg]:sub(y, y+hPatch-1,
-								    x, x+wPatch-1)
-      local gt_mask_center = raw_data.polar_groundtruth_masks[iImg][y+hOffset][x+wOffset]
-
-      if (mask_patch:lt(0.1):sum() == 0) and (gt_mask_center > 0.9) then
-	 patches.patches[i] = {iImg, y, y+hPatch, x, x+wPatch}
-	 patches.flow[i] = raw_data.polar_groundtruth[iImg][y+hOffset][x+wOffset]
-	 i = i + 1
-      end
-   end
-   return patches
-end
---]]
