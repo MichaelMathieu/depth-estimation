@@ -175,17 +175,17 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
       local i = 1
       local names = self:get_image_names()
       while i <= nSamples do
-	 xlua.progress(i, nSamples)
+	 modProgress(i, nSamples, 10)
 	 local iImg = randInt(1, #names+1)
 	 local name = names[iImg]
 	 local x = randInt(1, datap.wImg - wPatch)
 	 local y = randInt(1, datap.hImg - hPatch)
-	 local mask_val = self:get_mask_by_name(name)[{{y,y+hOffset-1},{x,x+wOffset-1}}]
+	 local mask_val = self:get_mask_by_name(name)[{{y,y+hOffset-1},{x,x+wOffset-1}}]:clone()
 	 mask_val:add(-1)
 	 local flow, conf = self:get_gt_by_name(name)
-	 flow = flow[{{},y+hOffset, x+wOffset}]:clone()
-	 conf = conf[{y+hOffset, x+wOffset}]
-	 if (mask_val:abs():sum() < 0.1) and (conf > 0.5) then
+	 local flowval = flow[{{},y+hOffset, x+wOffset}]:clone()
+	 local confval = conf[{y+hOffset, x+wOffset}]
+	 if (mask_val:abs():sum() < 0.1) and (confval > 0.5) then
 	    patches[i] = {
 	       patch1 = function()
 			   return self:get_prev_image_by_name(name):sub(1,3,
@@ -197,8 +197,8 @@ function new_dataset(path, calibrationp, datap, groundtruthp)
 								   y,y+hPatch-1,
 								   x,x+wPatch-1)
 			end,
-	       target = flow,
-	       targetCrit = (flow[1]+math.ceil(datap.hWin/2)-1)*datap.wWin + flow[2]+math.ceil(datap.wWin/2)-1 + 1
+	       target = flowval,
+	       targetCrit = (flowval[1]+math.ceil(datap.hWin/2)-1)*datap.wWin + flowval[2]+math.ceil(datap.wWin/2)-1 + 1
 	    }
 	    i = i + 1
 	 end
